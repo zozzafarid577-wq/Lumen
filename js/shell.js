@@ -97,8 +97,8 @@ function sidebarHtml(which, profile) {
   return `
     <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/'}">
       <span class="b-dot"><svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <path d="M20 17v19a12 12 0 0 0 24 0V17" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
-        <rect x="17" y="50" width="30" height="6" rx="3" fill="#CE81CB"/>
+        <path d="M17 7v24a15 15 0 0 0 30 0V7" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+        <rect x="12" y="53" width="40" height="8" rx="4" fill="currentColor"/>
       </svg></span>
       ${brandLabel}
     </a>

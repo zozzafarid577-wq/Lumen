@@ -1,7 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lumen">
-  <rect width="64" height="64" rx="15" fill="#171314"/>
-  <!-- The mark is the logo's own idea: a plain letterform with the
-       underscored purple "u". Here only the "u" survives the crop. -->
-  <path d="M20 17v19a12 12 0 0 0 24 0V17" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
-  <rect x="17" y="50" width="30" height="6" rx="3" fill="#A2509F"/>
+  <!-- The logo's own idea, cropped to the one letter that carries it:
+       the underscored "u". No background plate — the mark sits on
+       whatever is behind it, light or dark.
+
+       It is drawn close to the edges of the canvas on purpose. A tab
+       favicon is 16px, and every unit of padding here is lost at that
+       size before the glyph is. -->
+  <path d="M17 7v24a15 15 0 0 0 30 0V7" fill="none" stroke="#A2509F" stroke-width="9" stroke-linecap="round"/>
+  <rect x="12" y="53" width="40" height="8" rx="4" fill="#A2509F"/>
 </svg>

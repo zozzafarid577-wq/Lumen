@@ -54,7 +54,3 @@ export async function assertCanAddStudent(teacherId) {
   return { used, allowed, left: allowed - used };
 }
 
-// A trial gets a small allowance so a teacher can set up and try the
-// portal with a handful of real students before committing to a tier.
-export const TRIAL_STUDENT_LIMIT = 10;
-export const TRIAL_DAYS = 14;

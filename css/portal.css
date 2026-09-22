@@ -92,13 +92,16 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   border-bottom: 1px solid var(--border);
   font-size: 1.05rem; color: var(--text); overflow: hidden; white-space: nowrap;
 }
+/* The mark sits on the sidebar itself rather than on a coloured chip, so
+   it reads the same here as it does in the browser tab. `color` drives
+   both halves of it — the stroke and the underline are currentColor —
+   which is also what makes it lighten by itself in dark mode. */
 .sidebar-brand .b-dot {
-  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-  background: var(--text); color: #fff;
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: none; color: var(--primary);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow-xs);
 }
-.sidebar-brand .b-dot svg { width: 22px; height: 22px; }
+.sidebar-brand .b-dot svg { width: 27px; height: 27px; }
 .sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 10px; }
 .sidebar-scroll::-webkit-scrollbar { width: 3px; }
 .sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -498,7 +501,6 @@ html[data-theme="dark"] .modal { background: var(--card); }
 html[data-theme="dark"] .form-input,
 html[data-theme="dark"] .form-select,
 html[data-theme="dark"] .form-textarea { background: #221C24; color: var(--text); }
-html[data-theme="dark"] .sidebar-brand .b-dot { background: var(--primary); }
 html[data-theme="dark"] .btn-outline { background: var(--surface); }
 html[data-theme="dark"] .badge { background: #2A2230; color: var(--text-2); }
 /* Keep the right/wrong answer tints readable on a dark surface. */

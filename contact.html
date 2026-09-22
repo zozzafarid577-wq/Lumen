@@ -21,7 +21,7 @@
     </nav>
     <div class="nav-cta">
       <a href="/login.html" class="btn btn-ghost btn-sm">Sign in</a>
-      <a href="/register.html" class="btn btn-primary btn-sm">Start free trial</a>
+      <a href="/contact.html" class="btn btn-primary btn-sm">Book a call</a>
       <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
@@ -45,13 +45,13 @@
         <div class="panel panel-blush">
           <h3 style="font-size:1.05rem;margin-bottom:18px">What happens next</h3>
           <div class="check-list">
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We reply and arrange a short call</div>
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We agree the package and the tier for your class size</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>You send your details and pick a time below</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>On the call we agree the package and the tier for your class size</div>
             <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We build your space and load your first content</div>
             <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We walk you through it, and you go live</div>
           </div>
           <p style="font-size:.85rem;margin-top:20px;color:var(--muted)">
-            Prefer to try it yourself first? <a href="/register.html" style="color:var(--primary);font-weight:600">Start a free 14-day trial</a> — no setup fee, up to 10 students.
+            Prefer to just email? <a href="mailto:lumenacademy21@gmail.com" style="color:var(--primary);font-weight:600">lumenacademy21@gmail.com</a>
           </p>
         </div>
       </div>
@@ -106,10 +106,55 @@
           <button type="submit" class="btn btn-primary btn-block btn-lg">Send request</button>
           <p style="font-size:.78rem;color:var(--muted);margin-top:14px;text-align:center">
             We use these details only to contact you about setting up your space.
+            Then pick a time below — it takes a minute.
           </p>
         </form>
       </div>
 
+    </div>
+  </div>
+</section>
+
+<!-- ── BOOK THE CALL ──────────────────────────────────────────── -->
+<section class="section section-alt" id="book">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Step two</div>
+      <h2>Book your setup call</h2>
+      <p>Pick a time that suits you. We will go through your class, your content and
+         which package fits, and your space is built straight after.</p>
+    </div>
+
+    <div class="panel" style="padding:0;overflow:hidden">
+      <!-- Google's appointment schedule.
+           Two things to know if this ever needs changing:
+           · The ?gv=true URL is the embeddable one. The short
+             calendar.app.google link is NOT — it answers with
+             X-Frame-Options: SAMEORIGIN and renders as a blank box.
+           · Plenty of browsers block third-party frames outright
+             regardless. So the card below is shown first and the iframe
+             only replaces it once it has actually loaded; a blocked
+             frame leaves the card in place rather than a blank panel. -->
+      <iframe id="book-frame"
+        src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ2yrr82lXIOJMAWfDMpUdGKWYa51XeSkXEoOQUIXuadFtQC800UvAndZFy1OCQYn0v6XD_I9aq2?gv=true"
+        title="Book a setup call with Lumen"
+        loading="lazy"
+        style="border:0;width:100%;height:660px;display:block"></iframe>
+    </div>
+
+    <!-- Always here, never conditional. Whether a third-party frame
+         renders is the browser's call, not ours, and there is no
+         reliable way to ask it after the fact — a refused frame still
+         fires `load`. So the way out is simply always on the page,
+         which costs one line and works in every case. -->
+    <div style="text-align:center;margin-top:22px">
+      <a href="https://calendar.app.google/LcnPSSChfHWaALB38" target="_blank" rel="noopener"
+         class="btn btn-outline">Open the booking calendar in a new tab</a>
+      <p style="margin-top:14px;font-size:.86rem;color:var(--muted)">
+        Rather not book online? Email
+        <a href="mailto:lumenacademy21@gmail.com" style="color:var(--primary);font-weight:600">lumenacademy21@gmail.com</a>
+        and we will find a time.
+      </p>
     </div>
   </div>
 </section>
@@ -132,7 +177,7 @@
       <div>
         <h4>Get started</h4>
         <ul>
-          <li><a href="/register.html">Start free trial</a></li>
+          <li><a href="/contact.html">Book a call</a></li>
           <li><a href="/contact.html">Request a setup</a></li>
           <li><a href="/login.html">Sign in</a></li>
         </ul>
@@ -141,6 +186,7 @@
         <h4>Support</h4>
         <ul>
           <li><a href="/contact.html">Contact us</a></li>
+          <li><a href="mailto:lumenacademy21@gmail.com">lumenacademy21@gmail.com</a></li>
           <li><a href="/login.html">Student sign-in</a></li>
         </ul>
       </div>

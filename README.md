@@ -13,7 +13,7 @@ the day-to-day work Lumen carries and how many students the teacher has.
 | Path             | What it is                                                              |
 | ---------------- | ----------------------------------------------------------------------- |
 | `index.html`, `pricing.html`, `features.html`, `contact.html` | The public site |
-| `login.html`, `register.html`, `forgot-password.html`, `reset-password.html` | Sign-in and self-serve trial signup |
+| `login.html`, `forgot-password.html`, `reset-password.html` | Sign-in and password recovery |
 | `teacher/`       | The teacher portal — the management system                              |
 | `portal/`        | The student portal                                                      |
 | `admin/`         | The Lumen console — teacher spaces, billing, leads                      |
@@ -80,8 +80,11 @@ made outside the app:
 3. Sign in at `/login.html`. You land in `/admin/`.
 
 From there, "Open a space" creates a teacher, their sign-in and their
-subscription in one go. Teachers can also start their own 14-day trial at
-`/register.html`.
+subscription in one go.
+
+There is no self-serve signup: a teacher cannot create their own space.
+Every space is opened by Lumen from the console, after the call they book
+on `/contact.html`.
 
 ### A note on this being a public repo
 
@@ -159,7 +162,6 @@ already have one: the teacher's payment is not the class's problem.
 
 | Endpoint              | Who may call it        | What it does                                   |
 | --------------------- | ---------------------- | ---------------------------------------------- |
-| `POST /api/signup-teacher` | anyone            | Opens a new space on a free trial              |
 | `POST /api/students`  | teacher, assistant*    | Create, reset password, pause, delete          |
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
@@ -167,6 +169,9 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/teachers`  | owner                  | Open spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.
+
+No endpoint here is public. Every one of them authenticates the caller
+first — which is the whole reason a teacher cannot open their own space.
 
 Anything that needs the service-role key lives here: creating auth users,
 setting passwords, deleting accounts, and writing rows that must land
