@@ -166,7 +166,7 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
-| `POST /api/teachers`  | owner                  | Open spaces, set plans, raise and settle invoices |
+| `POST /api/teachers`  | owner                  | Open and delete spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.
 
@@ -176,6 +176,33 @@ first — which is the whole reason a teacher cannot open their own space.
 Anything that needs the service-role key lives here: creating auth users,
 setting passwords, deleting accounts, and writing rows that must land
 together. Everything else goes straight from the browser through RLS.
+
+## Deleting a teacher space
+
+The one irreversible action in the product. It removes the teacher, every
+account in their space, all their content and every result their students
+recorded, and it is deliberately awkward: the console shows the counts
+first and the slug has to be typed back before anything happens.
+
+Two things it does that the database will not do on its own:
+
+- **The auth users go first.** Deleting the `teachers` row cascades
+  through the content, but never reaches `auth.users` — those rows hang
+  off `profiles` the other way round. Left behind they would hold their
+  email addresses forever, so nobody in that space could be re-created.
+- **If an account will not delete, the space is left standing.** Removing
+  accounts and removing the row are two steps; a run that dies between
+  them must be safe to repeat, and it only is while the row is still
+  there to find the rest by.
+
+The deletion is logged with a null `teacher_id` on purpose — a log line
+pointing at the deleted tenant would cascade away with it, and this is
+the event most worth still having afterwards. Nothing in the console
+displays those lines yet; read them from `activity_log` in SQL.
+
+Pausing a space is the reversible alternative and is what the dialog
+pushes you towards: it hides the portal from everyone in the space and
+deletes nothing.
 
 ## Tests
 

@@ -4,7 +4,7 @@ vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
 import {
   resetSupabaseMock, configureSupabaseMock, getSupabaseCalls,
-  OWNER_USER, TEACHER_USER, ASSISTANT_USER, TEACHER_ID,
+  OWNER_USER, TEACHER_USER, ASSISTANT_USER, TEACHER_ID, PROFILES,
 } from '../helpers/supabase-mock.js';
 import { asUser } from '../helpers/as.js';
 import { makeReq, makeRes } from '../helpers/http.js';
@@ -169,6 +169,99 @@ describe('invoices', () => {
   });
 });
 
+describe('deleting a space', () => {
+  const PEOPLE = [
+    { id: 'u1', full_name: 'The Teacher', role: 'teacher' },
+    { id: 'u2', full_name: 'An Assistant', role: 'assistant' },
+    { id: 'u3', full_name: 'A Student',    role: 'student' },
+  ];
+
+  beforeEach(() => {
+    configureSupabaseMock({ results: {
+      // `profiles` is read three ways here: authenticate() looks the
+      // caller up by id, countTenant() counts by role, and the delete
+      // lists everyone in the space. One resolver, answering by filter.
+      'profiles.select': (call) => {
+        if (call.opts?.count) return { data: null, error: null, count: 4 };
+        if (call.filters.id) return { data: PROFILES[call.filters.id] || null, error: null };
+        return { data: PEOPLE, error: null };
+      },
+      'courses.select':                { data: null, error: null, count: 2 },
+      'practice_tests.select':         { data: null, error: null, count: 7 },
+      'test_attempts.select':          { data: null, error: null, count: 91 },
+      'assignment_submissions.select': { data: null, error: null, count: 12 },
+    } });
+  });
+
+  it('shows what will be destroyed before asking to confirm', async () => {
+    const res = await call({ action: 'delete_preview', teacher_id: TEACHER_ID });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.counts).toMatchObject({ courses: 2, tests: 7, attempts: 91 });
+    expect(res.body.confirm_with).toBe('advanced-biology');
+    // A preview must not touch anything.
+    expect(getSupabaseCalls('auth.admin.deleteUser')).toHaveLength(0);
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(0);
+  });
+
+  it('refuses without the slug typed back', async () => {
+    const res = await call({ action: 'delete', teacher_id: TEACHER_ID });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/advanced-biology/);
+    expect(getSupabaseCalls('auth.admin.deleteUser')).toHaveLength(0);
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(0);
+  });
+
+  it('refuses when the slug typed is the wrong one', async () => {
+    // The whole safety mechanism. An id is easy to get wrong in a
+    // request body; a slug typed by hand is not an accident.
+    const res = await call({ action: 'delete', teacher_id: TEACHER_ID, confirm_slug: 'some-other-space' });
+    expect(res.statusCode).toBe(400);
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(0);
+  });
+
+  it('removes every account, then the space', async () => {
+    const res = await call({ action: 'delete', teacher_id: TEACHER_ID, confirm_slug: 'Advanced-Biology' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.accounts_removed).toBe(3);
+
+    // Deleting the teachers row cascades the content but never reaches
+    // auth.users — left behind, those rows would hold their email
+    // addresses forever.
+    const removed = getSupabaseCalls('auth.admin.deleteUser').map(c => c.payload.id);
+    expect(removed.sort()).toEqual(['u1', 'u2', 'u3']);
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(1);
+  });
+
+  it('leaves the space standing when an account will not delete', async () => {
+    configureSupabaseMock({ results: {
+      'auth.admin.deleteUser': (c) => c.payload.id === 'u2'
+        ? { data: null, error: { message: 'still referenced' } }
+        : { data: {}, error: null },
+    } });
+
+    const res = await call({ action: 'delete', teacher_id: TEACHER_ID, confirm_slug: 'advanced-biology' });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body.error).toMatch(/An Assistant/);
+    // Re-running has to be able to finish the job, which it only can if
+    // the row is still there.
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(0);
+  });
+
+  it('records the deletion outside the space it deleted', async () => {
+    await call({ action: 'delete', teacher_id: TEACHER_ID, confirm_slug: 'advanced-biology' });
+
+    const [log] = getSupabaseCalls('activity_log.insert');
+    // A log line pointing at the deleted tenant would cascade away with
+    // it, and this is the event most worth still having afterwards.
+    expect(log.payload.teacher_id).toBeNull();
+    expect(log.payload.event_type).toBe('space_deleted');
+    expect(log.payload.detail).toMatch(/advanced-biology/);
+  });
+});
+
 describe('who may call it', () => {
   it('turns away a teacher', async () => {
     asUser(TEACHER_USER);
@@ -183,6 +276,13 @@ describe('who may call it', () => {
     asUser(ASSISTANT_USER);
     const res = await call({ action: 'set_active', teacher_id: TEACHER_ID, is_active: false });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('turns a teacher away from deleting a space', async () => {
+    asUser(TEACHER_USER);
+    const res = await call({ action: 'delete', teacher_id: TEACHER_ID, confirm_slug: 'advanced-biology' });
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('teachers.delete')).toHaveLength(0);
   });
 
   it('rejects an unknown action', async () => {

@@ -20,6 +20,8 @@ export default handler(async (req, res) => {
     case 'set_active':    return setActive(res, profile, body);
     case 'add_invoice':   return addInvoice(res, profile, body);
     case 'mark_paid':     return markPaid(res, profile, body);
+    case 'delete_preview':return deletePreview(res, body);
+    case 'delete':        return deleteSpace(res, profile, body);
     default: throw new HttpError(400, 'Unknown action.');
   }
 });
@@ -160,6 +162,102 @@ async function setActive(res, actor, body) {
 
   await logActivity(teacher.id, actor, active ? 'space_reopened' : 'space_paused', teacher.display_name);
   return res.status(200).json({ ok: true, is_active: active });
+}
+
+// ── Deleting a space ──────────────────────────────────────────────
+// The most destructive thing in the product: a teacher's courses, their
+// students' accounts, and every result those students ever recorded.
+// Nothing about it is recoverable, so it is deliberately awkward — the
+// caller has to have seen what they are about to destroy and type the
+// space's slug back.
+
+// What the confirmation dialog shows. Counted with the service-role
+// client because Lumen staff deliberately have no read policy over
+// teaching content — they can see that a space has 40 tests, not what
+// is in them.
+async function deletePreview(res, body) {
+  const teacher = await getTeacher(body.teacher_id);
+  const counts = await countTenant(teacher.id);
+  return res.status(200).json({
+    teacher: { id: teacher.id, slug: teacher.slug, display_name: teacher.display_name },
+    counts,
+    confirm_with: teacher.slug,
+  });
+}
+
+async function countTenant(teacherId) {
+  const count = async (table, extra = q => q) => {
+    const { count: n } = await extra(
+      admin.from(table).select('id', { count: 'exact', head: true }).eq('teacher_id', teacherId));
+    return n || 0;
+  };
+  const [students, assistants, courses, tests, attempts, submissions] = await Promise.all([
+    count('profiles', q => q.eq('role', 'student')),
+    count('profiles', q => q.eq('role', 'assistant')),
+    count('courses'),
+    count('practice_tests'),
+    count('test_attempts'),
+    count('assignment_submissions'),
+  ]);
+  return { students, assistants, courses, tests, attempts, submissions };
+}
+
+async function deleteSpace(res, actor, body) {
+  const teacher = await getTeacher(body.teacher_id);
+
+  // Typing the slug is the whole safety mechanism. An id in a request
+  // body is easy to get wrong; a slug typed by hand is not something
+  // that happens by accident.
+  const typed = String(body.confirm_slug || '').trim().toLowerCase();
+  if (typed !== teacher.slug.toLowerCase()) {
+    throw new HttpError(400, `To delete this space, type its name exactly: ${teacher.slug}`);
+  }
+
+  const counts = await countTenant(teacher.id);
+
+  // Deleting the teachers row cascades through the content, but NOT
+  // through auth.users — those rows hang off profiles the other way
+  // round. Left behind they would hold their email addresses forever,
+  // so nobody in this space could ever be re-created, and each would
+  // still carry app_metadata pointing at a tenant that no longer
+  // exists. So the accounts go first.
+  const { data: people, error: pErr } = await admin
+    .from('profiles').select('id, full_name, role').eq('teacher_id', teacher.id);
+  if (pErr) throw new HttpError(500, 'Could not list the accounts in that space.');
+
+  const failed = [];
+  // A space can hold 150 students, and a serverless function does not
+  // have all day. Small batches keep it moving without opening 150
+  // connections at once.
+  for (let i = 0; i < people.length; i += 8) {
+    const batch = people.slice(i, i + 8);
+    const results = await Promise.allSettled(
+      batch.map(p => admin.auth.admin.deleteUser(p.id).then(r => {
+        if (r?.error) throw new Error(r.error.message);
+      })));
+    results.forEach((r, j) => { if (r.status === 'rejected') failed.push(batch[j].full_name); });
+  }
+
+  // Deleting accounts and deleting the space are two steps, so a run
+  // that dies between them leaves the space standing with some accounts
+  // gone. Re-running finishes the job rather than erroring, which is
+  // why the accounts are removed first and the row last.
+  if (failed.length) {
+    throw new HttpError(500,
+      `${failed.length} account${failed.length === 1 ? '' : 's'} could not be deleted (${failed.slice(0, 3).join(', ')}). Nothing else was removed — try again.`);
+  }
+
+  const { error: dErr } = await admin.from('teachers').delete().eq('id', teacher.id);
+  if (dErr) throw new HttpError(500, 'The accounts were removed but the space itself was not. Please try again.');
+
+  // teacher_id is null on purpose: a log line pointing at the deleted
+  // space would cascade away with it, and this is the one event most
+  // worth still having afterwards.
+  await logActivity(null, actor,
+    'space_deleted',
+    `${teacher.display_name} (${teacher.slug}) — ${counts.students} students, ${counts.courses} courses, ${counts.attempts} results`);
+
+  return res.status(200).json({ ok: true, deleted: counts, accounts_removed: people.length });
 }
 
 // ── Invoices ──────────────────────────────────────────────────────

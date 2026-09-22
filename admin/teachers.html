@@ -159,6 +159,45 @@
   </div>
 </div>
 
+<!-- ── DELETE A SPACE ─────────────────────────────────────────── -->
+<div class="modal-backdrop" id="del-modal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-head">
+      <span class="modal-title">Delete this space</span>
+      <button class="modal-close" onclick="closeModal('del-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="del-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="alert alert-error mb16">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>This removes the teacher, every account in their space, all their content and
+             <strong>every result their students ever recorded</strong>. It cannot be undone.</div>
+      </div>
+
+      <div id="del-counts"><div class="skel" style="height:80px"></div></div>
+
+      <div class="alert alert-info" style="margin:16px 0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>If you only need to stop access, <strong>pause</strong> the space instead. That hides
+             the portal from everyone in it and deletes nothing.</div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="del-confirm">Type <strong id="del-slug">the space name</strong> to confirm</label>
+        <input type="text" class="form-input" id="del-confirm" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('del-modal')">Cancel</button>
+      <button class="btn btn-outline" id="del-pause">Pause instead</button>
+      <button class="btn btn-danger" id="del-go" onclick="confirmDelete()">Delete for good</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toasts"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -245,6 +284,7 @@ function render() {
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>
         <button class="btn btn-ghost btn-xs" onclick="togglePause('${t.id}')">${t.is_active ? 'Pause' : 'Reopen'}</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${t.id}')">Delete</button>
       </td>
     </tr>`;
   }).join('');
@@ -346,6 +386,79 @@ async function savePlan() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save subscription';
+  }
+}
+
+// ── Delete a space ────────────────────────────────────────────────
+let pendingDelete = null;
+
+async function askDelete(id) {
+  const t = spaces.find(x => x.id === id);
+  if (!t) return;
+  pendingDelete = t;
+
+  document.getElementById('del-slug').textContent = t.slug;
+  document.getElementById('del-confirm').value = '';
+  document.getElementById('del-counts').innerHTML = '<div class="skel" style="height:80px"></div>';
+  document.getElementById('del-pause').onclick = async () => {
+    closeModal('del-modal');
+    if (t.is_active) await togglePause(id);
+  };
+  const go = document.getElementById('del-go');
+  go.disabled = false;
+  go.textContent = 'Delete for good';
+  say('del-alert', '');
+  openModal('del-modal');
+
+  // Show what is about to go before asking them to confirm it. Lumen
+  // staff have no read policy over teaching content, so the counts come
+  // back from the server rather than from a query here.
+  try {
+    const { counts } = await apiPost('/api/teachers', { action: 'delete_preview', teacher_id: id });
+    const rows = [
+      ['Students', counts.students],
+      ['Assistants', counts.assistants],
+      ['Courses', counts.courses],
+      ['Tests', counts.tests],
+      ['Results recorded', counts.attempts],
+      ['Work handed in', counts.submissions],
+    ];
+    document.getElementById('del-counts').innerHTML = `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:6px 16px">
+        ${rows.map(([label, n]) => `
+          <div class="spread" style="padding:8px 0${label === 'Work handed in' ? '' : ';border-bottom:1px solid var(--border)'}">
+            <span class="small muted">${escHtml(label)}</span>
+            <span class="small" style="font-weight:700${n ? ';color:var(--danger)' : ''}">${n}</span>
+          </div>`).join('')}
+      </div>`;
+  } catch (err) {
+    document.getElementById('del-counts').innerHTML = '';
+    say('del-alert', err.message);
+  }
+}
+
+async function confirmDelete() {
+  if (!pendingDelete) return;
+  const go = document.getElementById('del-go');
+  go.disabled = true;
+  go.textContent = 'Deleting…';
+  say('del-alert', '');
+
+  try {
+    const out = await apiPost('/api/teachers', {
+      action: 'delete',
+      teacher_id: pendingDelete.id,
+      confirm_slug: document.getElementById('del-confirm').value,
+    });
+    closeModal('del-modal');
+    showToast(`${pendingDelete.display_name} deleted — ${out.accounts_removed} account${out.accounts_removed === 1 ? '' : 's'} removed.`, 'success');
+    pendingDelete = null;
+    await load();
+  } catch (err) {
+    say('del-alert', err.message);
+  } finally {
+    go.disabled = false;
+    go.textContent = 'Delete for good';
   }
 }
 
