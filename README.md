@@ -69,20 +69,28 @@ Environment Variables):
 ### 4. The first Lumen account
 
 Row-level security has no back door, so the very first account has to be
-made by hand. In the Supabase dashboard:
+made outside the app:
 
 1. **Authentication → Users → Add user**, with your email and a password.
-2. On that user, set the app metadata to `{ "role": "owner" }`.
-3. In the SQL editor:
+   Tick "Auto Confirm User".
+2. Open `supabase-owner-setup.sql`, put that email at the top, and run it
+   in the SQL editor. It sets both halves — the `role` claim the policies
+   read out of the JWT, and the `profiles` row the portal reads — and
+   prints them back so you can see they match.
+3. Sign in at `/login.html`. You land in `/admin/`.
 
-   ```sql
-   INSERT INTO public.profiles (id, role, full_name, email, must_change_pw)
-   VALUES ('<the new user id>', 'owner', 'Your Name', 'you@example.com', false);
-   ```
+From there, "Open a space" creates a teacher, their sign-in and their
+subscription in one go. Teachers can also start their own 14-day trial at
+`/register.html`.
 
-Sign in at `/login.html` and you land in `/admin/`. From there, "Open a
-space" creates a teacher, their sign-in and their subscription in one go.
-Teachers can also start their own 14-day trial at `/register.html`.
+### A note on this being a public repo
+
+`js/config.js` is served to every visitor, so its contents are public
+whatever the repo's visibility — that is fine for the anon key, which is
+designed for it, **provided `supabase-setup.sql` has actually been run**.
+Without those policies the anon key reads everything. The service-role key
+belongs only in the deployment's environment variables, never in `js/`,
+and never in a commit.
 
 ## How the tenancy works
 
