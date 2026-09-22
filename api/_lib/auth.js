@@ -103,7 +103,12 @@ export function handler(fn, { methods = ['POST'] } = {}) {
     try {
       return await fn(req, res);
     } catch (err) {
-      if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+      // HttpError, and anything else carrying a deliberate status — the
+      // configuration errors from _lib/supabase.js do, so a deployment
+      // missing a variable says which one instead of dying namelessly.
+      if (err && Number.isInteger(err.status) && err.status >= 400 && err.status < 600) {
+        return res.status(err.status).json({ error: err.message });
+      }
       console.error('Unhandled API error:', err);
       return res.status(500).json({ error: 'Something went wrong on our side. Please try again.' });
     }
