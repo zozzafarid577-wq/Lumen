@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leads | Lumen console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Leads</span>
+    </div>
+    <div class="topbar-right">
+      <select class="form-select" id="status-filter" style="max-width:170px" aria-label="Filter by status">
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="won">Won</option>
+        <option value="lost">Lost</option>
+        <option value="">All</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">From the website</span>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="card-body" id="list"><div class="skel" style="height:90px"></div></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let leads = [];
+
+(async () => {
+  me = await requireAuth('owner');
+  if (!me) return;
+  renderShell('admin', me, { title: 'Leads' });
+  await load();
+  document.getElementById('status-filter').addEventListener('change', render);
+})();
+
+async function load() {
+  const { data, error } = await sb.from('leads').select('*').order('created_at', { ascending: false });
+  const host = document.getElementById('list');
+  if (error) { host.innerHTML = `<div class="alert alert-error">${escHtml(friendlyError(error.message))}</div>`; return; }
+  leads = data || [];
+  render();
+}
+
+function render() {
+  const status = document.getElementById('status-filter').value;
+  const list = leads.filter(l => !status || l.status === status);
+  document.getElementById('count').textContent = `${list.length} of ${leads.length}`;
+
+  const host = document.getElementById('list');
+  if (!list.length) {
+    host.innerHTML = emptyState(
+      leads.length ? 'Nothing with that status' : 'No enquiries yet',
+      'Requests from the contact form on the site land here.');
+    return;
+  }
+
+  host.innerHTML = list.map(l => `
+    <div style="border:1px solid var(--border);border-radius:13px;padding:16px 18px;margin-bottom:12px">
+      <div class="spread" style="align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:700;font-size:.9rem">${escHtml(l.full_name)}</div>
+          <div class="small muted">
+            ${escHtml(l.subject || 'Subject not given')}
+            ${l.student_count ? ' · ' + l.student_count + ' students' : ''}
+            ${l.plan_code ? ' · wants ' + escHtml(l.plan_code) : ''}
+            · ${timeAgo(l.created_at)}
+          </div>
+        </div>
+        <span class="badge ${{ new: 'b-brand', contacted: 'b-yellow', won: 'b-green', lost: 'b-gray' }[l.status] || 'b-gray'}">${escHtml(l.status)}</span>
+      </div>
+
+      ${l.message ? `<p class="small" style="white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:11px 13px;margin-bottom:10px">${escHtml(l.message)}</p>` : ''}
+
+      <div class="row">
+        <a href="mailto:${escHtml(l.email)}" class="btn btn-outline btn-xs">${escHtml(l.email)}</a>
+        ${l.phone ? `<a href="https://wa.me/${escHtml(l.phone.replace(/\D/g, ''))}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">WhatsApp ${escHtml(l.phone)}</a>` : ''}
+        <span class="grow"></span>
+        ${['contacted', 'won', 'lost'].filter(s => s !== l.status)
+          .map(s => `<button class="btn btn-ghost btn-xs" onclick="setStatus('${l.id}','${s}')">Mark ${s}</button>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function setStatus(id, status) {
+  const { error } = await sb.from('leads').update({ status }).eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast(`Marked ${status}.`, 'success');
+  await load();
+}
+</script>
+</body>
+</html>

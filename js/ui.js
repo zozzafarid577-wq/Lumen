@@ -1,0 +1,212 @@
+// ─────────────────────────────────────────────────────────────────
+// Lumen — page chrome and formatting helpers
+//
+// Everything here works without a network connection or a signed-in
+// user, so it is safe to load before auth.js and to call from a page
+// that is still showing its skeleton.
+// ─────────────────────────────────────────────────────────────────
+
+// ── Escaping and formatting ───────────────────────────────────────
+
+// Every value that reaches innerHTML goes through this. Student names,
+// lesson titles and a teacher's own announcement text are all user input.
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str ?? '';
+  return d.innerHTML;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// For <input type="datetime-local">, which wants local time with no zone.
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (secs < 60)    return 'just now';
+  if (secs < 3600)  return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 2592000) return `${Math.floor(secs / 86400)}d ago`;
+  return fmtDate(iso);
+}
+
+function initials(name) {
+  return (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+// Egyptian pounds, the currency every price in Lumen is quoted in.
+function egp(amount) {
+  if (amount == null) return '—';
+  return Number(amount).toLocaleString('en-US') + ' EGP';
+}
+
+function pct(n, digits = 0) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toFixed(digits) + '%';
+}
+
+// ── Toasts ────────────────────────────────────────────────────────
+
+function showToast(msg, type = '') {
+  let wrap = document.getElementById('toasts');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'toasts';
+    wrap.className = 'toast-wrap';
+    document.body.appendChild(wrap);
+  }
+  const el = document.createElement('div');
+  el.className = 'toast-msg' + (type ? ' toast-' + type : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3600);
+}
+const toast = showToast;
+
+// ── Modals ────────────────────────────────────────────────────────
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('open', 'show');
+  // Give the first field focus so a keyboard user does not have to hunt
+  // for it, but never a button — that turns Enter into an accidental save.
+  const first = el.querySelector('input:not([type=hidden]), select, textarea');
+  if (first) setTimeout(() => first.focus(), 60);
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open', 'show');
+}
+
+// Escape closes the topmost open modal — expected of any dialog.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = [...document.querySelectorAll('.modal-backdrop.open, .modal-overlay.show')].pop();
+  if (open) open.classList.remove('open', 'show');
+});
+
+// ── Sidebar (mobile) ──────────────────────────────────────────────
+
+function toggleSidebar() {
+  document.getElementById('sidebar')?.classList.toggle('open');
+  document.getElementById('overlay')?.classList.toggle('show');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('overlay')?.classList.remove('show');
+}
+
+// Mark the nav link for the page we are on, so every page does not have
+// to hard-code `class="active"` on a different item.
+function markActiveNav() {
+  const here = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+  document.querySelectorAll('.sidebar a.nav-item').forEach(a => {
+    const href = (a.getAttribute('href') || '').replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+    if (href === here) a.classList.add('active');
+  });
+}
+
+// ── The page could not be drawn ───────────────────────────────────
+// Better than a skeleton that never resolves: say what happened, and
+// leave the session alone so a reload puts them straight back.
+const SERVICE_DOWN_MESSAGE =
+  'Lumen is temporarily unavailable while we carry out maintenance. Nothing has been lost — your work and your students’ results are safe. Please try again in a little while.';
+const CONNECTION_FAILED_MESSAGE =
+  'We could not reach Lumen. Please check your internet connection and try again. Your work is safe.';
+
+function onBodyReady(fn) {
+  if (typeof document === 'undefined') return;
+  if (document.body) { fn(); return; }
+  document.addEventListener('DOMContentLoaded', fn, { once: true });
+}
+
+function showOutageScreen(message) {
+  if (!document.body) { onBodyReady(() => showOutageScreen(message)); return; }
+  if (document.getElementById('outage-screen')) return;
+  const el = document.createElement('div');
+  el.id = 'outage-screen';
+  el.setAttribute('role', 'alert');
+  el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#FDF6F7;display:flex;align-items:center;'
+    + 'justify-content:center;padding:24px;font-family:Inter,system-ui,sans-serif';
+  el.innerHTML = `
+    <div style="max-width:430px;background:#fff;border:1px solid #EDDDE6;border-radius:18px;padding:34px;text-align:center;box-shadow:0 10px 34px rgba(27,21,25,.09)">
+      <div style="font-family:Manrope,sans-serif;font-size:1.6rem;font-weight:500;letter-spacing:-.045em;margin-bottom:16px">L<span style="color:#A2509F;font-weight:700;border-bottom:.12em solid #A2509F">u</span>men</div>
+      <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;color:#1B1519;margin-bottom:10px">Back shortly</div>
+      <p style="margin:0 0 20px;font-size:.9rem;line-height:1.6;color:#554C53">${escHtml(message || SERVICE_DOWN_MESSAGE)}</p>
+      <button onclick="location.reload()" style="background:#A2509F;color:#fff;border:0;border-radius:9999px;padding:12px 26px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:Manrope,sans-serif">Try again</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+// Supabase's own operational wording ("exceed_egress_quota") tells a
+// student nothing except that something is broken. Recognise the ones
+// that mean "not your fault, try later" and say that instead.
+function isServiceOutage(message) {
+  const m = String(message || '').toLowerCase();
+  return m.includes('quota')
+    || m.includes('is restricted')
+    || m.includes('project is paused')
+    || m.includes('violations')
+    || m.includes('service unavailable')
+    || m.includes('failed to fetch')
+    || m.includes('networkerror')
+    || m.includes('load failed');
+}
+
+function friendlyError(message) {
+  return isServiceOutage(message) ? SERVICE_DOWN_MESSAGE : String(message || 'Something went wrong.');
+}
+
+// ── Theme ─────────────────────────────────────────────────────────
+(function theme() {
+  const KEY = 'lumen_theme';
+  const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  const SUN  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+
+  const current = () => document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+
+  function apply(t) {
+    if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem(KEY, t); } catch (_) {}
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.innerHTML = t === 'dark' ? SUN : MOON;
+  }
+
+  function mount() {
+    // Only on the app shell. A test page or the printable review has no
+    // business growing a floating button.
+    if (!document.querySelector('.main') || document.getElementById('theme-toggle')) return;
+    const btn = document.createElement('button');
+    btn.id = 'theme-toggle';
+    btn.className = 'theme-toggle no-print';
+    btn.type = 'button';
+    btn.title = 'Switch between light and dark';
+    btn.setAttribute('aria-label', 'Switch between light and dark');
+    btn.innerHTML = current() === 'dark' ? SUN : MOON;
+    btn.onclick = () => apply(current() === 'dark' ? 'light' : 'dark');
+    document.body.appendChild(btn);
+  }
+
+  try { if (localStorage.getItem(KEY) === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (_) {}
+  onBodyReady(mount);
+})();

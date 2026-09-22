@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscription | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Subscription</span>
+    </div>
+    <div class="topbar-right">
+      <a href="/contact.html" class="btn btn-outline btn-sm">Talk to Lumen</a>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="g2 mb24" style="align-items:start">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Your plan</span></div>
+        <div class="card-body" id="plan-box"><div class="skel" style="height:120px"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Student places</span></div>
+        <div class="card-body" id="usage-box"><div class="skel" style="height:120px"></div></div>
+      </div>
+    </div>
+
+    <div class="card mb24">
+      <div class="card-header">
+        <span class="card-title">Invoices</span>
+        <span class="small muted">Raised by Lumen</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Issued</th><th>What for</th><th>Period</th><th class="num">Amount</th><th>Status</th></tr></thead>
+          <tbody id="inv-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Changing plan</span></div>
+      <div class="card-body">
+        <p class="small mb16">
+          Plans and student limits are part of your agreement with Lumen, so they are changed by us rather than
+          from this page. Tell us what you need and we will move you — moving up a tier takes effect immediately
+          and nothing has to be rebuilt.
+        </p>
+        <div class="row">
+          <a href="/pricing.html" class="btn btn-outline btn-sm">See the tiers</a>
+          <a href="/contact.html" class="btn btn-primary btn-sm">Ask for a change</a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+
+const STATUS_LABEL = {
+  trial:     ['b-brand',  'Free trial'],
+  active:    ['b-green',  'Active'],
+  past_due:  ['b-red',    'Past due'],
+  paused:    ['b-gray',   'Paused'],
+  cancelled: ['b-gray',   'Cancelled'],
+};
+
+(async () => {
+  me = await requireAuth('teacher');
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Subscription' });
+  await Promise.all([loadPlan(), loadInvoices()]);
+})();
+
+async function loadPlan() {
+  const [{ data: sub }, allow] = await Promise.all([
+    sb.from('subscriptions').select('*, plans(name, package, listing)').eq('teacher_id', me.teacher_id).maybeSingle(),
+    studentAllowance(),
+  ]);
+
+  const planBox = document.getElementById('plan-box');
+  const usageBox = document.getElementById('usage-box');
+
+  if (!sub) {
+    planBox.innerHTML = emptyState('No subscription yet',
+      'Your space has not been put on a plan. Contact Lumen and we will set one up.');
+    usageBox.innerHTML = emptyState('Nothing to show', 'Student places appear once you are on a plan.');
+    return;
+  }
+
+  const [badgeClass, label] = STATUS_LABEL[sub.status] || ['b-gray', sub.status];
+  const renews = sub.status === 'trial' ? sub.trial_ends_at : sub.current_period_end;
+
+  planBox.innerHTML = `
+    <div class="spread mb16">
+      <div>
+        <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800">${escHtml(sub.plans?.name || 'Custom plan')}</div>
+        <div class="small muted">${sub.plans?.package === 'full' ? 'Platform + student support' : sub.plans ? 'Platform management' : 'Agreed directly with Lumen'}</div>
+      </div>
+      <span class="badge ${badgeClass}">${escHtml(label)}</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+      <span style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;color:var(--primary);line-height:1">${Number(sub.monthly_fee_egp).toLocaleString('en-US')}</span>
+      <span style="font-weight:700">EGP</span><span class="small muted">/ month</span>
+    </div>
+    <div class="spread small" style="margin-top:14px">
+      <span class="muted">${sub.status === 'trial' ? 'Trial ends' : 'Renews'}</span>
+      <span style="font-weight:600">${renews ? fmtDate(renews) : '—'}</span>
+    </div>
+    ${sub.setup_fee_egp ? `<div class="spread small" style="margin-top:8px">
+      <span class="muted">Setup fee</span>
+      <span style="font-weight:600">${egp(sub.setup_fee_egp)} · ${sub.setup_fee_paid ? 'paid' : 'due'}</span>
+    </div>` : ''}
+    ${sub.status === 'trial' ? `<div class="alert alert-info" style="margin-top:16px;font-size:.78rem">
+      <div>When the trial ends your space stays exactly as it is — nothing is deleted. Pick a package before then to keep adding students.</div>
+    </div>` : ''}`;
+
+  const used = allow?.used ?? 0;
+  const allowed = allow?.allowed ?? sub.student_limit;
+  const pctUsed = allowed ? Math.min(100, Math.round((used / allowed) * 100)) : 0;
+
+  usageBox.innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+      <span style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;line-height:1">${used}</span>
+      <span class="muted">of ${allowed} places used</span>
+    </div>
+    <div class="prog-bar" style="height:8px;margin:16px 0 10px"><div class="prog-fill" style="width:${pctUsed}%;background:${pctUsed >= 100 ? 'var(--danger)' : 'var(--primary)'}"></div></div>
+    <p class="small muted">
+      ${pctUsed >= 100
+        ? 'Every place on your plan is in use. Pausing a student frees theirs without deleting anything.'
+        : `${allowed - used} place${allowed - used === 1 ? '' : 's'} left. Paused students do not count against your plan.`}
+    </p>`;
+
+  if (allow) renderSubscriptionNotice(allow);
+}
+
+async function loadInvoices() {
+  const { data, error } = await sb.from('invoices')
+    .select('*').eq('teacher_id', me.teacher_id).order('issued_at', { ascending: false });
+
+  const tbody = document.getElementById('inv-rows');
+  if (error) { tbody.innerHTML = emptyRow(5, friendlyError(error.message)); return; }
+  if (!data?.length) { tbody.innerHTML = emptyRow(5, 'No invoices yet.'); return; }
+
+  tbody.innerHTML = data.map(i => `
+    <tr>
+      <td class="small muted">${fmtDate(i.issued_at)}</td>
+      <td class="small" style="font-weight:600">${escHtml(i.description || i.kind)}</td>
+      <td class="small muted">${i.period_start ? `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : '—'}</td>
+      <td class="num" style="font-weight:600">${egp(i.amount_egp)}</td>
+      <td><span class="badge ${i.status === 'paid' ? 'b-green' : i.status === 'void' ? 'b-gray' : 'b-yellow'}">${escHtml(i.status)}</span></td>
+    </tr>`).join('');
+}
+</script>
+</body>
+</html>

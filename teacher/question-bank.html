@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Question bank | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .q-card { border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px; margin-bottom: 12px; background: var(--card); }
+  .q-text { font-size: .87rem; font-weight: 600; margin-bottom: 10px; }
+  .q-opts { display: grid; gap: 6px; }
+  .q-opt { font-size: .8rem; padding: 6px 11px; border-radius: 8px; background: var(--bg); border: 1px solid transparent; }
+  .q-opt.correct { background: #E7F4EF; color: var(--success); font-weight: 600; border-color: #BFE3D5; }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Question bank</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-outline btn-sm" onclick="openImport()">Paste a batch</button>
+      <button class="btn btn-primary btn-sm" onclick="editQuestion()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New question
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card mb16">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <div class="row" style="flex:1;min-width:240px">
+          <input type="search" class="form-input" id="q" placeholder="Search questions…" style="max-width:300px" aria-label="Search questions">
+          <select class="form-select" id="course-filter" style="max-width:220px" aria-label="Filter by course"><option value="">All courses</option></select>
+          <select class="form-select" id="diff-filter" style="max-width:140px" aria-label="Filter by difficulty">
+            <option value="">Any difficulty</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <span class="small muted" id="count">—</span>
+      </div>
+    </div>
+
+    <div id="list"><div class="skel" style="height:90px;margin-bottom:12px"></div><div class="skel" style="height:90px"></div></div>
+  </main>
+</div>
+
+<!-- ── ONE QUESTION ───────────────────────────────────────────── -->
+<div class="modal-backdrop" id="q-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head">
+      <span class="modal-title" id="qm-title">New question</span>
+      <button class="modal-close" onclick="closeModal('q-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="qm-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="qm-text">Question *</label>
+        <textarea class="form-textarea" id="qm-text" style="min-height:76px"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Options * <span class="form-hint" style="display:inline">— tick the correct one</span></label>
+        <div id="qm-options"></div>
+        <button class="btn btn-outline btn-xs" style="margin-top:10px" onclick="addOption()">Add an option</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="qm-course">Course</label>
+          <select class="form-select" id="qm-course"><option value="">Not tied to a course</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="qm-diff">Difficulty</label>
+          <select class="form-select" id="qm-diff">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="qm-topic">Topic</label>
+        <input type="text" class="form-input" id="qm-topic" placeholder="Cell division">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="qm-exp">Explanation</label>
+        <textarea class="form-textarea" id="qm-exp" style="min-height:66px" placeholder="Shown to the student after they answer."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('q-modal')">Cancel</button>
+      <button class="btn btn-primary" id="qm-save" onclick="saveQuestion()">Save question</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BULK IMPORT ────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-head">
+      <span class="modal-title">Paste a batch of questions</span>
+      <button class="modal-close" onclick="closeModal('import-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="im-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="alert alert-info mb16" style="font-size:.78rem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>Question on its own line, then the options. Mark the answer with a <code>*</code> in front of it, a <code>(correct)</code> after it, or an <code>Answer: B</code> line.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="im-text">Your questions</label>
+        <textarea class="form-textarea" id="im-text" style="min-height:220px;font-family:ui-monospace,monospace;font-size:.78rem" placeholder="1. Which organelle makes ATP?
+A) Ribosome
+*B) Mitochondrion
+C) Golgi body
+Explanation: The mitochondrion is where respiration happens.
+
+2. DNA replication is…
+- conservative
+- *semi-conservative
+- dispersive
+Answer: B"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="im-course">Course</label>
+          <select class="form-select" id="im-course"><option value="">Not tied to a course</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="im-topic">Topic</label>
+          <input type="text" class="form-input" id="im-topic" placeholder="Applied to all of them">
+        </div>
+      </div>
+      <div id="im-preview"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button>
+      <button class="btn btn-outline" id="im-check" onclick="previewImport()">Check them</button>
+      <button class="btn btn-primary" id="im-save" onclick="runImport()" disabled>Save to bank</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [];
+let bank = [];
+let editingQ = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'questions' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Question bank' });
+
+  await loadCourses();
+  await loadBank();
+
+  ['q', 'course-filter', 'diff-filter'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render));
+})();
+
+async function loadCourses() {
+  const { data } = await sb.from('courses').select('id, title')
+    .eq('teacher_id', me.teacher_id).order('title');
+  courses = data || [];
+  const opts = courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('');
+  document.getElementById('course-filter').innerHTML = '<option value="">All courses</option>' + opts;
+  document.getElementById('qm-course').innerHTML = '<option value="">Not tied to a course</option>' + opts;
+  document.getElementById('im-course').innerHTML = '<option value="">Not tied to a course</option>' + opts;
+}
+
+async function loadBank() {
+  const { data, error } = await sb.from('question_bank')
+    .select('*, courses(title)')
+    .eq('teacher_id', me.teacher_id)
+    .order('created_at', { ascending: false }).limit(500);
+  if (error) { document.getElementById('list').innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
+  bank = data || [];
+  render();
+}
+
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const courseId = document.getElementById('course-filter').value;
+  const diff = document.getElementById('diff-filter').value;
+
+  const list = bank.filter(b =>
+    (!courseId || b.course_id === courseId) &&
+    (!diff || b.difficulty === diff) &&
+    (!q || `${b.question_text} ${b.topic || ''}`.toLowerCase().includes(q)));
+
+  document.getElementById('count').textContent = `${list.length} of ${bank.length} question${bank.length === 1 ? '' : 's'}`;
+
+  const host = document.getElementById('list');
+  if (!list.length) {
+    host.innerHTML = `<div class="card"><div class="card-body">${emptyState(
+      bank.length ? 'Nothing matches those filters' : 'The bank is empty',
+      bank.length ? 'Try a wider search.' : 'Write a question, or paste a whole batch in one go — numbered lists and lettered options are both understood.',
+      bank.length ? '' : '<button class="btn btn-primary btn-sm" onclick="openImport()">Paste a batch</button>')}</div></div>`;
+    return;
+  }
+
+  host.innerHTML = list.map(b => `
+    <div class="q-card">
+      <div class="spread" style="align-items:flex-start;margin-bottom:8px">
+        <div class="q-text">${escHtml(b.question_text)}</div>
+        <div class="row" style="flex-wrap:nowrap">
+          <button class="btn btn-ghost btn-xs" onclick="editQuestion('${b.id}')">Edit</button>
+          <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteQuestion('${b.id}')">Delete</button>
+        </div>
+      </div>
+      <div class="q-opts">
+        ${(b.options || []).map(o => `<div class="q-opt${o.correct ? ' correct' : ''}">${escHtml(o.text)}</div>`).join('')}
+      </div>
+      ${b.explanation ? `<p class="small muted" style="margin-top:10px">${escHtml(b.explanation)}</p>` : ''}
+      <div class="row" style="margin-top:10px">
+        <span class="badge b-brand">${escHtml(b.difficulty)}</span>
+        ${b.topic ? `<span class="badge">${escHtml(b.topic)}</span>` : ''}
+        ${b.courses?.title ? `<span class="badge b-gray">${escHtml(b.courses.title)}</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+// ── One question ──────────────────────────────────────────────────
+function editQuestion(id) {
+  const b = id ? bank.find(x => x.id === id) : null;
+  editingQ = b || null;
+  document.getElementById('qm-title').textContent = b ? 'Edit question' : 'New question';
+  document.getElementById('qm-text').value = b?.question_text || '';
+  document.getElementById('qm-topic').value = b?.topic || '';
+  document.getElementById('qm-exp').value = b?.explanation || '';
+  document.getElementById('qm-course').value = b?.course_id || '';
+  document.getElementById('qm-diff').value = b?.difficulty || 'medium';
+  renderOptions(b?.options || [{ text: '', correct: true }, { text: '', correct: false }]);
+  say('qm-alert', '');
+  openModal('q-modal');
+}
+
+function renderOptions(options) {
+  document.getElementById('qm-options').innerHTML = options.map((o, i) => `
+    <div class="row" style="flex-wrap:nowrap;margin-bottom:8px">
+      <input type="radio" name="correct" value="${i}" ${o.correct ? 'checked' : ''} aria-label="Correct answer" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0">
+      <input type="text" class="form-input opt-text" value="${escHtml(o.text)}" placeholder="Option ${i + 1}">
+      <button class="btn btn-ghost btn-xs" onclick="removeOption(${i})" aria-label="Remove option">✕</button>
+    </div>`).join('');
+}
+
+function currentOptions() {
+  const texts = [...document.querySelectorAll('#qm-options .opt-text')].map(i => i.value);
+  const chosen = document.querySelector('#qm-options input[name=correct]:checked');
+  const idx = chosen ? parseInt(chosen.value, 10) : 0;
+  return texts.map((text, i) => ({ text: text.trim(), correct: i === idx }));
+}
+
+function addOption() { renderOptions([...currentOptions(), { text: '', correct: false }]); }
+
+function removeOption(i) {
+  const opts = currentOptions();
+  if (opts.length <= 2) { say('qm-alert', 'A question needs at least two options.'); return; }
+  opts.splice(i, 1);
+  if (!opts.some(o => o.correct)) opts[0].correct = true;
+  renderOptions(opts);
+}
+
+async function saveQuestion() {
+  const text = document.getElementById('qm-text').value.trim();
+  const options = currentOptions().filter(o => o.text);
+  if (!text) { say('qm-alert', 'Write the question first.'); return; }
+  if (options.length < 2) { say('qm-alert', 'Fill in at least two options.'); return; }
+  if (!options.some(o => o.correct)) { say('qm-alert', 'Mark which option is correct.'); return; }
+
+  const row = {
+    teacher_id: me.teacher_id,
+    course_id: document.getElementById('qm-course').value || null,
+    topic: document.getElementById('qm-topic').value.trim() || null,
+    question_text: text,
+    options,
+    explanation: document.getElementById('qm-exp').value.trim() || null,
+    difficulty: document.getElementById('qm-diff').value,
+  };
+
+  const btn = document.getElementById('qm-save');
+  btn.disabled = true;
+  const { error } = editingQ
+    ? await sb.from('question_bank').update(row).eq('id', editingQ.id)
+    : await sb.from('question_bank').insert(row);
+  btn.disabled = false;
+
+  if (error) { say('qm-alert', friendlyError(error.message)); return; }
+  closeModal('q-modal');
+  showToast('Question saved.', 'success');
+  await loadBank();
+}
+
+async function deleteQuestion(id) {
+  if (!confirm('Delete this question from the bank? Tests already built from it keep their own copy.')) return;
+  const { error } = await sb.from('question_bank').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Question deleted.', 'success');
+  await loadBank();
+}
+
+// ── Bulk import ───────────────────────────────────────────────────
+function openImport() {
+  document.getElementById('im-text').value = '';
+  document.getElementById('im-topic').value = '';
+  document.getElementById('im-preview').innerHTML = '';
+  document.getElementById('im-save').disabled = true;
+  say('im-alert', '');
+  openModal('import-modal');
+}
+
+// Show what the parser made of the text before anything is written.
+async function previewImport() {
+  const text = document.getElementById('im-text').value;
+  if (!text.trim()) { say('im-alert', 'Paste your questions first.'); return; }
+
+  const btn = document.getElementById('im-check');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  say('im-alert', '');
+
+  try {
+    const { questions, problems } = await apiPost('/api/questions', { action: 'parse', text });
+    document.getElementById('im-save').disabled = questions.length === 0;
+    document.getElementById('im-preview').innerHTML = `
+      <div class="alert ${questions.length ? 'alert-success' : 'alert-error'} mb16" style="margin-top:16px">
+        <div>${questions.length} question${questions.length === 1 ? '' : 's'} understood${problems.length ? `, ${problems.length} skipped` : ''}.</div>
+      </div>
+      ${problems.length ? `<div class="alert alert-warning mb16"><div><strong>Skipped:</strong><ul style="margin:6px 0 0 18px">${problems.map(p => `<li>${escHtml(p)}</li>`).join('')}</ul></div></div>` : ''}
+      ${questions.slice(0, 5).map(q => `
+        <div class="q-card">
+          <div class="q-text">${escHtml(q.question_text)}</div>
+          <div class="q-opts">${q.options.map(o => `<div class="q-opt${o.correct ? ' correct' : ''}">${escHtml(o.text)}</div>`).join('')}</div>
+        </div>`).join('')}
+      ${questions.length > 5 ? `<p class="small muted">…and ${questions.length - 5} more.</p>` : ''}`;
+  } catch (err) {
+    say('im-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Check them';
+  }
+}
+
+async function runImport() {
+  const btn = document.getElementById('im-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const data = await apiPost('/api/questions', {
+      action: 'import',
+      text: document.getElementById('im-text').value,
+      course_id: document.getElementById('im-course').value || null,
+      topic: document.getElementById('im-topic').value,
+    });
+    closeModal('import-modal');
+    showToast(`${data.imported} question${data.imported === 1 ? '' : 's'} added${data.problems?.length ? `, ${data.problems.length} skipped` : ''}.`, 'success');
+    await loadBank();
+  } catch (err) {
+    say('im-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save to bank';
+  }
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

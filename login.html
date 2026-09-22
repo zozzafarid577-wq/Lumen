@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+
+<div class="auth-wrap">
+  <aside class="auth-side">
+    <a href="/" class="wordmark" aria-label="Lumen home">L<span class="u">u</span>men</a>
+    <div>
+      <h2>Educate with Excellence</h2>
+      <p>Your students, your content and your progress — all in one place, kept separate from every other teacher on Lumen.</p>
+      <ul class="auth-points">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Teachers and assistants sign in here</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>So do students — same page, their own portal</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Forgotten a password? Your teacher can reset it</li>
+      </ul>
+    </div>
+    <p style="font-size:.8rem;opacity:.6">© <span class="year">2026</span> Lumen</p>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card">
+      <a href="/" class="wordmark" style="font-size:1.6rem;margin-bottom:28px;display:inline-flex" aria-label="Lumen home">L<span class="u">u</span>men</a>
+      <h1>Welcome back</h1>
+      <p class="lead">Sign in to your dashboard.</p>
+
+      <div class="form-msg" id="msg" style="display:none" role="alert"></div>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autocomplete="username" autofocus placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div style="position:relative">
+            <input type="password" id="password" name="password" required autocomplete="current-password" style="padding-right:70px" placeholder="••••••••">
+            <button type="button" id="pw-toggle"
+              style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;font-size:.76rem;font-weight:700;color:var(--primary);cursor:pointer">Show</button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit">Sign in</button>
+      </form>
+
+      <p class="auth-foot"><a href="/forgot-password.html">Forgotten your password?</a></p>
+      <p class="auth-foot" style="margin-top:10px;color:var(--muted)">
+        New to Lumen? <a href="/register.html">Start a free trial</a>
+      </p>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+document.querySelectorAll('.year').forEach(el => { el.textContent = new Date().getFullYear(); });
+
+const params = new URLSearchParams(location.search);
+const msg = document.getElementById('msg');
+
+// Why they were sent back here, if they were.
+const REASONS = {
+  inactive: 'This account is not active. Please ask your teacher to switch it back on.',
+  signed_out: 'You have been signed out.',
+  reset: 'Your password has been changed. Please sign in with the new one.',
+};
+if (REASONS[params.get('e')]) say(params.get('e') === 'reset' ? 'ok' : 'err', REASONS[params.get('e')]);
+
+// Already signed in? Don't make them do it again — send them where they
+// belong. A signed-out visitor falls through with nothing on screen.
+(async () => {
+  if (!sb) return;
+  try {
+    const session = await getSession();
+    if (session) await handlePostLogin(params.get('next'));
+  } catch (_) { /* a failed check just leaves the form up */ }
+})();
+
+const pwField = document.getElementById('password');
+document.getElementById('pw-toggle').addEventListener('click', e => {
+  const showing = pwField.type === 'text';
+  pwField.type = showing ? 'password' : 'text';
+  e.target.textContent = showing ? 'Show' : 'Hide';
+});
+
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('submit');
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const password = pwField.value;
+
+  if (!email || !password) { say('err', 'Enter your email and password.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  say('', '');
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    // Supabase says "Invalid login credentials" for a wrong password and
+    // for an email that has no account. Don't guess which, and don't
+    // confirm to a stranger which addresses exist.
+    say('err', /invalid login/i.test(error.message)
+      ? 'That email and password do not match. Check them and try again.'
+      : friendlyError(error.message));
+    return;
+  }
+
+  await handlePostLogin(params.get('next'));
+});
+
+function say(kind, text) {
+  msg.className = 'form-msg' + (kind ? ' ' + kind : '');
+  msg.textContent = text;
+  msg.style.display = text ? 'block' : 'none';
+}
+</script>
+</body>
+</html>

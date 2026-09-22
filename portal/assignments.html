@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assignments | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Assignments</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <div id="list"><div class="skel" style="height:110px;margin-bottom:16px"></div><div class="skel" style="height:110px"></div></div>
+  </main>
+</div>
+
+<!-- ── HAND IN ────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="hand-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="hm-title">Hand in</span>
+      <button class="modal-close" onclick="closeModal('hand-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="hm-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="hm-text">Your answer</label>
+        <textarea class="form-textarea" id="hm-text" style="min-height:140px" placeholder="Type your answer, or paste a link to your work below."></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="hm-url">Link to your work</label>
+        <input type="url" class="form-input" id="hm-url" placeholder="https://… (Drive, photos, a document)">
+        <p class="form-hint">Make sure your teacher can open the link.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('hand-modal')">Cancel</button>
+      <button class="btn btn-primary" id="hm-save" onclick="handIn()">Hand in</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let assignments = [];
+let mine = new Map();     // assignment_id -> my submission
+let handing = null;
+
+(async () => {
+  me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Assignments' });
+  await load();
+})();
+
+async function load() {
+  const [{ data: list, error }, { data: subs }] = await Promise.all([
+    sb.from('assignments').select('*, courses(title)').eq('is_active', true).order('due_at', { ascending: true, nullsFirst: false }),
+    sb.from('assignment_submissions').select('*').eq('student_id', me.id),
+  ]);
+
+  const host = document.getElementById('list');
+  if (error) { host.innerHTML = `<div class="card"><div class="card-body"><div class="alert alert-error">${escHtml(friendlyError(error.message))}</div></div></div>`; return; }
+
+  assignments = list || [];
+  mine = new Map((subs || []).map(s => [s.assignment_id, s]));
+
+  if (!assignments.length) {
+    host.innerHTML = `<div class="card"><div class="card-body">${emptyState(
+      'Nothing set right now', 'Work your teacher sets will appear here with its deadline.')}</div></div>`;
+    return;
+  }
+
+  const now = new Date();
+  host.innerHTML = assignments.map(a => {
+    const sub = mine.get(a.id);
+    const late = a.due_at && new Date(a.due_at) < now;
+    const state = sub
+      ? (sub.score != null
+          ? `<span class="badge b-green">${sub.score} / ${a.max_score}</span>`
+          : '<span class="badge b-brand">Handed in</span>')
+      : `<span class="badge ${late ? 'b-red' : 'b-yellow'}">${late ? 'Overdue' : 'To do'}</span>`;
+
+    return `<div class="card mb16">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${escHtml(a.title)}</div>
+          <div class="small muted">${escHtml(a.courses?.title || '')}${a.due_at ? ' · due ' + fmtDateTime(a.due_at) : ' · no deadline'} · out of ${a.max_score}</div>
+        </div>
+        ${state}
+      </div>
+      <div class="card-body">
+        ${a.description ? `<p class="small" style="white-space:pre-wrap;margin-bottom:14px">${escHtml(a.description)}</p>` : ''}
+        ${a.file_url ? `<p class="small mb16"><a href="${escHtml(a.file_url)}" target="_blank" rel="noopener" style="color:var(--primary);font-weight:600">Open the worksheet</a></p>` : ''}
+        ${sub ? submissionBlock(a, sub) : ''}
+        <button class="btn ${sub ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="openHandIn('${a.id}')">
+          ${sub ? 'Change what I handed in' : 'Hand in'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function submissionBlock(a, sub) {
+  return `<div style="background:var(--bg);border-radius:11px;padding:13px 15px;margin-bottom:14px">
+    <div class="small muted mb8">Handed in ${fmtDateTime(sub.submitted_at)}</div>
+    ${sub.text_answer ? `<p class="small" style="white-space:pre-wrap">${escHtml(sub.text_answer)}</p>` : ''}
+    ${sub.file_url ? `<p class="small" style="margin-top:6px"><a href="${escHtml(sub.file_url)}" target="_blank" rel="noopener" style="color:var(--primary);font-weight:600">The link you gave</a></p>` : ''}
+    ${sub.feedback ? `<div class="alert alert-info" style="margin-top:12px;font-size:.8rem"><div><strong>Your teacher says:</strong> ${escHtml(sub.feedback)}</div></div>` : ''}
+  </div>`;
+}
+
+function openHandIn(id) {
+  const a = assignments.find(x => x.id === id);
+  if (!a) return;
+  handing = a;
+  const sub = mine.get(id);
+
+  document.getElementById('hm-title').textContent = a.title;
+  document.getElementById('hm-text').value = sub?.text_answer || '';
+  document.getElementById('hm-url').value = sub?.file_url || '';
+  say('hm-alert', '');
+
+  // A marked hand-in can still be replaced, but the student should know
+  // the mark on it no longer matches what they are sending.
+  if (sub?.score != null) {
+    say('hm-alert', 'This has already been marked. Replacing it means your teacher will need to mark it again.');
+    document.getElementById('hm-alert').className = 'alert alert-warning';
+  }
+  openModal('hand-modal');
+}
+
+async function handIn() {
+  const text = document.getElementById('hm-text').value.trim();
+  const url = document.getElementById('hm-url').value.trim();
+  if (!text && !url) {
+    say('hm-alert', 'Type an answer or give a link to your work.');
+    document.getElementById('hm-alert').className = 'alert alert-error';
+    return;
+  }
+
+  const btn = document.getElementById('hm-save');
+  btn.disabled = true;
+  btn.textContent = 'Handing in…';
+
+  // One row per student per assignment, so this replaces rather than
+  // adds. Re-handing in clears the old mark: it no longer describes what
+  // the teacher is looking at.
+  const { error } = await sb.from('assignment_submissions').upsert({
+    teacher_id: me.teacher_id,
+    assignment_id: handing.id,
+    student_id: me.id,
+    text_answer: text || null,
+    file_url: url || null,
+    score: null,
+    feedback: null,
+    graded_at: null,
+    submitted_at: new Date().toISOString(),
+  }, { onConflict: 'assignment_id,student_id' });
+
+  btn.disabled = false;
+  btn.textContent = 'Hand in';
+
+  if (error) {
+    say('hm-alert', friendlyError(error.message));
+    document.getElementById('hm-alert').className = 'alert alert-error';
+    return;
+  }
+
+  closeModal('hand-modal');
+  showToast('Handed in.', 'success');
+  await load();
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

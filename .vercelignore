@@ -1,0 +1,5 @@
+tests/
+supabase-*.sql
+.github/
+docs/
+vitest.config.js

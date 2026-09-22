@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Overview</span>
+    </div>
+    <div class="topbar-right">
+      <a href="/admin/teachers.html?action=new" class="btn btn-primary btn-sm">Open a space</a>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
+        <div class="stat-n" id="s-spaces">—</div>
+        <div class="stat-l">Active spaces</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+        <div class="stat-n" id="s-students">—</div>
+        <div class="stat-l">Students on the platform</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+        <div class="stat-n" id="s-mrr">—</div>
+        <div class="stat-l">Monthly, EGP</div>
+        <div class="stat-hint">Active subscriptions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
+        <div class="stat-n" id="s-leads">—</div>
+        <div class="stat-l">New leads</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Needs attention</span>
+        </div>
+        <div class="card-body" id="attention"><div class="skel" style="height:70px"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Newest spaces</span>
+          <a href="/admin/teachers.html" class="btn btn-ghost btn-xs">All</a>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Space</th><th>Plan</th><th>Opened</th></tr></thead>
+            <tbody id="new-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+(async () => {
+  const me = await requireAuth('owner');
+  if (!me) return;
+  renderShell('admin', me, { title: 'Overview' });
+
+  document.getElementById('new-rows').innerHTML = skeletonRows(3, 4);
+
+  const [{ data: teachers }, { data: subs }, { count: studentCount }, { data: leads }, { data: dueInvoices }] = await Promise.all([
+    sb.from('teachers').select('id, display_name, slug, is_active, created_at').order('created_at', { ascending: false }),
+    sb.from('subscriptions').select('teacher_id, status, monthly_fee_egp, student_limit, trial_ends_at, plans(name)'),
+    sb.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'student').eq('is_active', true),
+    sb.from('leads').select('id, full_name, created_at').eq('status', 'new').order('created_at', { ascending: false }),
+    sb.from('invoices').select('teacher_id, amount_egp, issued_at').eq('status', 'due'),
+  ]);
+
+  const spaces = teachers || [];
+  const subByTeacher = new Map((subs || []).map(s => [s.teacher_id, s]));
+
+  setStat('s-spaces', spaces.filter(t => t.is_active).length);
+  setStat('s-students', studentCount ?? null);
+  setStat('s-mrr', (subs || [])
+    .filter(s => s.status === 'active')
+    .reduce((t, s) => t + (s.monthly_fee_egp || 0), 0)
+    .toLocaleString('en-US'));
+  setStat('s-leads', (leads || []).length);
+
+  // Everything a person actually has to do today, in one list: the
+  // trials about to lapse, the invoices nobody has chased, the spaces
+  // that were paused and never reopened.
+  const now = Date.now();
+  const items = [];
+
+  (subs || []).forEach(s => {
+    const name = spaces.find(t => t.id === s.teacher_id)?.display_name || 'A space';
+    if (s.status === 'trial' && s.trial_ends_at) {
+      const days = Math.ceil((new Date(s.trial_ends_at) - now) / 86400000);
+      if (days <= 5) {
+        items.push({ kind: days < 0 ? 'b-red' : 'b-yellow',
+          text: `${name} — trial ${days < 0 ? 'ended ' + Math.abs(days) + ' day(s) ago' : 'ends in ' + days + ' day(s)'}` });
+      }
+    }
+    if (s.status === 'past_due') items.push({ kind: 'b-red', text: `${name} — subscription past due` });
+  });
+
+  const dueByTeacher = new Map();
+  (dueInvoices || []).forEach(i => {
+    dueByTeacher.set(i.teacher_id, (dueByTeacher.get(i.teacher_id) || 0) + i.amount_egp);
+  });
+  dueByTeacher.forEach((amount, teacherId) => {
+    const name = spaces.find(t => t.id === teacherId)?.display_name || 'A space';
+    items.push({ kind: 'b-yellow', text: `${name} — ${egp(amount)} unpaid` });
+  });
+
+  spaces.filter(t => !t.is_active).forEach(t =>
+    items.push({ kind: 'b-gray', text: `${t.display_name} — space is paused` }));
+
+  document.getElementById('attention').innerHTML = items.length
+    ? items.slice(0, 12).map(i => `
+        <div class="spread" style="padding:9px 0;border-bottom:1px solid var(--border)">
+          <span class="small">${escHtml(i.text)}</span>
+          <span class="badge ${i.kind}">·</span>
+        </div>`).join('')
+    : emptyState('All clear', 'No trials ending, no unpaid invoices, no paused spaces.');
+
+  const tbody = document.getElementById('new-rows');
+  tbody.innerHTML = spaces.length
+    ? spaces.slice(0, 6).map(t => {
+        const s = subByTeacher.get(t.id);
+        return `<tr>
+          <td>
+            <div style="font-weight:600">${escHtml(t.display_name)}</div>
+            <div class="small muted">/${escHtml(t.slug)}</div>
+          </td>
+          <td class="small">${escHtml(s?.plans?.name || s?.status || '—')}</td>
+          <td class="small muted">${fmtDate(t.created_at)}</td>
+        </tr>`;
+      }).join('')
+    : emptyRow(3, 'No teacher spaces yet.');
+})();
+</script>
+</body>
+</html>

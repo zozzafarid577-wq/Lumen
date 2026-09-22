@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teacher spaces | Lumen console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Teacher spaces</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNew()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Open a space
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <input type="search" class="form-input" id="q" placeholder="Search spaces…" style="max-width:280px" aria-label="Search spaces">
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Space</th><th>Plan</th><th class="num">Students</th><th class="num">Monthly</th><th>Status</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── NEW SPACE ──────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="new-modal">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-head">
+      <span class="modal-title">Open a teacher space</span>
+      <button class="modal-close" onclick="closeModal('new-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="new-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div id="new-fields">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ns-name">Teacher's name *</label>
+            <input type="text" class="form-input" id="ns-name" placeholder="Dr Mai Abd El Salam">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ns-email">Email *</label>
+            <input type="email" class="form-input" id="ns-email">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ns-space">Space name *</label>
+            <input type="text" class="form-input" id="ns-space" placeholder="Dr Mai Biology">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ns-subject">Subject</label>
+            <input type="text" class="form-input" id="ns-subject" placeholder="Biology">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ns-phone">Phone</label>
+            <input type="tel" class="form-input" id="ns-phone">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ns-plan">Plan</label>
+            <select class="form-select" id="ns-plan"><option value="">Trial (10 students)</option></select>
+          </div>
+        </div>
+        <p class="form-hint">Choosing a plan raises the setup fee and the first month's invoice straight away.</p>
+      </div>
+
+      <div id="creds-box" style="display:none">
+        <div class="alert alert-success mb16">Space opened. Hand these over — the password is shown only once.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div class="spread" style="margin-bottom:8px">
+            <span class="small muted">Email</span><span class="small" style="font-weight:700" id="cred-email">—</span>
+          </div>
+          <div class="spread">
+            <span class="small muted">Password</span>
+            <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="cred-pw">—</span>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="copyCreds()">Copy details</button>
+      </div>
+    </div>
+    <div class="modal-foot" id="new-foot">
+      <button class="btn btn-ghost" onclick="closeModal('new-modal')">Cancel</button>
+      <button class="btn btn-primary" id="create-btn" onclick="createSpace()">Open the space</button>
+    </div>
+    <div class="modal-foot" id="done-foot" style="display:none">
+      <button class="btn btn-primary" onclick="closeModal('new-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PLAN ───────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="plan-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="pm-title">Subscription</span>
+      <button class="modal-close" onclick="closeModal('plan-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="pm-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="pm-plan">Plan</label>
+          <select class="form-select" id="pm-plan"><option value="">Custom / none</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-status">Status</label>
+          <select class="form-select" id="pm-status">
+            <option value="trial">Trial</option>
+            <option value="active">Active</option>
+            <option value="past_due">Past due</option>
+            <option value="paused">Paused</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pm-limit">Student limit</label>
+        <input type="number" class="form-input" id="pm-limit" min="0" max="5000">
+        <p class="form-hint">Leave as the plan's number, or override it for a teacher between two tiers.</p>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="pm-notes">Notes</label>
+        <textarea class="form-textarea" id="pm-notes" style="min-height:70px"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('plan-modal')">Cancel</button>
+      <button class="btn btn-primary" id="pm-save" onclick="savePlan()">Save subscription</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let spaces = [], plans = [];
+let editingTeacher = null;
+let lastCreds = null;
+
+(async () => {
+  me = await requireAuth('owner');
+  if (!me) return;
+  renderShell('admin', me, { title: 'Teacher spaces' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  await loadPlans();
+  await load();
+
+  document.getElementById('q').addEventListener('input', render);
+  if (new URLSearchParams(location.search).get('action') === 'new') openNew();
+})();
+
+async function loadPlans() {
+  const { data } = await sb.from('plans').select('*').eq('is_active', true).order('sort_order');
+  plans = data || [];
+  const opts = plans.map(p =>
+    `<option value="${escHtml(p.code)}">${escHtml(p.name)} — ${egp(p.monthly_fee_egp)}/mo, ${p.student_limit} students</option>`).join('');
+  document.getElementById('ns-plan').innerHTML = '<option value="">Trial (10 students)</option>' + opts;
+  document.getElementById('pm-plan').innerHTML = '<option value="">Custom / none</option>' + opts;
+}
+
+async function load() {
+  const [{ data: teachers, error }, { data: subs }, { data: students }] = await Promise.all([
+    sb.from('teachers').select('*').order('created_at', { ascending: false }),
+    sb.from('subscriptions').select('*, plans(name)'),
+    sb.from('profiles').select('teacher_id').eq('role', 'student').eq('is_active', true),
+  ]);
+
+  if (error) { document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(error.message)); return; }
+
+  const counts = new Map();
+  (students || []).forEach(s => counts.set(s.teacher_id, (counts.get(s.teacher_id) || 0) + 1));
+  const subByTeacher = new Map((subs || []).map(s => [s.teacher_id, s]));
+
+  spaces = (teachers || []).map(t => ({
+    ...t,
+    sub: subByTeacher.get(t.id) || null,
+    students: counts.get(t.id) || 0,
+  }));
+  render();
+}
+
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const list = spaces.filter(t =>
+    !q || `${t.display_name} ${t.slug} ${t.contact_email || ''}`.toLowerCase().includes(q));
+
+  document.getElementById('count').textContent = `${list.length} of ${spaces.length} space${spaces.length === 1 ? '' : 's'}`;
+
+  const tbody = document.getElementById('rows');
+  if (!list.length) { tbody.innerHTML = emptyRow(6, spaces.length ? 'Nothing matches.' : 'No teacher spaces yet.'); return; }
+
+  tbody.innerHTML = list.map(t => {
+    const s = t.sub;
+    const over = s && t.students > s.student_limit;
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(t.display_name)}</div>
+        <div class="small muted">/${escHtml(t.slug)} · ${escHtml(t.contact_email || '')}</div>
+      </td>
+      <td class="small">${escHtml(s?.plans?.name || '—')}</td>
+      <td class="num ${over ? '' : 'muted'}" style="${over ? 'color:var(--danger);font-weight:700' : ''}">
+        ${t.students}${s ? ' / ' + s.student_limit : ''}
+      </td>
+      <td class="num small">${s ? egp(s.monthly_fee_egp) : '—'}</td>
+      <td>
+        <span class="badge ${statusClass(s?.status)}">${escHtml(s?.status || 'none')}</span>
+        ${t.is_active ? '' : '<span class="badge b-gray">paused</span>'}
+      </td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>
+        <button class="btn btn-ghost btn-xs" onclick="togglePause('${t.id}')">${t.is_active ? 'Pause' : 'Reopen'}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function statusClass(status) {
+  return { active: 'b-green', trial: 'b-brand', past_due: 'b-red' }[status] || 'b-gray';
+}
+
+// ── Open a space ──────────────────────────────────────────────────
+function openNew() {
+  lastCreds = null;
+  ['ns-name', 'ns-email', 'ns-space', 'ns-subject', 'ns-phone'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('ns-plan').value = '';
+  document.getElementById('new-fields').style.display = 'block';
+  document.getElementById('creds-box').style.display = 'none';
+  document.getElementById('new-foot').style.display = 'flex';
+  document.getElementById('done-foot').style.display = 'none';
+  const btn = document.getElementById('create-btn');
+  btn.disabled = false;
+  btn.textContent = 'Open the space';
+  say('new-alert', '');
+  openModal('new-modal');
+}
+
+async function createSpace() {
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true;
+  btn.textContent = 'Opening…';
+  say('new-alert', '');
+
+  try {
+    const data = await apiPost('/api/teachers', {
+      action: 'create',
+      full_name: document.getElementById('ns-name').value,
+      email: document.getElementById('ns-email').value,
+      display_name: document.getElementById('ns-space').value,
+      subject: document.getElementById('ns-subject').value,
+      phone: document.getElementById('ns-phone').value,
+      plan_code: document.getElementById('ns-plan').value || null,
+    });
+
+    lastCreds = { email: data.email, password: data.password };
+    document.getElementById('cred-email').textContent = data.email;
+    document.getElementById('cred-pw').textContent = data.password;
+    document.getElementById('new-fields').style.display = 'none';
+    document.getElementById('creds-box').style.display = 'block';
+    document.getElementById('new-foot').style.display = 'none';
+    document.getElementById('done-foot').style.display = 'flex';
+    await load();
+  } catch (err) {
+    say('new-alert', err.message);
+    btn.disabled = false;
+    btn.textContent = 'Open the space';
+  }
+}
+
+function copyCreds() {
+  if (!lastCreds) return;
+  const text = `Lumen sign-in: ${location.origin}/login.html\nEmail: ${lastCreds.email}\nPassword: ${lastCreds.password}`;
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('Copied.', 'success'))
+    .catch(() => showToast('Your browser would not let us copy. Select the details and copy them by hand.', 'error'));
+}
+
+// ── Subscription ──────────────────────────────────────────────────
+function openPlan(id) {
+  const t = spaces.find(x => x.id === id);
+  if (!t) return;
+  editingTeacher = t;
+  document.getElementById('pm-title').textContent = t.display_name;
+  document.getElementById('pm-plan').value = t.sub?.plan_code || '';
+  document.getElementById('pm-status').value = t.sub?.status || 'trial';
+  document.getElementById('pm-limit').value = t.sub?.student_limit ?? 10;
+  document.getElementById('pm-notes').value = t.sub?.notes || '';
+  say('pm-alert', '');
+  openModal('plan-modal');
+}
+
+async function savePlan() {
+  const btn = document.getElementById('pm-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const limit = parseInt(document.getElementById('pm-limit').value, 10);
+    await apiPost('/api/teachers', {
+      action: 'set_plan',
+      teacher_id: editingTeacher.id,
+      plan_code: document.getElementById('pm-plan').value || null,
+      status: document.getElementById('pm-status').value,
+      student_limit: Number.isInteger(limit) ? limit : undefined,
+      notes: document.getElementById('pm-notes').value,
+    });
+    closeModal('plan-modal');
+    showToast('Subscription updated.', 'success');
+    await load();
+  } catch (err) {
+    say('pm-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save subscription';
+  }
+}
+
+async function togglePause(id) {
+  const t = spaces.find(x => x.id === id);
+  if (!t) return;
+  if (t.is_active && !confirm(
+    `Pause ${t.display_name}? Everyone in that space — the teacher and all ${t.students} student(s) — loses the portal until it is reopened. Nothing is deleted.`)) return;
+
+  try {
+    await apiPost('/api/teachers', { action: 'set_active', teacher_id: id, is_active: !t.is_active });
+    showToast(t.is_active ? 'Space paused.' : 'Space reopened.', 'success');
+    await load();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

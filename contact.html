@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Request a setup | Lumen</title>
+<meta name="description" content="Tell Lumen about your class and we will set up your dashboard, organise your content and manage it for you.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="/" class="wordmark nav-brand" aria-label="Lumen home">L<span class="u">u</span>men</a>
+    <nav class="nav-links" id="nav-links">
+      <a href="/features.html">What's included</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/#how">How it works</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="/login.html" class="btn btn-ghost btn-sm">Sign in</a>
+      <a href="/register.html" class="btn btn-primary btn-sm">Start free trial</a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<section class="section">
+  <div class="wrap">
+    <div class="grid-2" style="gap:44px;align-items:start">
+
+      <div>
+        <div class="sec-kicker">Get in touch</div>
+        <h2 style="font-size:clamp(1.8rem,3.6vw,2.4rem);margin-bottom:16px">Tell us about your class</h2>
+        <p style="font-size:1rem;margin-bottom:28px">
+          We will set up your personalised account on the existing platform, organise
+          your content, and manage the dashboard — with ongoing support to help you
+          and your students get the best experience.
+        </p>
+
+        <div class="panel panel-blush">
+          <h3 style="font-size:1.05rem;margin-bottom:18px">What happens next</h3>
+          <div class="check-list">
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We reply and arrange a short call</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We agree the package and the tier for your class size</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We build your space and load your first content</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We walk you through it, and you go live</div>
+          </div>
+          <p style="font-size:.85rem;margin-top:20px;color:var(--muted)">
+            Prefer to try it yourself first? <a href="/register.html" style="color:var(--primary);font-weight:600">Start a free 14-day trial</a> — no setup fee, up to 10 students.
+          </p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="font-size:1.15rem;margin-bottom:22px">Request a setup</h3>
+        <div class="form-msg" id="lead-msg" style="display:none" role="status"></div>
+
+        <form id="lead-form" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="lf-name">Your name</label>
+              <input type="text" id="lf-name" name="full_name" required autocomplete="name" placeholder="Dr Mai Abd El Salam">
+            </div>
+            <div class="field">
+              <label for="lf-subject">Subject you teach</label>
+              <input type="text" id="lf-subject" name="subject" autocomplete="off" placeholder="Biology">
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="lf-email">Email</label>
+              <input type="email" id="lf-email" name="email" required autocomplete="email" placeholder="you@example.com">
+            </div>
+            <div class="field">
+              <label for="lf-phone">Phone / WhatsApp</label>
+              <input type="tel" id="lf-phone" name="phone" autocomplete="tel" placeholder="+20 1xx xxx xxxx">
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="lf-count">How many students?</label>
+              <input type="number" id="lf-count" name="student_count" min="1" max="5000" placeholder="60">
+            </div>
+            <div class="field">
+              <label for="lf-plan">Package you have in mind</label>
+              <select id="lf-plan" name="plan_code">
+                <option value="">Not sure yet — advise me</option>
+                <option value="basic-60">Platform Management — 5,000 EGP / month</option>
+                <option value="full-60">Platform + Student Support — 8,000 EGP / month</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="lf-message">Anything we should know?</label>
+            <textarea id="lf-message" name="message" placeholder="How you teach, what content you already have, when you would like to start…"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-lg">Send request</button>
+          <p style="font-size:.78rem;color:var(--muted);margin-top:14px;text-align:center">
+            We use these details only to contact you about setting up your space.
+          </p>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div>
+        <div class="wordmark">L<span class="u">u</span>men</div>
+        <p class="footer-blurb">Educational dashboards and student management for teachers — set up, organised and managed for you.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/features.html">What's included</a></li>
+          <li><a href="/pricing.html">Pricing</a></li>
+          <li><a href="/#how">How it works</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Get started</h4>
+        <ul>
+          <li><a href="/register.html">Start free trial</a></li>
+          <li><a href="/contact.html">Request a setup</a></li>
+          <li><a href="/login.html">Sign in</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Support</h4>
+        <ul>
+          <li><a href="/contact.html">Contact us</a></li>
+          <li><a href="/login.html">Student sign-in</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bot">
+      <span>© <span id="year">2026</span> Lumen. Educate with Excellence.</span>
+      <span>Prices in EGP.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/site.js"></script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  mountNavToggle();
+  fillPlanSelect('lf-plan');
+  mountLeadForm('lead-form', 'lead-msg');
+</script>
+</body>
+</html>

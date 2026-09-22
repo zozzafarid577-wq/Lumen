@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assignments | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Assignments</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="editAssignment()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New assignment
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Set work</span>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Assignment</th><th>Course</th><th>Due</th><th>Handed in</th><th>To mark</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── ASSIGNMENT ─────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="a-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="am-title">New assignment</span>
+      <button class="modal-close" onclick="closeModal('a-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="am-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="am-name">Title *</label>
+        <input type="text" class="form-input" id="am-name" placeholder="Worksheet 3 — genetics">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="am-desc">What to do</label>
+        <textarea class="form-textarea" id="am-desc" placeholder="Instructions your students will read."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="am-course">Course *</label>
+          <select class="form-select" id="am-course"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="am-due">Due</label>
+          <input type="datetime-local" class="form-input" id="am-due">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="am-file">Attachment link</label>
+          <input type="url" class="form-input" id="am-file" placeholder="https://… (optional)">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="am-max">Out of</label>
+          <input type="number" class="form-input" id="am-max" min="1" value="100">
+        </div>
+      </div>
+      <label class="form-check" style="margin-bottom:0"><input type="checkbox" id="am-active" checked>Visible to students</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('a-modal')">Cancel</button>
+      <button class="btn btn-primary" id="am-save" onclick="saveAssignment()">Save assignment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MARKING ────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="mark-modal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head">
+      <span class="modal-title" id="mk-title">Hand-ins</span>
+      <button class="modal-close" onclick="closeModal('mark-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="mk-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="closeModal('mark-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [], assignments = [];
+let editingA = null;
+let markingId = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'assignments' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Assignments' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(6, 4);
+  await loadCourses();
+  await loadAssignments();
+
+  if (new URLSearchParams(location.search).get('action') === 'new') editAssignment();
+})();
+
+async function loadCourses() {
+  const { data } = await sb.from('courses').select('id, title')
+    .eq('teacher_id', me.teacher_id).eq('is_active', true).order('title');
+  courses = data || [];
+  document.getElementById('am-course').innerHTML = courses.length
+    ? courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('')
+    : '<option value="">No courses yet</option>';
+}
+
+async function loadAssignments() {
+  const { data, error } = await sb.from('assignments')
+    .select('*, courses(title), assignment_submissions(id, score)')
+    .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('rows');
+  if (error) { tbody.innerHTML = emptyRow(6, friendlyError(error.message)); return; }
+  assignments = data || [];
+
+  document.getElementById('count').textContent = `${assignments.length} assignment${assignments.length === 1 ? '' : 's'}`;
+  if (!assignments.length) { tbody.innerHTML = emptyRow(6, 'Nothing set yet.'); return; }
+
+  tbody.innerHTML = assignments.map(a => {
+    const subs = a.assignment_submissions || [];
+    const toMark = subs.filter(s => s.score == null).length;
+    const overdue = a.due_at && new Date(a.due_at) < new Date();
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(a.title)}</div>
+        <div class="small muted">out of ${a.max_score}${a.is_active ? '' : ' · hidden'}</div>
+      </td>
+      <td class="small muted">${escHtml(a.courses?.title || '—')}</td>
+      <td class="small ${overdue ? '' : 'muted'}">${a.due_at ? fmtDateTime(a.due_at) : 'No deadline'}</td>
+      <td class="small">${subs.length}</td>
+      <td>${toMark ? `<span class="badge b-yellow">${toMark}</span>` : '<span class="small muted">—</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openMarking('${a.id}')">Hand-ins</button>
+        <button class="btn btn-ghost btn-xs" onclick="editAssignment('${a.id}')">Edit</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteAssignment('${a.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Create / edit ─────────────────────────────────────────────────
+function editAssignment(id) {
+  if (!courses.length) { showToast('Create a course first.', 'error'); return; }
+  const a = id ? assignments.find(x => x.id === id) : null;
+  editingA = a || null;
+
+  document.getElementById('am-title').textContent = a ? 'Edit assignment' : 'New assignment';
+  document.getElementById('am-name').value = a?.title || '';
+  document.getElementById('am-desc').value = a?.description || '';
+  document.getElementById('am-course').value = a?.course_id || courses[0].id;
+  document.getElementById('am-due').value = toLocalInput(a?.due_at);
+  document.getElementById('am-file').value = a?.file_url || '';
+  document.getElementById('am-max').value = a?.max_score ?? 100;
+  document.getElementById('am-active').checked = a ? a.is_active : true;
+  say('am-alert', '');
+  openModal('a-modal');
+}
+
+async function saveAssignment() {
+  const title = document.getElementById('am-name').value.trim();
+  if (!title) { say('am-alert', 'Give the assignment a title.'); return; }
+
+  const max = parseInt(document.getElementById('am-max').value, 10);
+  const due = document.getElementById('am-due').value;
+  const row = {
+    teacher_id: me.teacher_id,
+    course_id: document.getElementById('am-course').value,
+    title,
+    description: document.getElementById('am-desc').value.trim() || null,
+    due_at: due ? new Date(due).toISOString() : null,
+    file_url: document.getElementById('am-file').value.trim() || null,
+    max_score: Number.isFinite(max) && max > 0 ? max : 100,
+    is_active: document.getElementById('am-active').checked,
+  };
+
+  const btn = document.getElementById('am-save');
+  btn.disabled = true;
+  const { error } = editingA
+    ? await sb.from('assignments').update(row).eq('id', editingA.id)
+    : await sb.from('assignments').insert(row);
+  btn.disabled = false;
+
+  if (error) { say('am-alert', friendlyError(error.message)); return; }
+  closeModal('a-modal');
+  showToast('Assignment saved.', 'success');
+  await loadAssignments();
+}
+
+async function deleteAssignment(id) {
+  const a = assignments.find(x => x.id === id);
+  const subs = (a?.assignment_submissions || []).length;
+  if (!confirm(subs
+    ? `Delete "${a.title}"? ${subs} hand-in${subs === 1 ? '' : 's'} will go with it.`
+    : 'Delete this assignment?')) return;
+
+  const { error } = await sb.from('assignments').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Assignment deleted.', 'success');
+  await loadAssignments();
+}
+
+// ── Marking ───────────────────────────────────────────────────────
+async function openMarking(id) {
+  markingId = id;
+  const a = assignments.find(x => x.id === id);
+  document.getElementById('mk-title').textContent = a ? a.title : 'Hand-ins';
+  document.getElementById('mk-body').innerHTML = '<div class="skel" style="height:100px"></div>';
+  openModal('mark-modal');
+
+  const { data, error } = await sb.from('assignment_submissions')
+    .select('*, profiles(full_name)')
+    .eq('assignment_id', id).order('submitted_at', { ascending: false });
+
+  const body = document.getElementById('mk-body');
+  if (error) { body.innerHTML = `<div class="alert alert-error">${escHtml(friendlyError(error.message))}</div>`; return; }
+  if (!data?.length) { body.innerHTML = emptyState('Nothing handed in yet', 'When students hand their work in it will appear here for marking.'); return; }
+
+  body.innerHTML = data.map(s => `
+    <div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+      <div class="spread mb8">
+        <div>
+          <div style="font-weight:600;font-size:.86rem">${escHtml(s.profiles?.full_name || 'Unknown student')}</div>
+          <div class="small muted">Handed in ${fmtDateTime(s.submitted_at)}${s.graded_at ? ' · marked ' + fmtDate(s.graded_at) : ''}</div>
+        </div>
+        ${s.score == null ? '<span class="badge b-yellow">To mark</span>' : `<span class="badge b-green">${s.score} / ${a?.max_score ?? 100}</span>`}
+      </div>
+      ${s.text_answer ? `<p class="small" style="white-space:pre-wrap;background:var(--bg);border-radius:9px;padding:10px 12px;margin-bottom:10px">${escHtml(s.text_answer)}</p>` : ''}
+      ${s.file_url ? `<p class="small mb8"><a href="${escHtml(s.file_url)}" target="_blank" rel="noopener" style="color:var(--primary);font-weight:600">Open what they handed in</a></p>` : ''}
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Mark (out of ${a?.max_score ?? 100})</label>
+          <input type="number" class="form-input" id="sc-${s.id}" min="0" max="${a?.max_score ?? 100}" value="${s.score ?? ''}">
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Feedback</label>
+          <input type="text" class="form-input" id="fb-${s.id}" value="${escHtml(s.feedback || '')}" placeholder="A line for the student">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveMark('${s.id}', ${a?.max_score ?? 100})">Save mark</button>
+    </div>`).join('');
+}
+
+async function saveMark(submissionId, maxScore) {
+  const score = parseInt(document.getElementById('sc-' + submissionId).value, 10);
+  const feedback = document.getElementById('fb-' + submissionId).value.trim();
+
+  if (!Number.isFinite(score) || score < 0 || score > maxScore) {
+    showToast(`Enter a mark between 0 and ${maxScore}.`, 'error');
+    return;
+  }
+
+  const { error } = await sb.from('assignment_submissions')
+    .update({ score, feedback: feedback || null, graded_at: new Date().toISOString() })
+    .eq('id', submissionId);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+
+  showToast('Mark saved.', 'success');
+  await openMarking(markingId);
+  await loadAssignments();
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

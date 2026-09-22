@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Announcements | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Announcements</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="editAnn()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New announcement
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Posted</span>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="card-body" id="list"><div class="skel" style="height:80px"></div></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="ann-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="an-title">New announcement</span>
+      <button class="modal-close" onclick="closeModal('ann-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="an-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="an-name">Title *</label>
+        <input type="text" class="form-input" id="an-name" placeholder="No session this Thursday">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="an-body">Message *</label>
+        <textarea class="form-textarea" id="an-body" style="min-height:130px" placeholder="What your students need to know."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="an-course">Who sees it</label>
+          <select class="form-select" id="an-course"><option value="">Everyone in my space</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="an-priority">Priority</label>
+          <select class="form-select" id="an-priority">
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgent — pinned in red</option>
+          </select>
+        </div>
+      </div>
+      <label class="form-check" style="margin-bottom:0"><input type="checkbox" id="an-active" checked>Showing now</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('ann-modal')">Cancel</button>
+      <button class="btn btn-primary" id="an-save" onclick="saveAnn()">Post</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [], anns = [];
+let editingAnn = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'announcements' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Announcements' });
+  await loadCourses();
+  await loadAnns();
+  if (new URLSearchParams(location.search).get('action') === 'new') editAnn();
+})();
+
+async function loadCourses() {
+  const { data } = await sb.from('courses').select('id, title')
+    .eq('teacher_id', me.teacher_id).order('title');
+  courses = data || [];
+  document.getElementById('an-course').innerHTML = '<option value="">Everyone in my space</option>'
+    + courses.map(c => `<option value="${c.id}">Only ${escHtml(c.title)}</option>`).join('');
+}
+
+async function loadAnns() {
+  const { data, error } = await sb.from('announcements')
+    .select('*, courses(title), profiles(full_name)')
+    .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+
+  const host = document.getElementById('list');
+  if (error) { host.innerHTML = `<div class="alert alert-error">${escHtml(friendlyError(error.message))}</div>`; return; }
+  anns = data || [];
+
+  document.getElementById('count').textContent = `${anns.length} post${anns.length === 1 ? '' : 's'}`;
+  if (!anns.length) {
+    host.innerHTML = emptyState('Nothing posted yet',
+      'Announcements sit at the top of every student’s dashboard until you take them down.',
+      '<button class="btn btn-primary btn-sm" onclick="editAnn()">Write the first one</button>');
+    return;
+  }
+
+  host.innerHTML = anns.map(a => `
+    <div class="ann-item" style="align-items:flex-start">
+      <span class="ann-dot ${a.priority === 'urgent' ? 'urgent' : ''}"></span>
+      <div style="flex:1;min-width:0">
+        <div class="spread" style="align-items:flex-start">
+          <div class="ann-title-text">${escHtml(a.title)}</div>
+          <div class="row" style="flex-wrap:nowrap">
+            <button class="btn btn-ghost btn-xs" onclick="toggleAnn('${a.id}')">${a.is_active ? 'Take down' : 'Put back up'}</button>
+            <button class="btn btn-ghost btn-xs" onclick="editAnn('${a.id}')">Edit</button>
+            <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteAnn('${a.id}')">Delete</button>
+          </div>
+        </div>
+        <div class="ann-body-text">${escHtml(a.body)}</div>
+        <div class="ann-meta">
+          ${escHtml(a.courses?.title || 'Everyone')} · ${timeAgo(a.created_at)}${a.profiles?.full_name ? ' · ' + escHtml(a.profiles.full_name) : ''}
+          ${a.is_active ? '' : ' · <span style="color:var(--muted)">not showing</span>'}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function editAnn(id) {
+  const a = id ? anns.find(x => x.id === id) : null;
+  editingAnn = a || null;
+  document.getElementById('an-title').textContent = a ? 'Edit announcement' : 'New announcement';
+  document.getElementById('an-name').value = a?.title || '';
+  document.getElementById('an-body').value = a?.body || '';
+  document.getElementById('an-course').value = a?.course_id || '';
+  document.getElementById('an-priority').value = a?.priority || 'normal';
+  document.getElementById('an-active').checked = a ? a.is_active : true;
+  document.getElementById('an-save').textContent = a ? 'Save changes' : 'Post';
+  say('an-alert', '');
+  openModal('ann-modal');
+}
+
+async function saveAnn() {
+  const title = document.getElementById('an-name').value.trim();
+  const body = document.getElementById('an-body').value.trim();
+  if (!title || !body) { say('an-alert', 'Both a title and a message are needed.'); return; }
+
+  const row = {
+    teacher_id: me.teacher_id,
+    created_by: me.id,
+    title,
+    body,
+    course_id: document.getElementById('an-course').value || null,
+    priority: document.getElementById('an-priority').value,
+    is_active: document.getElementById('an-active').checked,
+  };
+
+  const btn = document.getElementById('an-save');
+  btn.disabled = true;
+  const { error } = editingAnn
+    ? await sb.from('announcements').update(row).eq('id', editingAnn.id)
+    : await sb.from('announcements').insert(row);
+  btn.disabled = false;
+
+  if (error) { say('an-alert', friendlyError(error.message)); return; }
+  closeModal('ann-modal');
+  showToast(editingAnn ? 'Announcement updated.' : 'Posted to your students.', 'success');
+  await loadAnns();
+}
+
+async function toggleAnn(id) {
+  const a = anns.find(x => x.id === id);
+  if (!a) return;
+  const { error } = await sb.from('announcements').update({ is_active: !a.is_active }).eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  await loadAnns();
+}
+
+async function deleteAnn(id) {
+  if (!confirm('Delete this announcement?')) return;
+  const { error } = await sb.from('announcements').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Deleted.', 'success');
+  await loadAnns();
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

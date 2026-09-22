@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My scores | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">My scores</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></div>
+        <div class="stat-n" id="s-avg">—</div>
+        <div class="stat-l">Average</div>
+        <div class="stat-hint">Your best try on each test</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+        <div class="stat-n" id="s-best">—</div>
+        <div class="stat-l">Best mark</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+        <div class="stat-n" id="s-count">—</div>
+        <div class="stat-l">Tests sat</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
+        <div class="stat-n" id="s-marked">—</div>
+        <div class="stat-l">Assignments marked</div>
+      </div>
+    </div>
+
+    <div class="card mb24">
+      <div class="card-header">
+        <span class="card-title">Every test you have sat</span>
+        <span class="small muted">Newest first</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Test</th><th class="num">Mark</th><th class="num">Out of</th><th>Result</th><th>When</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Marked assignments</span></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Assignment</th><th class="num">Mark</th><th>Feedback</th><th>Marked</th></tr></thead>
+          <tbody id="a-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+(async () => {
+  const me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'My scores' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(5, 4);
+  document.getElementById('a-rows').innerHTML = skeletonRows(4, 2);
+
+  const [{ data: attempts, error }, { data: subs }] = await Promise.all([
+    sb.from('test_attempts')
+      .select('id, percentage, score, max_score, passed, completed_at, test_id, practice_tests(title, passing_score_pct)')
+      .eq('student_id', me.id).not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false }),
+    sb.from('assignment_submissions')
+      .select('score, feedback, graded_at, assignments(title, max_score)')
+      .eq('student_id', me.id).not('score', 'is', null)
+      .order('graded_at', { ascending: false }),
+  ]);
+
+  const tbody = document.getElementById('rows');
+  if (error) { tbody.innerHTML = emptyRow(5, friendlyError(error.message)); return; }
+
+  const list = attempts || [];
+  const best = bestAttempts(list);
+  const avg = bestAverage(list);
+
+  setStat('s-avg', avg, avg == null ? '' : '%');
+  setStat('s-best', best.length ? Math.round(Math.max(...best.map(a => parseFloat(a.percentage)))) : null,
+          best.length ? '%' : '');
+  setStat('s-count', best.length);
+  setStat('s-marked', (subs || []).length);
+
+  if (!list.length) {
+    tbody.innerHTML = emptyRow(5, 'You have not sat a test yet.');
+  } else {
+    // Every attempt is listed, but only the best one on each test counts
+    // towards the average — so the retakes are labelled rather than hidden.
+    const bestIds = new Set(best.map(a => a.id));
+    tbody.innerHTML = list.map(a => `
+      <tr>
+        <td>
+          <div style="font-weight:600">${escHtml(a.practice_tests?.title || 'Test')}</div>
+          ${bestIds.has(a.id) ? '<div class="small muted">Your best on this test</div>' : '<div class="small muted">Earlier attempt</div>'}
+        </td>
+        <td class="num" style="font-weight:700">${pct(a.percentage)}</td>
+        <td class="num muted">${a.score} / ${a.max_score}</td>
+        <td><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${a.passed ? 'Passed' : 'Not passed'}</span></td>
+        <td class="small muted">${fmtDate(a.completed_at)}</td>
+      </tr>`).join('');
+  }
+
+  const aBody = document.getElementById('a-rows');
+  aBody.innerHTML = (subs || []).length
+    ? subs.map(s => `
+        <tr>
+          <td style="font-weight:600">${escHtml(s.assignments?.title || 'Assignment')}</td>
+          <td class="num" style="font-weight:700">${s.score} / ${s.assignments?.max_score ?? '—'}</td>
+          <td class="small muted">${escHtml(s.feedback || '—')}</td>
+          <td class="small muted">${fmtDate(s.graded_at)}</td>
+        </tr>`).join('')
+    : emptyRow(4, 'Nothing marked yet.');
+})();
+</script>
+</body>
+</html>

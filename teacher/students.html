@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Students | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Students</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNew()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add student
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="card mb16">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <div class="row" style="flex:1;min-width:240px">
+          <input type="search" class="form-input" id="q" placeholder="Search by name or email…" style="max-width:320px" aria-label="Search students">
+          <select class="form-select" id="course-filter" style="max-width:220px" aria-label="Filter by course">
+            <option value="">All courses</option>
+          </select>
+          <select class="form-select" id="status-filter" style="max-width:150px" aria-label="Filter by status">
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="">All</option>
+          </select>
+        </div>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Student</th><th>Courses</th><th>Contact</th><th>Added</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── ADD STUDENT ────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="new-modal">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-head">
+      <span class="modal-title">Add a student</span>
+      <button class="modal-close" onclick="closeModal('new-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="new-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div id="new-fields">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ns-name">Full name *</label>
+            <input type="text" class="form-input" id="ns-name" placeholder="Sara Ahmed">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ns-email">Email *</label>
+            <input type="email" class="form-input" id="ns-email" placeholder="sara@example.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="ns-phone">Student phone</label>
+            <input type="tel" class="form-input" id="ns-phone" placeholder="+20 1xx xxx xxxx">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ns-parent-phone">Parent phone</label>
+            <input type="tel" class="form-input" id="ns-parent-phone" placeholder="For results and reports">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ns-parent-email">Parent email</label>
+          <input type="email" class="form-input" id="ns-parent-email" placeholder="Optional">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Courses *</label>
+          <div id="ns-courses" style="border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;max-height:180px;overflow-y:auto"></div>
+          <p class="form-hint">They will see only the courses ticked here.</p>
+        </div>
+      </div>
+
+      <!-- Shown once the account exists. The password is displayed once
+           and never stored anywhere readable, so it has to be handed over
+           now — hence the copy and WhatsApp buttons. -->
+      <div id="creds-box" style="display:none">
+        <div class="alert alert-success mb16">Account created. Give these details to the student — this password is shown only once.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+          <div class="spread" style="margin-bottom:8px">
+            <span class="small muted">Email</span>
+            <span class="small" style="font-weight:700" id="cred-email">—</span>
+          </div>
+          <div class="spread">
+            <span class="small muted">Password</span>
+            <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="cred-pw">—</span>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn btn-success btn-sm" onclick="sendWhatsApp()">Send on WhatsApp</button>
+          <button class="btn btn-outline btn-sm" onclick="copyCredentials()">Copy details</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot" id="new-foot">
+      <button class="btn btn-ghost" onclick="closeModal('new-modal')">Cancel</button>
+      <button class="btn btn-primary" id="create-btn" onclick="createStudent()">Create account</button>
+    </div>
+    <div class="modal-foot" id="done-foot" style="display:none">
+      <button class="btn btn-outline" onclick="openNew()">Add another</button>
+      <button class="btn btn-primary" onclick="closeModal('new-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── RESET PASSWORD RESULT ──────────────────────────────────── -->
+<div class="modal-backdrop" id="reset-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head">
+      <span class="modal-title">New password</span>
+      <button class="modal-close" onclick="closeModal('reset-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="small muted mb16">They will be asked to change it the first time they sign in.</p>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div class="spread" style="margin-bottom:8px">
+          <span class="small muted">Email</span><span class="small" style="font-weight:700" id="r-email">—</span>
+        </div>
+        <div class="spread">
+          <span class="small muted">Password</span>
+          <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="r-pw">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="copyReset()">Copy details</button>
+      <button class="btn btn-primary" onclick="closeModal('reset-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DELETE ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="delete-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head">
+      <span class="modal-title">Delete this student</span>
+      <button class="modal-close" onclick="closeModal('delete-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error mb16">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>This removes their account <strong>and every result they have</strong>. It cannot be undone.</div>
+      </div>
+      <p class="small mb16">If you only want to stop their access, <strong>pause</strong> them instead — their work stays, and you can switch them back on later.</p>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="del-confirm">Type <strong id="del-name">the name</strong> to confirm</label>
+        <input type="text" class="form-input" id="del-confirm" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
+      <button class="btn btn-outline" id="pause-instead">Pause instead</button>
+      <button class="btn btn-danger" id="del-btn" onclick="confirmDelete()">Delete for good</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [];
+let students = [];
+let lastCreated = null;
+let lastReset = null;
+let pendingDelete = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'students' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Students' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  await loadCourses();
+  await loadStudents();
+
+  const allow = await studentAllowance();
+  if (allow) renderSubscriptionNotice(allow);
+
+  ['q', 'course-filter', 'status-filter'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render));
+
+  if (new URLSearchParams(location.search).get('action') === 'new') openNew();
+})();
+
+// ── Loading ───────────────────────────────────────────────────────
+async function loadCourses() {
+  const { data } = await sb.from('courses')
+    .select('id, title').eq('teacher_id', me.teacher_id).eq('is_active', true).order('title');
+  courses = data || [];
+
+  document.getElementById('course-filter').innerHTML = '<option value="">All courses</option>'
+    + courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('');
+
+  document.getElementById('ns-courses').innerHTML = courses.length
+    ? courses.map(c => `<label class="form-check"><input type="checkbox" value="${c.id}">${escHtml(c.title)}</label>`).join('')
+    : '<p class="small muted">No courses yet. <a href="/teacher/courses.html" style="color:var(--primary);font-weight:600">Create one first</a>.</p>';
+}
+
+async function loadStudents() {
+  // Enrolments come back nested so the course column does not need a
+  // second round trip per student.
+  const { data, error } = await sb.from('profiles')
+    .select('id, full_name, email, phone, parent_phone, is_active, created_at, enrollments(course_id, courses(title))')
+    .eq('teacher_id', me.teacher_id).eq('role', 'student')
+    .order('created_at', { ascending: false });
+
+  if (error) { document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(error.message)); return; }
+  students = data || [];
+  render();
+}
+
+// ── Rendering ─────────────────────────────────────────────────────
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const courseId = document.getElementById('course-filter').value;
+  const status = document.getElementById('status-filter').value;
+
+  const list = students.filter(s => {
+    if (status === 'active' && !s.is_active) return false;
+    if (status === 'paused' && s.is_active) return false;
+    if (courseId && !(s.enrollments || []).some(e => e.course_id === courseId)) return false;
+    if (q && !(`${s.full_name} ${s.email || ''}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('count').textContent =
+    `${list.length} of ${students.length} student${students.length === 1 ? '' : 's'}`;
+
+  const tbody = document.getElementById('rows');
+  if (!list.length) {
+    tbody.innerHTML = emptyRow(6, students.length
+      ? 'No students match those filters.'
+      : 'No students yet — use "Add student" to create the first account.');
+    return;
+  }
+
+  tbody.innerHTML = list.map(s => {
+    const names = (s.enrollments || []).map(e => e.courses?.title).filter(Boolean);
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(s.full_name)}</div>
+        <div class="small muted">${escHtml(s.email || '')}</div>
+      </td>
+      <td class="small">${names.length ? names.map(n => `<span class="badge b-brand" style="margin:1px 2px 1px 0">${escHtml(n)}</span>`).join('') : '<span class="muted">—</span>'}</td>
+      <td class="small muted">${escHtml(s.phone || s.parent_phone || '—')}</td>
+      <td class="small muted">${fmtDate(s.created_at)}</td>
+      <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="resetPassword('${s.id}')">Reset password</button>
+        <button class="btn btn-ghost btn-xs" onclick="togglePause('${s.id}')">${s.is_active ? 'Pause' : 'Resume'}</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${s.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Create ────────────────────────────────────────────────────────
+function openNew() {
+  lastCreated = null;
+  ['ns-name', 'ns-email', 'ns-phone', 'ns-parent-phone', 'ns-parent-email']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.querySelectorAll('#ns-courses input').forEach(i => { i.checked = false; });
+  document.getElementById('new-fields').style.display = 'block';
+  document.getElementById('creds-box').style.display = 'none';
+  document.getElementById('new-foot').style.display = 'flex';
+  document.getElementById('done-foot').style.display = 'none';
+  alertNew('');
+  const btn = document.getElementById('create-btn');
+  btn.disabled = false;
+  btn.textContent = 'Create account';
+  openModal('new-modal');
+}
+
+async function createStudent() {
+  const course_ids = [...document.querySelectorAll('#ns-courses input:checked')].map(i => i.value);
+  const payload = {
+    full_name: document.getElementById('ns-name').value,
+    email: document.getElementById('ns-email').value,
+    phone: document.getElementById('ns-phone').value,
+    parent_phone: document.getElementById('ns-parent-phone').value,
+    parent_email: document.getElementById('ns-parent-email').value,
+    course_ids,
+  };
+
+  if (!payload.full_name.trim() || !payload.email.trim()) { alertNew('Name and email are both needed.'); return; }
+  if (!course_ids.length) { alertNew('Tick at least one course.'); return; }
+
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  alertNew('');
+
+  try {
+    const data = await apiPost('/api/students', { action: 'create', ...payload });
+    lastCreated = { email: data.email, password: data.password, phone: payload.phone || payload.parent_phone };
+
+    document.getElementById('cred-email').textContent = data.email;
+    document.getElementById('cred-pw').textContent = data.password;
+    document.getElementById('new-fields').style.display = 'none';
+    document.getElementById('creds-box').style.display = 'block';
+    document.getElementById('new-foot').style.display = 'none';
+    document.getElementById('done-foot').style.display = 'flex';
+
+    await loadStudents();
+  } catch (err) {
+    alertNew(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Create account';
+  }
+}
+
+function credentialsText(c) {
+  return `Lumen sign-in: ${location.origin}/login.html\nEmail: ${c.email}\nPassword: ${c.password}\n\nPlease change your password after signing in for the first time.`;
+}
+
+function sendWhatsApp() {
+  if (!lastCreated) return;
+  const digits = (lastCreated.phone || '').replace(/\D/g, '');
+  const text = encodeURIComponent(
+    `Hello! Your account on ${me.teacher?.display_name || 'Lumen'} is ready.\n\n` + credentialsText(lastCreated));
+  window.open(digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank', 'noopener');
+}
+
+function copyCredentials() { copy(credentialsText(lastCreated)); }
+function copyReset() { copy(credentialsText(lastReset)); }
+
+async function copy(text) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied.', 'success');
+  } catch (_) {
+    showToast('Your browser would not let us copy. Select the details and copy them by hand.', 'error');
+  }
+}
+
+function alertNew(msg) {
+  const el = document.getElementById('new-alert');
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+
+// ── Reset / pause / delete ────────────────────────────────────────
+async function resetPassword(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`Give ${s.full_name} a new password? Their current one will stop working immediately.`)) return;
+
+  try {
+    const data = await apiPost('/api/students', { action: 'reset_password', student_id: id });
+    lastReset = { email: data.email, password: data.password };
+    document.getElementById('r-email').textContent = data.email;
+    document.getElementById('r-pw').textContent = data.password;
+    openModal('reset-modal');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function togglePause(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  try {
+    await apiPost('/api/students', { action: 'set_active', student_id: id, is_active: !s.is_active });
+    showToast(s.is_active ? `${s.full_name} is paused.` : `${s.full_name} is active again.`, 'success');
+    await loadStudents();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function askDelete(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  pendingDelete = s;
+  document.getElementById('del-name').textContent = s.full_name;
+  document.getElementById('del-confirm').value = '';
+  document.getElementById('pause-instead').onclick = async () => {
+    closeModal('delete-modal');
+    if (s.is_active) await togglePause(id);
+  };
+  openModal('delete-modal');
+}
+
+async function confirmDelete() {
+  if (!pendingDelete) return;
+  const typed = document.getElementById('del-confirm').value.trim();
+  if (typed.toLowerCase() !== pendingDelete.full_name.trim().toLowerCase()) {
+    showToast('Type the student’s name exactly to confirm.', 'error');
+    return;
+  }
+  const btn = document.getElementById('del-btn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    await apiPost('/api/students', { action: 'delete', student_id: pendingDelete.id });
+    showToast(`${pendingDelete.full_name} has been deleted.`, 'success');
+    closeModal('delete-modal');
+    pendingDelete = null;
+    await loadStudents();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Delete for good';
+  }
+}
+</script>
+</body>
+</html>

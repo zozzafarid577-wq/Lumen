@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing | Lumen console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Billing</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNew()">Raise an invoice</button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="stat-n" id="s-due">—</div>
+        <div class="stat-l">Outstanding, EGP</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="stat-n" id="s-paid">—</div>
+        <div class="stat-l">Collected, EGP</div>
+        <div class="stat-hint">All time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+        <div class="stat-n" id="s-count">—</div>
+        <div class="stat-l">Invoices</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <div class="stat-n" id="s-mrr">—</div>
+        <div class="stat-l">Monthly recurring, EGP</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <span class="card-title">Invoices</span>
+        <select class="form-select" id="status-filter" style="max-width:170px" aria-label="Filter by status">
+          <option value="due">Outstanding</option>
+          <option value="paid">Paid</option>
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Space</th><th>What for</th><th>Period</th><th class="num">Amount</th><th>Issued</th><th>Status</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="modal-backdrop" id="inv-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Raise an invoice</span>
+      <button class="modal-close" onclick="closeModal('inv-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="iv-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="iv-teacher">Space *</label>
+        <select class="form-select" id="iv-teacher"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="iv-kind">What for</label>
+          <select class="form-select" id="iv-kind">
+            <option value="monthly">Monthly fee</option>
+            <option value="setup">Initial setup</option>
+            <option value="adjustment">Adjustment</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="iv-amount">Amount (EGP) *</label>
+          <input type="number" class="form-input" id="iv-amount" min="1" step="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="iv-from">Period from</label>
+          <input type="date" class="form-input" id="iv-from">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="iv-to">Period to</label>
+          <input type="date" class="form-input" id="iv-to">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="iv-desc">Description</label>
+        <input type="text" class="form-input" id="iv-desc" placeholder="Platform + Student Support — March">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('inv-modal')">Cancel</button>
+      <button class="btn btn-primary" id="iv-save" onclick="createInvoice()">Raise it</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let invoices = [], spaces = [];
+
+(async () => {
+  me = await requireAuth('owner');
+  if (!me) return;
+  renderShell('admin', me, { title: 'Billing' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(7, 5);
+  await load();
+  document.getElementById('status-filter').addEventListener('change', render);
+})();
+
+async function load() {
+  const [{ data: inv, error }, { data: teachers }, { data: subs }] = await Promise.all([
+    sb.from('invoices').select('*').order('issued_at', { ascending: false }),
+    sb.from('teachers').select('id, display_name, slug').order('display_name'),
+    sb.from('subscriptions').select('status, monthly_fee_egp'),
+  ]);
+
+  if (error) { document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(error.message)); return; }
+
+  spaces = teachers || [];
+  invoices = (inv || []).map(i => ({ ...i, space: spaces.find(t => t.id === i.teacher_id) }));
+
+  setStat('s-due', invoices.filter(i => i.status === 'due').reduce((t, i) => t + i.amount_egp, 0).toLocaleString('en-US'));
+  setStat('s-paid', invoices.filter(i => i.status === 'paid').reduce((t, i) => t + i.amount_egp, 0).toLocaleString('en-US'));
+  setStat('s-count', invoices.length);
+  setStat('s-mrr', (subs || []).filter(s => s.status === 'active')
+    .reduce((t, s) => t + (s.monthly_fee_egp || 0), 0).toLocaleString('en-US'));
+
+  document.getElementById('iv-teacher').innerHTML = spaces.length
+    ? spaces.map(t => `<option value="${t.id}">${escHtml(t.display_name)}</option>`).join('')
+    : '<option value="">No spaces yet</option>';
+
+  render();
+}
+
+function render() {
+  const status = document.getElementById('status-filter').value;
+  const list = invoices.filter(i => !status || i.status === status);
+
+  const tbody = document.getElementById('rows');
+  if (!list.length) { tbody.innerHTML = emptyRow(7, invoices.length ? 'Nothing with that status.' : 'No invoices yet.'); return; }
+
+  tbody.innerHTML = list.map(i => `
+    <tr>
+      <td style="font-weight:600">${escHtml(i.space?.display_name || '—')}</td>
+      <td class="small">${escHtml(i.description || i.kind)}</td>
+      <td class="small muted">${i.period_start ? `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : '—'}</td>
+      <td class="num" style="font-weight:700">${egp(i.amount_egp)}</td>
+      <td class="small muted">${fmtDate(i.issued_at)}</td>
+      <td><span class="badge ${i.status === 'paid' ? 'b-green' : i.status === 'void' ? 'b-gray' : 'b-yellow'}">${escHtml(i.status)}</span></td>
+      <td style="text-align:right">
+        ${i.status === 'due' ? `<button class="btn btn-ghost btn-xs" onclick="markPaid('${i.id}')">Mark paid</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function openNew() {
+  if (!spaces.length) { showToast('Open a teacher space first.', 'error'); return; }
+  ['iv-amount', 'iv-from', 'iv-to', 'iv-desc'].forEach(id => { document.getElementById(id).value = ''; });
+  say('iv-alert', '');
+  openModal('inv-modal');
+}
+
+async function createInvoice() {
+  const btn = document.getElementById('iv-save');
+  btn.disabled = true;
+  btn.textContent = 'Raising…';
+  try {
+    await apiPost('/api/teachers', {
+      action: 'add_invoice',
+      teacher_id: document.getElementById('iv-teacher').value,
+      kind: document.getElementById('iv-kind').value,
+      amount_egp: document.getElementById('iv-amount').value,
+      description: document.getElementById('iv-desc').value,
+      period_start: document.getElementById('iv-from').value || null,
+      period_end: document.getElementById('iv-to').value || null,
+    });
+    closeModal('inv-modal');
+    showToast('Invoice raised.', 'success');
+    await load();
+  } catch (err) {
+    say('iv-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Raise it';
+  }
+}
+
+async function markPaid(id) {
+  const reference = prompt('Payment reference (optional) — e.g. the transfer number:');
+  if (reference === null) return;   // cancelled
+  try {
+    await apiPost('/api/teachers', { action: 'mark_paid', invoice_id: id, reference });
+    showToast('Marked paid.', 'success');
+    await load();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

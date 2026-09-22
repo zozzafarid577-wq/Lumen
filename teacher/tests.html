@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tests | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .picker { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .picker-col { border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 300px; }
+  .picker-head { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); border-radius: 12px 12px 0 0; }
+  .picker-body { flex: 1; overflow-y: auto; max-height: 340px; padding: 8px; }
+  .pick { padding: 9px 11px; border-radius: 9px; font-size: .79rem; line-height: 1.45; cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
+  .pick:hover { background: var(--bg); }
+  .pick .mv { color: var(--primary); font-weight: 800; flex-shrink: 0; }
+  @media (max-width: 720px) { .picker { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Tests</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openBuilder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New test
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Your tests</span>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Test</th><th>Course</th><th>Questions</th><th>Window</th><th>Sat</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── BUILDER ────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="builder">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-head">
+      <span class="modal-title" id="b-title">New test</span>
+      <button class="modal-close" onclick="closeModal('builder')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="b-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="b-name">Title *</label>
+        <input type="text" class="form-input" id="b-name" placeholder="Unit 1 quiz — cell division">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="b-course">Course *</label>
+          <select class="form-select" id="b-course" onchange="onCourseChange()"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-unit">Unit</label>
+          <select class="form-select" id="b-unit"><option value="">Whole course</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="b-time">Time limit (minutes)</label>
+          <input type="number" class="form-input" id="b-time" min="1" placeholder="No limit">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-pass">Pass mark (%)</label>
+          <input type="number" class="form-input" id="b-pass" min="0" max="100" value="60">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="b-open">Opens</label>
+          <input type="datetime-local" class="form-input" id="b-open">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-close">Closes</label>
+          <input type="datetime-local" class="form-input" id="b-close">
+        </div>
+      </div>
+      <p class="form-hint" style="margin-top:-8px;margin-bottom:16px">
+        Leave both empty to open it straight away. Before a test opens, its questions cannot be read at all — not even by someone looking at the network traffic.
+      </p>
+
+      <label class="form-check"><input type="checkbox" id="b-active" checked>Visible to students</label>
+
+      <div class="section-head" style="margin:22px 0 12px"><div><h2 style="font-size:.9rem">Questions</h2><div class="sub" id="b-qcount">Nothing chosen yet</div></div>
+        <input type="search" class="form-input" id="b-search" placeholder="Search the bank…" style="max-width:220px" aria-label="Search the bank">
+      </div>
+
+      <div class="picker">
+        <div class="picker-col">
+          <div class="picker-head">In the bank</div>
+          <div class="picker-body" id="bank-col"></div>
+        </div>
+        <div class="picker-col">
+          <div class="picker-head">On this test</div>
+          <div class="picker-body" id="chosen-col"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('builder')">Cancel</button>
+      <button class="btn btn-primary" id="b-save" onclick="saveTest()">Save test</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [], units = [], bank = [], tests = [];
+let chosen = [];       // questions on the test being built, in order
+let editingTest = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'tests' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Tests' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(6, 4);
+  await Promise.all([loadCourses(), loadBank()]);
+  await loadTests();
+
+  document.getElementById('b-search').addEventListener('input', renderPicker);
+  if (new URLSearchParams(location.search).get('action') === 'new') openBuilder();
+})();
+
+async function loadCourses() {
+  const { data } = await sb.from('courses').select('id, title')
+    .eq('teacher_id', me.teacher_id).eq('is_active', true).order('title');
+  courses = data || [];
+  document.getElementById('b-course').innerHTML = courses.length
+    ? courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('')
+    : '<option value="">No courses yet</option>';
+}
+
+async function loadBank() {
+  const { data } = await sb.from('question_bank').select('id, question_text, options, explanation, topic, course_id')
+    .eq('teacher_id', me.teacher_id).eq('is_published', true)
+    .order('created_at', { ascending: false }).limit(800);
+  bank = data || [];
+}
+
+async function loadTests() {
+  const { data, error } = await sb.from('practice_tests')
+    .select('*, courses(title), test_questions(id), test_attempts(id)')
+    .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('rows');
+  if (error) { tbody.innerHTML = emptyRow(6, friendlyError(error.message)); return; }
+  tests = data || [];
+
+  document.getElementById('count').textContent = `${tests.length} test${tests.length === 1 ? '' : 's'}`;
+  if (!tests.length) {
+    tbody.innerHTML = emptyRow(6, 'No tests yet — build one from your question bank.');
+    return;
+  }
+
+  tbody.innerHTML = tests.map(t => {
+    const w = testWindow(t);
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(t.title)}</div>
+        <div class="small muted">${t.time_limit_min ? t.time_limit_min + ' min · ' : ''}pass at ${t.passing_score_pct}%</div>
+      </td>
+      <td class="small muted">${escHtml(t.courses?.title || '—')}</td>
+      <td class="small">${(t.test_questions || []).length}</td>
+      <td><span class="badge ${w.open ? 'b-green' : 'b-yellow'}">${escHtml(w.label)}</span></td>
+      <td class="small">${(t.test_attempts || []).length}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openBuilder('${t.id}')">Edit</button>
+        <button class="btn btn-ghost btn-xs" onclick="toggleActive('${t.id}')">${t.is_active ? 'Hide' : 'Show'}</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteTest('${t.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Builder ───────────────────────────────────────────────────────
+async function openBuilder(id) {
+  if (!courses.length) { showToast('Create a course first — a test has to belong to one.', 'error'); return; }
+
+  const t = id ? tests.find(x => x.id === id) : null;
+  editingTest = t || null;
+  chosen = [];
+
+  document.getElementById('b-title').textContent = t ? 'Edit test' : 'New test';
+  document.getElementById('b-name').value = t?.title || '';
+  document.getElementById('b-course').value = t?.course_id || courses[0].id;
+  document.getElementById('b-time').value = t?.time_limit_min || '';
+  document.getElementById('b-pass').value = t?.passing_score_pct ?? 60;
+  document.getElementById('b-open').value = toLocalInput(t?.open_at);
+  document.getElementById('b-close').value = toLocalInput(t?.close_at);
+  document.getElementById('b-active').checked = t ? t.is_active : true;
+  document.getElementById('b-search').value = '';
+  say('b-alert', '');
+
+  await onCourseChange();
+  if (t) document.getElementById('b-unit').value = t.module_id || '';
+
+  // An existing test carries its own copies of the questions, not
+  // pointers into the bank — editing the bank afterwards must not change
+  // a test students have already sat.
+  if (t) {
+    const { data } = await sb.from('test_questions')
+      .select('question_text, options, explanation, points, order_index')
+      .eq('test_id', t.id).order('order_index');
+    chosen = (data || []).map(q => ({ ...q, id: 'existing-' + q.order_index }));
+  }
+
+  renderPicker();
+  openModal('builder');
+}
+
+async function onCourseChange() {
+  const courseId = document.getElementById('b-course').value;
+  const { data } = await sb.from('modules').select('id, title')
+    .eq('course_id', courseId).order('order_index');
+  units = data || [];
+  document.getElementById('b-unit').innerHTML = '<option value="">Whole course</option>'
+    + units.map(u => `<option value="${u.id}">${escHtml(u.title)}</option>`).join('');
+  renderPicker();
+}
+
+function renderPicker() {
+  const q = document.getElementById('b-search').value.trim().toLowerCase();
+  const courseId = document.getElementById('b-course').value;
+
+  // Questions tied to this course first, then untagged ones — a teacher
+  // building a biology test should not have to scroll past chemistry.
+  const chosenTexts = new Set(chosen.map(c => c.question_text));
+  const available = bank
+    .filter(b => !chosenTexts.has(b.question_text))
+    .filter(b => !q || `${b.question_text} ${b.topic || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => rank(b, courseId) - rank(a, courseId));
+
+  document.getElementById('bank-col').innerHTML = available.length
+    ? available.slice(0, 200).map(b => `
+        <div class="pick" onclick="addQuestion('${b.id}')">
+          <span class="mv">+</span>
+          <span>${escHtml(b.question_text)}${b.topic ? `<span class="muted"> · ${escHtml(b.topic)}</span>` : ''}</span>
+        </div>`).join('')
+    : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty. <a href="/teacher/question-bank.html" style="color:var(--primary);font-weight:600">Fill it first</a>.'}</p>`;
+
+  document.getElementById('chosen-col').innerHTML = chosen.length
+    ? chosen.map((c, i) => `
+        <div class="pick" onclick="removeQuestion(${i})">
+          <span class="mv">${i + 1}</span>
+          <span>${escHtml(c.question_text)}</span>
+          <span class="mv" style="margin-left:auto;color:var(--danger)">✕</span>
+        </div>`).join('')
+    : '<p class="small muted" style="padding:12px">Click a question on the left to add it.</p>';
+
+  document.getElementById('b-qcount').textContent = chosen.length
+    ? `${chosen.length} question${chosen.length === 1 ? '' : 's'} on this test`
+    : 'Nothing chosen yet';
+}
+
+function rank(q, courseId) { return q.course_id === courseId ? 2 : (q.course_id ? 0 : 1); }
+
+function addQuestion(id) {
+  const b = bank.find(x => x.id === id);
+  if (!b) return;
+  chosen.push({
+    id: b.id,
+    question_text: b.question_text,
+    options: b.options,
+    explanation: b.explanation,
+    points: 1,
+  });
+  renderPicker();
+}
+
+function removeQuestion(i) { chosen.splice(i, 1); renderPicker(); }
+
+async function saveTest() {
+  const btn = document.getElementById('b-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  say('b-alert', '');
+
+  const openVal = document.getElementById('b-open').value;
+  const closeVal = document.getElementById('b-close').value;
+
+  try {
+    await apiPost('/api/save-test', {
+      test_id: editingTest?.id || null,
+      course_id: document.getElementById('b-course').value,
+      module_id: document.getElementById('b-unit').value || null,
+      title: document.getElementById('b-name').value,
+      time_limit_min: document.getElementById('b-time').value || null,
+      passing_score_pct: document.getElementById('b-pass').value,
+      open_at: openVal ? new Date(openVal).toISOString() : null,
+      close_at: closeVal ? new Date(closeVal).toISOString() : null,
+      is_active: document.getElementById('b-active').checked,
+      questions: chosen.map(c => ({
+        question_text: c.question_text,
+        options: c.options,
+        explanation: c.explanation,
+        points: c.points || 1,
+      })),
+    });
+    closeModal('builder');
+    showToast('Test saved.', 'success');
+    await loadTests();
+  } catch (err) {
+    say('b-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save test';
+  }
+}
+
+async function toggleActive(id) {
+  const t = tests.find(x => x.id === id);
+  if (!t) return;
+  const { error } = await sb.from('practice_tests').update({ is_active: !t.is_active }).eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast(t.is_active ? 'Hidden from students.' : 'Visible to students.', 'success');
+  await loadTests();
+}
+
+async function deleteTest(id) {
+  const t = tests.find(x => x.id === id);
+  if (!t) return;
+  const sat = (t.test_attempts || []).length;
+  const warning = sat
+    ? `Delete "${t.title}"? ${sat} student result${sat === 1 ? '' : 's'} will go with it. Hiding it instead keeps the results.`
+    : `Delete "${t.title}"? This cannot be undone.`;
+  if (!confirm(warning)) return;
+
+  const { error } = await sb.from('practice_tests').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Test deleted.', 'success');
+  await loadTests();
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

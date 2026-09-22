@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Dashboard</span>
+    </div>
+    <div class="topbar-right">
+      <a href="/teacher/students.html?action=new" class="btn btn-primary btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add student
+      </a>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="welcome-banner">
+      <div class="welcome-text">
+        <div class="welcome-sub">Your space</div>
+        <div class="welcome-name" id="hero-name">Welcome back</div>
+        <p class="welcome-note" id="hero-note">Here is where your class stands today.</p>
+      </div>
+      <div class="welcome-actions">
+        <a href="/teacher/tests.html?action=new" class="btn btn-white btn-sm">New test</a>
+        <a href="/teacher/announcements.html?action=new" class="btn btn-outline btn-sm" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.45)">Announce</a>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+        <div class="stat-n" id="s-students">—</div>
+        <div class="stat-l">Active students</div>
+        <div class="stat-hint" id="s-students-hint"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+        <div class="stat-n" id="s-courses">—</div>
+        <div class="stat-l">Active courses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+        <div class="stat-n" id="s-attempts">—</div>
+        <div class="stat-l">Tests sat</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="stat-n" id="s-pending">—</div>
+        <div class="stat-l">Waiting to be marked</div>
+      </div>
+    </div>
+
+    <div class="section-head"><div><h2>Quick actions</h2><div class="sub">Straight into the thing you came to do</div></div></div>
+    <div class="qa-grid mb24" id="quick-actions"></div>
+
+    <div class="section-head"><div><h2>Activity</h2><div class="sub">The newest students and the latest results</div></div></div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent students</span>
+          <a href="/teacher/students.html" class="btn btn-ghost btn-xs">View all</a>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Name</th><th>Added</th><th>Status</th></tr></thead>
+            <tbody id="students-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Latest test results</span>
+          <a href="/teacher/progress.html" class="btn btn-ghost btn-xs">Progress</a>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Student</th><th>Test</th><th>Score</th><th>When</th></tr></thead>
+            <tbody id="attempts-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+
+// Quick actions an assistant has no permission for would be four dead
+// ends, so the tiles are built from what this person may actually do.
+const QUICK = [
+  { perm: 'students',      href: '/teacher/students.html?action=new',     icon: 'students', title: 'Add student',   sub: 'Create an account' },
+  { perm: 'courses',       href: '/teacher/courses.html',                 icon: 'courses',  title: 'Add a lesson',  sub: 'Content & schedule' },
+  { perm: 'tests',         href: '/teacher/tests.html?action=new',        icon: 'tests',    title: 'New test',      sub: 'Build from the bank' },
+  { perm: 'announcements', href: '/teacher/announcements.html?action=new',icon: 'bell',     title: 'Announce',      sub: 'Tell your class' },
+];
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant']);
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Dashboard' });
+
+  document.getElementById('hero-name').textContent = 'Welcome back, ' + me.full_name.split(' ')[0];
+  document.getElementById('hero-note').textContent =
+    me.teacher ? `${me.teacher.display_name}${me.teacher.subject ? ' · ' + me.teacher.subject : ''}` : '';
+
+  document.getElementById('quick-actions').innerHTML = QUICK
+    .filter(q => staffHasPerm(me, q.perm))
+    .map(q => `<a href="${q.href}" class="qa-tile">
+        <div class="qa-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${ICON[q.icon]}</svg></div>
+        <div><div class="qa-tt">${escHtml(q.title)}</div><div class="qa-sb">${escHtml(q.sub)}</div></div>
+      </a>`).join('');
+
+  document.getElementById('students-tbody').innerHTML = skeletonRows(3);
+  document.getElementById('attempts-tbody').innerHTML = skeletonRows(4);
+
+  // One failure should not blank the whole dashboard, so each panel
+  // loads and fails on its own.
+  await Promise.allSettled([loadStats(), loadRecentStudents(), loadRecentAttempts()]);
+})();
+
+async function loadStats() {
+  const t = me.teacher_id;
+  const [students, courses, attempts, pending, allow] = await Promise.all([
+    sb.from('profiles').select('id', { count: 'exact', head: true }).eq('teacher_id', t).eq('role', 'student').eq('is_active', true),
+    sb.from('courses').select('id', { count: 'exact', head: true }).eq('teacher_id', t).eq('is_active', true),
+    sb.from('test_attempts').select('id', { count: 'exact', head: true }).eq('teacher_id', t).not('completed_at', 'is', null),
+    sb.from('assignment_submissions').select('id', { count: 'exact', head: true }).eq('teacher_id', t).is('score', null),
+    studentAllowance(),
+  ]);
+
+  setStat('s-students', students.count ?? 0);
+  setStat('s-courses',  courses.count ?? 0);
+  setStat('s-attempts', attempts.count ?? 0);
+  setStat('s-pending',  pending.count ?? 0);
+
+  if (allow) {
+    document.getElementById('s-students-hint').textContent = `of ${allow.allowed} on your plan`;
+    renderSubscriptionNotice(allow);
+  }
+}
+
+async function loadRecentStudents() {
+  const { data } = await sb.from('profiles')
+    .select('full_name, created_at, is_active')
+    .eq('teacher_id', me.teacher_id).eq('role', 'student')
+    .order('created_at', { ascending: false }).limit(6);
+
+  const tbody = document.getElementById('students-tbody');
+  if (!data?.length) { tbody.innerHTML = emptyRow(3, 'No students yet — add your first one.'); return; }
+
+  tbody.innerHTML = data.map(s => `<tr>
+      <td style="font-weight:600">${escHtml(s.full_name)}</td>
+      <td class="muted">${fmtDate(s.created_at)}</td>
+      <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
+    </tr>`).join('');
+}
+
+async function loadRecentAttempts() {
+  const { data } = await sb.from('test_attempts')
+    .select('percentage, passed, completed_at, profiles(full_name), practice_tests(title)')
+    .eq('teacher_id', me.teacher_id)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false }).limit(6);
+
+  const tbody = document.getElementById('attempts-tbody');
+  if (!data?.length) { tbody.innerHTML = emptyRow(4, 'No tests have been sat yet.'); return; }
+
+  tbody.innerHTML = data.map(a => `<tr>
+      <td style="font-weight:600">${escHtml(a.profiles?.full_name ?? '—')}</td>
+      <td class="muted">${escHtml(a.practice_tests?.title ?? '—')}</td>
+      <td><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${pct(a.percentage)}</span></td>
+      <td class="muted">${timeAgo(a.completed_at)}</td>
+    </tr>`).join('');
+}
+</script>
+</body>
+</html>

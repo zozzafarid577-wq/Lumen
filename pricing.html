@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing | Lumen</title>
+<meta name="description" content="Lumen packages: platform management from 5,000 EGP a month, full service with student support from 8,000 EGP, and a one-time 10,000 EGP setup.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="/" class="wordmark nav-brand" aria-label="Lumen home">L<span class="u">u</span>men</a>
+    <nav class="nav-links" id="nav-links">
+      <a href="/features.html">What's included</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/#how">How it works</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="/login.html" class="btn btn-ghost btn-sm">Sign in</a>
+      <a href="/register.html" class="btn btn-primary btn-sm">Start free trial</a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<section class="section" style="padding-bottom:40px">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Our packages</div>
+      <h2>Straightforward pricing, in EGP</h2>
+      <p>A one-time setup, then a monthly fee that depends on how much of the day-to-day we carry and how many students you have.</p>
+    </div>
+
+    <div class="price-grid" id="plan-cards">
+      <div class="price-card">
+        <div class="price-name">Platform Management</div>
+        <div class="price-sub">Basic support · up to 60 students</div>
+        <div class="price-amount"><span class="n">5,000</span><span class="cur">EGP</span><span class="per">/ month</span></div>
+        <ul class="price-list">
+          <li>Dashboard management</li>
+          <li>Student enrollment &amp; database</li>
+          <li>Content uploading &amp; organization</li>
+          <li>Progress tracking</li>
+          <li>Reports</li>
+          <li>Technical support</li>
+          <li>Up to 60 students</li>
+        </ul>
+        <div class="price-best">Best for teachers who mainly need the platform managed.</div>
+        <a href="/contact.html?plan=basic-60" class="btn btn-outline btn-block">Choose this package</a>
+      </div>
+
+      <div class="price-card featured">
+        <div class="price-flag">Full service</div>
+        <div class="price-name">Platform + Student Support</div>
+        <div class="price-sub">Platform + student support · up to 60 students</div>
+        <div class="price-amount"><span class="n">8,000</span><span class="cur">EGP</span><span class="per">/ month</span></div>
+        <ul class="price-list">
+          <li>Everything in Platform Management</li>
+          <li>Student support</li>
+          <li>Answering subject questions</li>
+          <li>Monitoring student progress</li>
+          <li>Session support</li>
+          <li>More active involvement in the educational process</li>
+        </ul>
+        <div class="price-best">Best for teachers who want ongoing student support and full management.</div>
+        <a href="/contact.html?plan=full-60" class="btn btn-primary btn-block">Choose this package</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SETUP + TIERS ──────────────────────────────────────────── -->
+<section class="section section-alt">
+  <div class="wrap">
+    <div class="grid-2" style="align-items:start">
+      <div class="panel">
+        <div class="sec-kicker">Initial setup</div>
+        <h3 style="margin-bottom:6px"><span style="color:var(--primary);font-size:1.9rem">10,000 EGP</span> <span style="font-size:.9rem;color:var(--muted);font-weight:500">one-time</span></h3>
+        <p style="font-size:.9rem;margin-bottom:22px">Everything needed before your first lesson goes live.</p>
+        <div class="check-list">
+          <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>Creating your account</div>
+          <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>Setting up your dashboard</div>
+          <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>Uploading your initial content</div>
+          <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>Configuring student and parent views</div>
+          <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>Testing and training</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="sec-kicker">Student tiers</div>
+        <h3 style="margin-bottom:6px">Monthly packages</h3>
+        <p style="font-size:.9rem;margin-bottom:22px">Full-service pricing by class size. If you expect the number to grow, we adjust the package rather than start again.</p>
+        <table class="tier-table">
+          <thead><tr><th>Number of students</th><th>Monthly fee</th></tr></thead>
+          <tbody id="tier-rows">
+            <tr><td>Up to 60</td><td>6,000 EGP</td></tr>
+            <tr><td>61 – 100</td><td>8,000 EGP</td></tr>
+            <tr><td>101 – 150</td><td>10,000 EGP</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── NOTES ──────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="wrap">
+    <div class="sec-head left" style="margin-bottom:28px">
+      <div class="sec-kicker">Important notes</div>
+      <h2>The small print, in plain words</h2>
+    </div>
+    <div class="panel">
+      <ul class="note-list">
+        <li>Lumen is an existing platform, so there is <strong>no separate domain fee</strong>. Your space lives inside it under your own name.</li>
+        <li>Prices are in EGP and may be adjusted for additional requests — extra content, live session support, or custom features.</li>
+        <li>We are happy to discuss a trial period or a shorter initial commitment. You can also start a 14-day free trial yourself, with up to 10 students, before deciding.</li>
+        <li>Your students, content and results belong to you. Pausing a subscription hides the portal; it never deletes anything.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="cta-band">
+      <h2>Not sure which package fits?</h2>
+      <p>Tell us how many students you have and how you teach. We will recommend a tier — and if a trial makes more sense first, we will say so.</p>
+      <div class="cta-actions">
+        <a href="/contact.html" class="btn btn-white btn-lg">Request a setup</a>
+        <a href="/register.html" class="btn btn-outline btn-lg" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)">Start free trial</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div>
+        <div class="wordmark">L<span class="u">u</span>men</div>
+        <p class="footer-blurb">Educational dashboards and student management for teachers — set up, organised and managed for you.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/features.html">What's included</a></li>
+          <li><a href="/pricing.html">Pricing</a></li>
+          <li><a href="/#how">How it works</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Get started</h4>
+        <ul>
+          <li><a href="/register.html">Start free trial</a></li>
+          <li><a href="/contact.html">Request a setup</a></li>
+          <li><a href="/login.html">Sign in</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Support</h4>
+        <ul>
+          <li><a href="/contact.html">Contact us</a></li>
+          <li><a href="/login.html">Student sign-in</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bot">
+      <span>© <span id="year">2026</span> Lumen. Educate with Excellence.</span>
+      <span>Prices in EGP.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/site.js"></script>
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  mountNavToggle();
+  renderPlanCards('plan-cards', { codes: ['basic-60', 'full-60'], featured: 'full-60' });
+  renderTierTable('tier-rows');
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Announcements | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Announcements</span>
+    </div>
+  </header>
+
+  <main class="content" style="max-width:820px">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" data-tenant-name>From your teacher</span>
+      </div>
+      <div class="card-body" id="list"><div class="skel" style="height:90px"></div></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+(async () => {
+  const me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Announcements' });
+
+  const { data, error } = await sb.from('announcements')
+    .select('title, body, priority, created_at, courses(title)')
+    .eq('is_active', true).order('created_at', { ascending: false }).limit(60);
+
+  const host = document.getElementById('list');
+  if (error) { host.innerHTML = `<div class="alert alert-error">${escHtml(friendlyError(error.message))}</div>`; return; }
+  if (!data?.length) {
+    host.innerHTML = emptyState('Nothing posted', 'Anything your teacher announces will appear here.');
+    return;
+  }
+
+  // Urgent posts stay at the top whatever their date, then everything
+  // else newest first.
+  const sorted = [...data].sort((a, b) => {
+    const urgency = (b.priority === 'urgent') - (a.priority === 'urgent');
+    return urgency || new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  host.innerHTML = sorted.map(a => `
+    <div class="ann-item">
+      <span class="ann-dot ${a.priority === 'urgent' ? 'urgent' : ''}"></span>
+      <div style="flex:1;min-width:0">
+        <div class="ann-title-text">${escHtml(a.title)}${a.priority === 'urgent' ? ' <span class="badge b-red">Urgent</span>' : ''}</div>
+        <div class="ann-body-text">${escHtml(a.body)}</div>
+        <div class="ann-meta">${escHtml(a.courses?.title || 'Everyone')} · ${timeAgo(a.created_at)}</div>
+      </div>
+    </div>`).join('');
+})();
+</script>
+</body>
+</html>

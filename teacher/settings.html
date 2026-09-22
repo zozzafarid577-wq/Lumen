@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Settings</span>
+    </div>
+  </header>
+
+  <main class="content" style="max-width:760px">
+
+    <div class="alert alert-warning mb24" id="first-notice" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div>Your password was set by someone else, so it is known to them. Choose your own before going any further.</div>
+    </div>
+
+    <!-- ── PASSWORD ─────────────────────────────────────────── -->
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Password</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="pw-alert" style="display:none;margin-bottom:16px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="pw1">New password</label>
+            <input type="password" class="form-input" id="pw1" autocomplete="new-password" placeholder="At least 8 characters">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pw2">Type it again</label>
+            <input type="password" class="form-input" id="pw2" autocomplete="new-password">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="pw-save" onclick="savePassword()">Change password</button>
+      </div>
+    </div>
+
+    <!-- ── YOU ──────────────────────────────────────────────── -->
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Your details</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="me-alert" style="display:none;margin-bottom:16px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="me-name">Full name</label>
+            <input type="text" class="form-input" id="me-name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="me-phone">Phone</label>
+            <input type="tel" class="form-input" id="me-phone">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="me-email">Email</label>
+          <input type="email" class="form-input" id="me-email" disabled>
+          <p class="form-hint">This is what you sign in with. Contact Lumen to change it.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="me-save" onclick="saveMe()">Save details</button>
+      </div>
+    </div>
+
+    <!-- ── THE SPACE (teacher only) ─────────────────────────── -->
+    <div class="card mb24" id="space-card" style="display:none">
+      <div class="card-header"><span class="card-title">Your space</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="sp-alert" style="display:none;margin-bottom:16px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="sp-name">Display name</label>
+            <input type="text" class="form-input" id="sp-name">
+            <p class="form-hint">What your students see at the top of their dashboard.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sp-subject">Subject</label>
+            <input type="text" class="form-input" id="sp-subject">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sp-tagline">Tagline</label>
+          <input type="text" class="form-input" id="sp-tagline" placeholder="Educate with Excellence">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="sp-phone">Contact phone</label>
+            <input type="tel" class="form-input" id="sp-phone">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sp-whatsapp">WhatsApp (digits only)</label>
+            <input type="text" class="form-input" id="sp-whatsapp" placeholder="201xxxxxxxxx">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sp-bio">About you</label>
+          <textarea class="form-textarea" id="sp-bio" placeholder="Shown to your students."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" id="sp-save" onclick="saveSpace()">Save space</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Session</span></div>
+      <div class="card-body">
+        <p class="small muted mb16">Signing out ends this session on this device only.</p>
+        <button class="btn btn-outline btn-sm" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant']);
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Settings' });
+
+  if (new URLSearchParams(location.search).get('first') === '1' || me.must_change_pw) {
+    document.getElementById('first-notice').style.display = 'flex';
+    document.getElementById('pw1').focus();
+  }
+
+  document.getElementById('me-name').value = me.full_name || '';
+  document.getElementById('me-phone').value = me.phone || '';
+  document.getElementById('me-email').value = me.email || '';
+
+  if (me.role === 'teacher' && me.teacher) {
+    document.getElementById('space-card').style.display = 'block';
+    document.getElementById('sp-name').value = me.teacher.display_name || '';
+    document.getElementById('sp-subject').value = me.teacher.subject || '';
+    document.getElementById('sp-tagline').value = me.teacher.tagline || '';
+    document.getElementById('sp-phone').value = me.teacher.contact_phone || '';
+    document.getElementById('sp-whatsapp').value = me.teacher.whatsapp || '';
+    document.getElementById('sp-bio').value = me.teacher.bio || '';
+  }
+})();
+
+async function savePassword() {
+  const p1 = document.getElementById('pw1').value;
+  const p2 = document.getElementById('pw2').value;
+  if (p1.length < 8) { say('pw-alert', 'Choose a password of at least 8 characters.'); return; }
+  if (p1 !== p2) { say('pw-alert', 'Those two passwords are not the same.'); return; }
+
+  const btn = document.getElementById('pw-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) {
+    say('pw-alert', friendlyError(error.message));
+    btn.disabled = false;
+    btn.textContent = 'Change password';
+    return;
+  }
+
+  // Now that it is their own, the portal stops making them come here.
+  await sb.from('profiles').update({ must_change_pw: false }).eq('id', me.id);
+  me.must_change_pw = false;
+
+  document.getElementById('pw1').value = '';
+  document.getElementById('pw2').value = '';
+  document.getElementById('first-notice').style.display = 'none';
+  say('pw-alert', '');
+  btn.disabled = false;
+  btn.textContent = 'Change password';
+  showToast('Password changed.', 'success');
+
+  // Someone sent here on their first sign-in has not seen the dashboard
+  // yet — take them there rather than leaving them on a settings page.
+  if (new URLSearchParams(location.search).get('first') === '1') {
+    setTimeout(() => location.replace('/teacher/'), 900);
+  }
+}
+
+async function saveMe() {
+  const btn = document.getElementById('me-save');
+  btn.disabled = true;
+  const { error } = await sb.from('profiles').update({
+    full_name: document.getElementById('me-name').value.trim() || me.full_name,
+    phone: document.getElementById('me-phone').value.trim() || null,
+  }).eq('id', me.id);
+  btn.disabled = false;
+
+  if (error) { say('me-alert', friendlyError(error.message)); return; }
+  say('me-alert', '');
+  showToast('Saved.', 'success');
+  setTimeout(() => location.reload(), 700);
+}
+
+async function saveSpace() {
+  const name = document.getElementById('sp-name').value.trim();
+  if (!name) { say('sp-alert', 'Your space needs a display name.'); return; }
+
+  const btn = document.getElementById('sp-save');
+  btn.disabled = true;
+  const { error } = await sb.from('teachers').update({
+    display_name: name,
+    subject: document.getElementById('sp-subject').value.trim() || null,
+    tagline: document.getElementById('sp-tagline').value.trim() || null,
+    contact_phone: document.getElementById('sp-phone').value.trim() || null,
+    whatsapp: document.getElementById('sp-whatsapp').value.replace(/\D/g, '') || null,
+    bio: document.getElementById('sp-bio').value.trim() || null,
+  }).eq('id', me.teacher_id);
+  btn.disabled = false;
+
+  if (error) { say('sp-alert', friendlyError(error.message)); return; }
+  say('sp-alert', '');
+  showToast('Space saved.', 'success');
+  setTimeout(() => location.reload(), 700);
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

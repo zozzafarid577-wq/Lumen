@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My dashboard | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Dashboard</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="welcome-banner">
+      <div class="welcome-text">
+        <div class="welcome-sub" data-tenant-name>Your teacher</div>
+        <div class="welcome-name" id="hero-name">Welcome back</div>
+        <p class="welcome-note" id="hero-note"></p>
+      </div>
+      <div class="welcome-actions">
+        <a href="/portal/lessons.html" class="btn btn-white btn-sm">Go to lessons</a>
+      </div>
+    </div>
+
+    <div id="urgent"></div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+        <div class="stat-n" id="s-courses">—</div>
+        <div class="stat-l">My courses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+        <div class="stat-n" id="s-lessons">—</div>
+        <div class="stat-l">Lessons done</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+        <div class="stat-n" id="s-tests">—</div>
+        <div class="stat-l">Tests sat</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></div>
+        <div class="stat-n" id="s-avg">—</div>
+        <div class="stat-l">My average</div>
+        <div class="stat-hint">Your best try on each test</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">What's waiting</span>
+          <a href="/portal/tests.html" class="btn btn-ghost btn-xs">All tests</a>
+        </div>
+        <div id="todo"><div class="card-body"><div class="skel" style="height:60px"></div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Announcements</span>
+          <a href="/portal/announcements.html" class="btn btn-ghost btn-xs">All</a>
+        </div>
+        <div class="card-body" id="anns"><div class="skel" style="height:60px"></div></div>
+      </div>
+    </div>
+
+    <div class="section-head"><div><h2>My courses</h2><div class="sub">How far through each one you are</div></div></div>
+    <div class="courses-grid" id="courses"></div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+
+(async () => {
+  me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Dashboard' });
+
+  document.getElementById('hero-name').textContent = 'Hello, ' + me.full_name.split(' ')[0];
+  document.getElementById('hero-note').textContent = me.teacher?.tagline || me.teacher?.subject || '';
+
+  await Promise.allSettled([loadCourses(), loadTodo(), loadAnnouncements()]);
+})();
+
+async function loadCourses() {
+  const [{ data: enrolments }, { data: done }] = await Promise.all([
+    sb.from('enrollments').select('course_id, courses(id, title, subject, description)').eq('student_id', me.id),
+    sb.from('lesson_completions').select('lesson_id').eq('student_id', me.id),
+  ]);
+
+  const courses = (enrolments || []).map(e => e.courses).filter(Boolean);
+  const doneIds = new Set((done || []).map(d => d.lesson_id));
+  setStat('s-courses', courses.length);
+  setStat('s-lessons', doneIds.size);
+
+  const host = document.getElementById('courses');
+  if (!courses.length) {
+    host.innerHTML = `<div class="card" style="grid-column:1/-1"><div class="card-body">${emptyState(
+      'No courses yet',
+      'Your teacher has not enrolled you on anything yet. They will see you here as soon as they do.')}</div></div>`;
+    return;
+  }
+
+  // Only released lessons count towards progress — a bar that is 20%
+  // because the term has not happened yet is not progress.
+  const { data: lessons } = await sb.from('lessons').select('id, module_id, modules(course_id)');
+  const perCourse = new Map();
+  (lessons || []).forEach(l => {
+    const cid = l.modules?.course_id;
+    if (!cid) return;
+    const row = perCourse.get(cid) || { total: 0, done: 0 };
+    row.total++;
+    if (doneIds.has(l.id)) row.done++;
+    perCourse.set(cid, row);
+  });
+
+  host.innerHTML = courses.map(c => {
+    const p = perCourse.get(c.id) || { total: 0, done: 0 };
+    const percent = p.total ? Math.round((p.done / p.total) * 100) : 0;
+    return `<a class="course-card" href="/portal/lessons.html?course=${c.id}">
+      <div class="course-icon">${escHtml(initials(c.title))}</div>
+      <div style="flex:1;min-width:0">
+        <div class="course-subject">${escHtml(c.subject || 'Course')}</div>
+        <div class="course-title">${escHtml(c.title)}</div>
+        <div class="prog-row">
+          <div class="prog-bar"><div class="prog-fill" style="width:${percent}%"></div></div>
+          <span class="prog-pct">${percent}%</span>
+        </div>
+        <div class="small muted" style="margin-top:6px">${p.done} of ${p.total} lesson${p.total === 1 ? '' : 's'} open to you</div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+async function loadTodo() {
+  const now = new Date();
+  const [{ data: tests }, { data: attempts }, { data: assignments }, { data: submissions }] = await Promise.all([
+    sb.from('practice_tests').select('id, title, open_at, close_at, is_active, time_limit_min').eq('is_active', true),
+    sb.from('test_attempts').select('test_id, percentage').eq('student_id', me.id).not('completed_at', 'is', null),
+    sb.from('assignments').select('id, title, due_at, is_active').eq('is_active', true),
+    sb.from('assignment_submissions').select('assignment_id').eq('student_id', me.id),
+  ]);
+
+  const best = bestAttempts(attempts || []);
+  setStat('s-tests', best.length);
+  const avg = bestAverage(attempts || []);
+  setStat('s-avg', avg, avg == null ? '' : '%');
+
+  const satIds = new Set((attempts || []).map(a => a.test_id));
+  const handedIn = new Set((submissions || []).map(s => s.assignment_id));
+
+  const openTests = (tests || []).filter(t => !satIds.has(t.id) && testWindow(t, now).open);
+  const openWork = (assignments || []).filter(a => !handedIn.has(a.id));
+
+  const host = document.getElementById('todo');
+  if (!openTests.length && !openWork.length) {
+    host.innerHTML = `<div class="card-body">${emptyState('All caught up', 'Nothing is waiting for you right now.')}</div>`;
+    return;
+  }
+
+  host.innerHTML =
+    openTests.slice(0, 4).map(t => `
+      <a class="list-row" href="/portal/take-test.html?id=${t.id}">
+        <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="lr-title">${escHtml(t.title)}</div>
+          <div class="lr-sub">Test · ${escHtml(testWindow(t, now).label)}${t.time_limit_min ? ' · ' + t.time_limit_min + ' min' : ''}</div>
+        </div>
+        <span class="badge b-brand">Start</span>
+      </a>`).join('') +
+    openWork.slice(0, 4).map(a => {
+      const late = a.due_at && new Date(a.due_at) < now;
+      return `<a class="list-row" href="/portal/assignments.html">
+        <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="lr-title">${escHtml(a.title)}</div>
+          <div class="lr-sub">Assignment · ${a.due_at ? (late ? 'was due ' : 'due ') + fmtDateTime(a.due_at) : 'no deadline'}</div>
+        </div>
+        <span class="badge ${late ? 'b-red' : 'b-yellow'}">${late ? 'Late' : 'To do'}</span>
+      </a>`;
+    }).join('');
+}
+
+async function loadAnnouncements() {
+  const { data } = await sb.from('announcements')
+    .select('title, body, priority, created_at')
+    .eq('is_active', true).order('created_at', { ascending: false }).limit(4);
+
+  const urgent = (data || []).filter(a => a.priority === 'urgent');
+  document.getElementById('urgent').innerHTML = urgent.slice(0, 1).map(a => `
+    <div class="alert alert-error mb24">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <div><strong>${escHtml(a.title)}</strong><br>${escHtml(a.body)}</div>
+    </div>`).join('');
+
+  const host = document.getElementById('anns');
+  if (!data?.length) { host.innerHTML = emptyState('Nothing new', 'Announcements from your teacher appear here.'); return; }
+
+  host.innerHTML = data.map(a => `
+    <div class="ann-item">
+      <span class="ann-dot ${a.priority === 'urgent' ? 'urgent' : ''}"></span>
+      <div>
+        <div class="ann-title-text">${escHtml(a.title)}</div>
+        <div class="ann-body-text">${escHtml(a.body)}</div>
+        <div class="ann-meta">${timeAgo(a.created_at)}</div>
+      </div>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>

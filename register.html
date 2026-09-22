@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start a free trial | Lumen</title>
+<meta name="description" content="Open your own Lumen teaching space. 14-day trial, up to 10 students, no setup fee.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+
+<div class="auth-wrap">
+  <aside class="auth-side">
+    <a href="/" class="wordmark" aria-label="Lumen home">L<span class="u">u</span>men</a>
+    <div>
+      <h2>Your own teaching space, in a minute</h2>
+      <p>Try Lumen with a handful of real students before deciding on a package. Nothing you build in the trial is thrown away.</p>
+      <ul class="auth-points">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>14 days, up to 10 students</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>No setup fee, no card</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Want it built for you instead? <a href="/contact.html" style="color:#EBB8E9;font-weight:700">Request a setup</a></li>
+      </ul>
+    </div>
+    <p style="font-size:.8rem;opacity:.6">© <span class="year">2026</span> Lumen</p>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card" style="max-width:460px">
+      <a href="/" class="wordmark" style="font-size:1.6rem;margin-bottom:28px;display:inline-flex" aria-label="Lumen home">L<span class="u">u</span>men</a>
+      <h1>Start your trial</h1>
+      <p class="lead">You will be signed in to your new dashboard straight away.</p>
+
+      <div class="form-msg" id="msg" style="display:none" role="alert"></div>
+
+      <form id="signup-form" novalidate>
+        <div class="field">
+          <label for="full_name">Your name</label>
+          <input type="text" id="full_name" name="full_name" required autocomplete="name" autofocus placeholder="Dr Mai Abd El Salam">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="subject">Subject</label>
+            <input type="text" id="subject" name="subject" autocomplete="off" placeholder="Biology">
+          </div>
+          <div class="field">
+            <label for="phone">Phone (optional)</label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel" placeholder="+20 1xx xxx xxxx">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="display_name">Name of your space</label>
+          <input type="text" id="display_name" name="display_name" required placeholder="Dr Mai Biology">
+          <p style="font-size:.76rem;color:var(--muted);margin-top:7px">
+            What your students see at the top of their dashboard. Your space address will be
+            <strong id="slug-preview">lumen.education/…</strong>
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+        </div>
+
+        <div class="field">
+          <label for="password">Choose a password</label>
+          <div style="position:relative">
+            <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password" style="padding-right:70px" placeholder="At least 8 characters">
+            <button type="button" id="pw-toggle"
+              style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;font-size:.76rem;font-weight:700;color:var(--primary);cursor:pointer">Show</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit">Create my space</button>
+      </form>
+
+      <p class="auth-foot">Already have an account? <a href="/login.html">Sign in</a></p>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+document.querySelectorAll('.year').forEach(el => { el.textContent = new Date().getFullYear(); });
+
+const msg = document.getElementById('msg');
+const nameField = document.getElementById('full_name');
+const spaceField = document.getElementById('display_name');
+const pwField = document.getElementById('password');
+let spaceEdited = false;
+
+// The space name follows the teacher's own name until they change it
+// themselves — after that it is theirs and we stop overwriting it.
+spaceField.addEventListener('input', () => { spaceEdited = true; updateSlug(); });
+nameField.addEventListener('input', () => {
+  if (!spaceEdited) spaceField.value = nameField.value;
+  updateSlug();
+});
+
+// Mirrors cleanSlug() in api/_lib/util.js, so what is previewed here is
+// what the server will accept.
+function slugify(v) {
+  return String(v || '').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+function updateSlug() {
+  const s = slugify(spaceField.value);
+  document.getElementById('slug-preview').textContent = 'lumen.education/' + (s || '…');
+}
+
+document.getElementById('pw-toggle').addEventListener('click', e => {
+  const showing = pwField.type === 'text';
+  pwField.type = showing ? 'password' : 'text';
+  e.target.textContent = showing ? 'Show' : 'Hide';
+});
+
+document.getElementById('signup-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('submit');
+  const form = Object.fromEntries(new FormData(e.target).entries());
+  const email = String(form.email || '').trim().toLowerCase();
+  const password = String(form.password || '');
+
+  if (!String(form.full_name || '').trim()) { say('err', 'Please tell us your name.'); return; }
+  if (password.length < 8) { say('err', 'Choose a password of at least 8 characters.'); return; }
+  if (slugify(form.display_name).length < 3) { say('err', 'Give your space a name of at least 3 letters.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating your space…';
+  say('', '');
+
+  try {
+    // The endpoint creates the space, the account and the trial together,
+    // and rolls the lot back if any part of it fails.
+    const resp = await fetch('/api/signup-teacher', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: form.full_name,
+        display_name: form.display_name,
+        slug: slugify(form.display_name),
+        subject: form.subject,
+        phone: form.phone,
+        email,
+        password,
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'We could not create your space. Please try again.');
+
+    // Sign them in with the password they just chose, so they land in the
+    // dashboard rather than on a "now go and log in" screen.
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { location.replace('/login.html'); return; }
+    location.replace('/teacher/');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Create my space';
+    say('err', err.message);
+  }
+});
+
+function say(kind, text) {
+  msg.className = 'form-msg' + (kind ? ' ' + kind : '');
+  msg.textContent = text;
+  msg.style.display = text ? 'block' : 'none';
+}
+</script>
+</body>
+</html>

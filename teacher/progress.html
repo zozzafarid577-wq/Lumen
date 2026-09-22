@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progress | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Progress</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <div class="stat-n" id="s-avg">—</div>
+        <div class="stat-l">Class average</div>
+        <div class="stat-hint">Best attempt per test</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="stat-n" id="s-pass">—</div>
+        <div class="stat-l">Passing</div>
+        <div class="stat-hint">Students at or above the pass mark</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
+        <div class="stat-n" id="s-risk">—</div>
+        <div class="stat-l">Need attention</div>
+        <div class="stat-hint">Under 50%, or nothing sat</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+        <div class="stat-n" id="s-lessons">—</div>
+        <div class="stat-l">Lessons watched</div>
+        <div class="stat-hint">Marked done by students</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <span class="card-title">Every student</span>
+        <div class="row">
+          <input type="search" class="form-input" id="q" placeholder="Search…" style="max-width:220px" aria-label="Search students">
+          <select class="form-select" id="sort" style="max-width:190px" aria-label="Sort">
+            <option value="risk">Weakest first</option>
+            <option value="best">Strongest first</option>
+            <option value="name">By name</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Student</th><th class="num">Tests sat</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let summary = [];
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'reports' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Progress' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  await load();
+
+  document.getElementById('q').addEventListener('input', render);
+  document.getElementById('sort').addEventListener('change', render);
+})();
+
+async function load() {
+  // Three reads rather than one per student: the tables are small per
+  // tenant, and joining them in the browser costs nothing next to N
+  // round trips.
+  const [students, attempts, completions] = await Promise.all([
+    sb.from('profiles').select('id, full_name, email')
+      .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
+    sb.from('test_attempts').select('student_id, test_id, percentage, passed, completed_at')
+      .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null),
+    sb.from('lesson_completions').select('student_id, completed_at').eq('teacher_id', me.teacher_id),
+  ]);
+
+  if (students.error) {
+    document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(students.error.message));
+    return;
+  }
+
+  const byStudent = new Map((students.data || []).map(s => [s.id, { ...s, attempts: [], lessons: 0, lastSeen: null }]));
+  (attempts.data || []).forEach(a => {
+    const s = byStudent.get(a.student_id);
+    if (!s) return;
+    s.attempts.push(a);
+    if (!s.lastSeen || a.completed_at > s.lastSeen) s.lastSeen = a.completed_at;
+  });
+  (completions.data || []).forEach(c => {
+    const s = byStudent.get(c.student_id);
+    if (!s) return;
+    s.lessons++;
+    if (!s.lastSeen || c.completed_at > s.lastSeen) s.lastSeen = c.completed_at;
+  });
+
+  summary = [...byStudent.values()].map(s => {
+    const best = bestAttempts(s.attempts);
+    const avg = bestAverage(s.attempts);
+    return {
+      ...s,
+      sat: best.length,
+      avg,
+      top: best.length ? Math.round(Math.max(...best.map(a => parseFloat(a.percentage)))) : null,
+    };
+  });
+
+  const withMarks = summary.filter(s => s.avg != null);
+  setStat('s-avg', withMarks.length ? Math.round(withMarks.reduce((t, s) => t + s.avg, 0) / withMarks.length) : null, '%');
+  setStat('s-pass', summary.filter(s => s.avg != null && s.avg >= 60).length);
+  setStat('s-risk', summary.filter(s => s.avg == null || s.avg < 50).length);
+  setStat('s-lessons', summary.reduce((t, s) => t + s.lessons, 0));
+
+  render();
+}
+
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const sort = document.getElementById('sort').value;
+
+  const list = summary
+    .filter(s => !q || `${s.full_name} ${s.email || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (sort === 'name') return a.full_name.localeCompare(b.full_name);
+      // A student who has sat nothing is the one most worth looking at,
+      // so they sort above a low mark rather than below everyone.
+      const av = a.avg == null ? -1 : a.avg;
+      const bv = b.avg == null ? -1 : b.avg;
+      return sort === 'best' ? bv - av : av - bv;
+    });
+
+  const tbody = document.getElementById('rows');
+  if (!list.length) { tbody.innerHTML = emptyRow(6, summary.length ? 'Nobody matches that search.' : 'No active students yet.'); return; }
+
+  tbody.innerHTML = list.map(s => `
+    <tr>
+      <td>
+        <div style="font-weight:600">${escHtml(s.full_name)}</div>
+        <div class="small muted">${escHtml(s.email || '')}</div>
+      </td>
+      <td class="num">${s.sat}</td>
+      <td class="num">${s.avg == null ? '<span class="muted">—</span>' : `<span class="badge ${badgeFor(s.avg)}">${s.avg}%</span>`}</td>
+      <td class="num muted">${s.top == null ? '—' : s.top + '%'}</td>
+      <td class="num muted">${s.lessons}</td>
+      <td class="small muted">${s.lastSeen ? timeAgo(s.lastSeen) : 'Never'}</td>
+    </tr>`).join('');
+}
+
+function badgeFor(avg) {
+  if (avg >= 75) return 'b-green';
+  if (avg >= 50) return 'b-yellow';
+  return 'b-red';
+}
+</script>
+</body>
+</html>

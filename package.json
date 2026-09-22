@@ -1,0 +1,17 @@
+{
+  "name": "lumen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lumen — educational dashboards and student management, on subscription, for teachers.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.8"
+  }
+}

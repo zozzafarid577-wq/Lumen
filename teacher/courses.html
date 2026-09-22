@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Courses &amp; lessons | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .split { display: grid; grid-template-columns: 290px 1fr; gap: 20px; align-items: start; }
+  .course-pick {
+    display: flex; align-items: center; gap: 11px; padding: 12px 14px;
+    border-radius: 11px; cursor: pointer; border: 1px solid transparent; transition: background .16s;
+  }
+  .course-pick:hover { background: var(--bg); }
+  .course-pick.on { background: var(--primary-soft); border-color: var(--primary-line); }
+  .course-pick .ci {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: var(--primary);
+    color: #fff; font-weight: 700; font-size: .72rem; display: flex; align-items: center; justify-content: center;
+  }
+  .unit { border: 1px solid var(--border); border-radius: 13px; margin-bottom: 14px; overflow: hidden; background: var(--card); }
+  .unit-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--bg); }
+  .unit-title { font-weight: 700; font-size: .87rem; }
+  .unit-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+  .lesson-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .lesson-row .ln { flex: 1; min-width: 0; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Courses &amp; lessons</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="editCourse()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New course
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="split">
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Courses</span></div>
+        <div class="card-body" style="padding:10px" id="course-list"></div>
+      </div>
+
+      <div id="course-pane">
+        <div class="card"><div class="card-body"><div class="skel" style="height:120px"></div></div></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ── COURSE ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="course-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="cm-title">New course</span>
+      <button class="modal-close" onclick="closeModal('course-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="cm-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="cm-name">Title *</label>
+        <input type="text" class="form-input" id="cm-name" placeholder="Biology — Basics 2026">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="cm-subject">Subject</label>
+          <input type="text" class="form-input" id="cm-subject" placeholder="Biology">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cm-exam">Exam date</label>
+          <input type="date" class="form-input" id="cm-exam">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="cm-desc">Description</label>
+        <textarea class="form-textarea" id="cm-desc" placeholder="What this course covers."></textarea>
+      </div>
+      <label class="form-check"><input type="checkbox" id="cm-active" checked>Open to students</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('course-modal')">Cancel</button>
+      <button class="btn btn-primary" id="cm-save" onclick="saveCourse()">Save course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── UNIT ───────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="unit-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="um-title">New unit</span>
+      <button class="modal-close" onclick="closeModal('unit-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="um-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="um-name">Title *</label>
+        <input type="text" class="form-input" id="um-name" placeholder="Unit 1 — Cell division">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="um-desc">Description</label>
+        <textarea class="form-textarea" id="um-desc" style="min-height:70px"></textarea>
+      </div>
+      <label class="form-check"><input type="checkbox" id="um-done">Ready for students</label>
+      <div class="form-group" style="margin-top:14px;margin-bottom:0">
+        <label class="form-label" for="um-open">Open to students at</label>
+        <input type="datetime-local" class="form-input" id="um-open">
+        <p class="form-hint">Leave empty to open as soon as it is marked ready. A unit that is not open cannot be read at all — not the lessons, not the materials.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('unit-modal')">Cancel</button>
+      <button class="btn btn-primary" id="um-save" onclick="saveUnit()">Save unit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LESSON ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="lesson-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head">
+      <span class="modal-title" id="lm-title">New lesson</span>
+      <button class="modal-close" onclick="closeModal('lesson-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="lm-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="lm-name">Title *</label>
+        <input type="text" class="form-input" id="lm-name" placeholder="Mitosis — the phases">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="lm-video">Recording link</label>
+          <input type="url" class="form-input" id="lm-video" placeholder="https://…">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lm-mins">Length (minutes)</label>
+          <input type="number" class="form-input" id="lm-mins" min="1" placeholder="45">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="lm-desc">Description</label>
+        <textarea class="form-textarea" id="lm-desc" style="min-height:70px"></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Materials</label>
+        <div id="lm-materials"></div>
+        <div class="form-row" style="margin-top:10px">
+          <input type="text" class="form-input" id="lm-mat-title" placeholder="Sheet title">
+          <input type="url" class="form-input" id="lm-mat-url" placeholder="https://… (PDF or link)">
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="addMaterial()" id="lm-mat-add">Attach</button>
+        <p class="form-hint" id="lm-mat-hint">Save the lesson first, then attach its materials.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('lesson-modal')">Cancel</button>
+      <button class="btn btn-primary" id="lm-save" onclick="saveLesson()">Save lesson</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [];
+let currentCourseId = null;
+let units = [];          // units of the current course, each with .lessons
+let editing = { course: null, unit: null, lesson: null };
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'courses' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Courses & lessons' });
+  await loadCourses();
+})();
+
+// ── Courses ───────────────────────────────────────────────────────
+async function loadCourses(selectId) {
+  const { data, error } = await sb.from('courses')
+    .select('*').eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  courses = data || [];
+
+  const list = document.getElementById('course-list');
+  if (!courses.length) {
+    list.innerHTML = '<p class="small muted" style="padding:14px">No courses yet.</p>';
+    document.getElementById('course-pane').innerHTML =
+      `<div class="card"><div class="card-body">${emptyState(
+        'Start with a course',
+        'A course holds units, units hold lessons, and lessons hold the recordings and sheets your students open.',
+        '<button class="btn btn-primary btn-sm" onclick="editCourse()">Create a course</button>')}</div></div>`;
+    return;
+  }
+
+  currentCourseId = selectId || (courses.some(c => c.id === currentCourseId) ? currentCourseId : courses[0].id);
+
+  list.innerHTML = courses.map(c => `
+    <div class="course-pick${c.id === currentCourseId ? ' on' : ''}" onclick="selectCourse('${c.id}')">
+      <div class="ci">${escHtml(initials(c.title))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.83rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.title)}</div>
+        <div class="small muted">${escHtml(c.subject || '—')}</div>
+      </div>
+      ${c.is_active ? '' : '<span class="badge b-gray">Hidden</span>'}
+    </div>`).join('');
+
+  await loadUnits();
+}
+
+function selectCourse(id) { currentCourseId = id; loadCourses(id); }
+
+function editCourse(id) {
+  const c = id ? courses.find(x => x.id === id) : null;
+  editing.course = c || null;
+  document.getElementById('cm-title').textContent = c ? 'Edit course' : 'New course';
+  document.getElementById('cm-name').value = c?.title || '';
+  document.getElementById('cm-subject').value = c?.subject || '';
+  document.getElementById('cm-exam').value = c?.exam_date || '';
+  document.getElementById('cm-desc').value = c?.description || '';
+  document.getElementById('cm-active').checked = c ? c.is_active : true;
+  say('cm-alert', '');
+  openModal('course-modal');
+}
+
+async function saveCourse() {
+  const title = document.getElementById('cm-name').value.trim();
+  if (!title) { say('cm-alert', 'Give the course a title.'); return; }
+
+  const row = {
+    teacher_id: me.teacher_id,
+    title,
+    subject: document.getElementById('cm-subject').value.trim() || null,
+    exam_date: document.getElementById('cm-exam').value || null,
+    description: document.getElementById('cm-desc').value.trim() || null,
+    is_active: document.getElementById('cm-active').checked,
+  };
+
+  const btn = document.getElementById('cm-save');
+  btn.disabled = true;
+  const { data, error } = editing.course
+    ? await sb.from('courses').update(row).eq('id', editing.course.id).select().single()
+    : await sb.from('courses').insert(row).select().single();
+  btn.disabled = false;
+
+  if (error) { say('cm-alert', friendlyError(error.message)); return; }
+  closeModal('course-modal');
+  showToast('Course saved.', 'success');
+  await loadCourses(data.id);
+}
+
+async function deleteCourse() {
+  const c = courses.find(x => x.id === currentCourseId);
+  if (!c) return;
+  if (!confirm(`Delete "${c.title}"? Its units, lessons, tests and every result on them go too. This cannot be undone.`)) return;
+  const { error } = await sb.from('courses').delete().eq('id', c.id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  currentCourseId = null;
+  showToast('Course deleted.', 'success');
+  await loadCourses();
+}
+
+// ── Units and lessons ─────────────────────────────────────────────
+async function loadUnits() {
+  const pane = document.getElementById('course-pane');
+  const course = courses.find(c => c.id === currentCourseId);
+  if (!course) return;
+
+  const { data, error } = await sb.from('modules')
+    .select('*, lessons(*, lesson_materials(id, title, file_url))')
+    .eq('course_id', course.id).order('order_index');
+  if (error) { pane.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
+
+  units = (data || []).map(u => ({ ...u, lessons: (u.lessons || []).sort((a, b) => a.order_index - b.order_index) }));
+
+  const header = `
+    <div class="card mb16">
+      <div class="card-header" style="flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="card-title">${escHtml(course.title)}</div>
+          <div class="small muted">${escHtml(course.subject || 'No subject')}${course.exam_date ? ' · exam ' + fmtDate(course.exam_date) : ''} · ${units.length} unit${units.length === 1 ? '' : 's'}</div>
+        </div>
+        <div class="row">
+          <button class="btn btn-outline btn-sm" onclick="editCourse('${course.id}')">Edit course</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCourse()">Delete</button>
+          <button class="btn btn-primary btn-sm" onclick="editUnit()">Add unit</button>
+        </div>
+      </div>
+      ${course.description ? `<div class="card-body"><p class="small">${escHtml(course.description)}</p></div>` : ''}
+    </div>`;
+
+  if (!units.length) {
+    pane.innerHTML = header + `<div class="card"><div class="card-body">${emptyState(
+      'No units yet',
+      'Units are how a course is broken up — a chapter, a week, a session. Students see a unit only once you mark it ready.',
+      '<button class="btn btn-primary btn-sm" onclick="editUnit()">Add the first unit</button>')}</div></div>`;
+    return;
+  }
+
+  pane.innerHTML = header + units.map(u => unitHtml(u)).join('');
+}
+
+function unitHtml(u) {
+  const open = moduleOpen(u);
+  const state = !u.is_done
+    ? '<span class="badge b-gray">Draft</span>'
+    : open ? '<span class="badge b-green">Open</span>'
+           : `<span class="badge b-yellow">Opens ${escHtml(fmtDateTime(u.open_at))}</span>`;
+
+  return `<div class="unit">
+    <div class="unit-head">
+      <div style="flex:1;min-width:0">
+        <div class="unit-title">${escHtml(u.title)}</div>
+        <div class="unit-meta">${u.lessons.length} lesson${u.lessons.length === 1 ? '' : 's'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
+      </div>
+      ${state}
+      <button class="btn btn-ghost btn-xs" onclick="editUnit('${u.id}')">Edit</button>
+      <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}')">Add lesson</button>
+      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteUnit('${u.id}')">Delete</button>
+    </div>
+    ${u.lessons.map(l => `
+      <div class="lesson-row">
+        <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+        <div class="ln">
+          <div class="lr-title">${escHtml(l.title)}</div>
+          <div class="lr-sub">${l.duration_min ? l.duration_min + ' min · ' : ''}${(l.lesson_materials || []).length} material${(l.lesson_materials || []).length === 1 ? '' : 's'}${l.video_url ? ' · recording attached' : ''}</div>
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}','${l.id}')">Edit</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteLesson('${l.id}')">Delete</button>
+      </div>`).join('')}
+  </div>`;
+}
+
+function editUnit(id) {
+  const u = id ? units.find(x => x.id === id) : null;
+  editing.unit = u || null;
+  document.getElementById('um-title').textContent = u ? 'Edit unit' : 'New unit';
+  document.getElementById('um-name').value = u?.title || '';
+  document.getElementById('um-desc').value = u?.description || '';
+  document.getElementById('um-done').checked = !!u?.is_done;
+  document.getElementById('um-open').value = toLocalInput(u?.open_at);
+  say('um-alert', '');
+  openModal('unit-modal');
+}
+
+async function saveUnit() {
+  const title = document.getElementById('um-name').value.trim();
+  if (!title) { say('um-alert', 'Give the unit a title.'); return; }
+
+  const openAt = document.getElementById('um-open').value;
+  const row = {
+    teacher_id: me.teacher_id,
+    course_id: currentCourseId,
+    title,
+    description: document.getElementById('um-desc').value.trim() || null,
+    is_done: document.getElementById('um-done').checked,
+    open_at: openAt ? new Date(openAt).toISOString() : null,
+    order_index: editing.unit ? editing.unit.order_index : units.length,
+  };
+
+  const btn = document.getElementById('um-save');
+  btn.disabled = true;
+  const { error } = editing.unit
+    ? await sb.from('modules').update(row).eq('id', editing.unit.id)
+    : await sb.from('modules').insert(row);
+  btn.disabled = false;
+
+  if (error) { say('um-alert', friendlyError(error.message)); return; }
+  closeModal('unit-modal');
+  showToast('Unit saved.', 'success');
+  await loadUnits();
+}
+
+async function deleteUnit(id) {
+  const u = units.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm(`Delete "${u.title}" and its ${u.lessons.length} lesson(s)? This cannot be undone.`)) return;
+  const { error } = await sb.from('modules').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Unit deleted.', 'success');
+  await loadUnits();
+}
+
+// ── Lessons ───────────────────────────────────────────────────────
+function editLesson(unitId, lessonId) {
+  const u = units.find(x => x.id === unitId);
+  const l = lessonId ? u?.lessons.find(x => x.id === lessonId) : null;
+  editing.unit = u;
+  editing.lesson = l || null;
+
+  document.getElementById('lm-title').textContent = l ? 'Edit lesson' : 'New lesson';
+  document.getElementById('lm-name').value = l?.title || '';
+  document.getElementById('lm-video').value = l?.video_url || '';
+  document.getElementById('lm-mins').value = l?.duration_min || '';
+  document.getElementById('lm-desc').value = l?.description || '';
+  document.getElementById('lm-mat-title').value = '';
+  document.getElementById('lm-mat-url').value = '';
+  say('lm-alert', '');
+  renderMaterials();
+  openModal('lesson-modal');
+}
+
+// Materials hang off a lesson id, so there is nothing to attach them to
+// until the lesson exists. Say that rather than silently dropping them.
+function renderMaterials() {
+  const l = editing.lesson;
+  const box = document.getElementById('lm-materials');
+  const canAttach = !!l;
+  document.getElementById('lm-mat-add').disabled = !canAttach;
+  document.getElementById('lm-mat-hint').style.display = canAttach ? 'none' : 'block';
+
+  const mats = l?.lesson_materials || [];
+  box.innerHTML = mats.length
+    ? mats.map(m => `<div class="spread" style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <a href="${escHtml(m.file_url)}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="removeMaterial('${m.id}')">Remove</button>
+      </div>`).join('')
+    : (canAttach ? '<p class="small muted">Nothing attached yet.</p>' : '');
+}
+
+async function addMaterial() {
+  const l = editing.lesson;
+  if (!l) return;
+  const title = document.getElementById('lm-mat-title').value.trim();
+  const url = document.getElementById('lm-mat-url').value.trim();
+  if (!title || !url) { say('lm-alert', 'A material needs both a title and a link.'); return; }
+
+  const { data, error } = await sb.from('lesson_materials').insert({
+    teacher_id: me.teacher_id, lesson_id: l.id, title, file_url: url,
+    kind: /\.pdf($|\?)/i.test(url) ? 'pdf' : 'link',
+  }).select().single();
+  if (error) { say('lm-alert', friendlyError(error.message)); return; }
+
+  l.lesson_materials = [...(l.lesson_materials || []), data];
+  document.getElementById('lm-mat-title').value = '';
+  document.getElementById('lm-mat-url').value = '';
+  say('lm-alert', '');
+  renderMaterials();
+}
+
+async function removeMaterial(id) {
+  const { error } = await sb.from('lesson_materials').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  editing.lesson.lesson_materials = (editing.lesson.lesson_materials || []).filter(m => m.id !== id);
+  renderMaterials();
+}
+
+async function saveLesson() {
+  const title = document.getElementById('lm-name').value.trim();
+  if (!title) { say('lm-alert', 'Give the lesson a title.'); return; }
+
+  const mins = parseInt(document.getElementById('lm-mins').value, 10);
+  const row = {
+    teacher_id: me.teacher_id,
+    module_id: editing.unit.id,
+    title,
+    video_url: document.getElementById('lm-video').value.trim() || null,
+    duration_min: Number.isFinite(mins) && mins > 0 ? mins : null,
+    description: document.getElementById('lm-desc').value.trim() || null,
+    order_index: editing.lesson ? editing.lesson.order_index : editing.unit.lessons.length,
+  };
+
+  const btn = document.getElementById('lm-save');
+  btn.disabled = true;
+  const { data, error } = editing.lesson
+    ? await sb.from('lessons').update(row).eq('id', editing.lesson.id).select().single()
+    : await sb.from('lessons').insert(row).select().single();
+  btn.disabled = false;
+
+  if (error) { say('lm-alert', friendlyError(error.message)); return; }
+
+  // Stay open on a brand-new lesson so its materials can be attached
+  // without hunting for it again in the list.
+  if (!editing.lesson) {
+    editing.lesson = { ...data, lesson_materials: [] };
+    document.getElementById('lm-title').textContent = 'Edit lesson';
+    renderMaterials();
+    showToast('Lesson saved — you can attach materials now.', 'success');
+    await loadUnits();
+    return;
+  }
+
+  closeModal('lesson-modal');
+  showToast('Lesson saved.', 'success');
+  await loadUnits();
+}
+
+async function deleteLesson(id) {
+  if (!confirm('Delete this lesson and its materials? This cannot be undone.')) return;
+  const { error } = await sb.from('lessons').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Lesson deleted.', 'success');
+  await loadUnits();
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>

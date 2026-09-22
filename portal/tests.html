@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tests | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Tests</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Open to you now</span></div>
+      <div id="open-list"><div class="card-body"><div class="skel" style="height:60px"></div></div></div>
+    </div>
+
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Already sat</span></div>
+      <div id="done-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Coming up</span></div>
+      <div id="soon-list"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+(async () => {
+  const me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Tests' });
+
+  const now = new Date();
+  const [{ data: tests, error }, { data: attempts }] = await Promise.all([
+    sb.from('practice_tests').select('*, courses(title)').eq('is_active', true).order('created_at', { ascending: false }),
+    sb.from('test_attempts').select('test_id, percentage, passed, completed_at').eq('student_id', me.id).not('completed_at', 'is', null),
+  ]);
+
+  if (error) {
+    document.getElementById('open-list').innerHTML = `<div class="card-body"><div class="alert alert-error">${escHtml(friendlyError(error.message))}</div></div>`;
+    return;
+  }
+
+  // Each test is listed once, under its best result.
+  const bestByTest = new Map();
+  (attempts || []).forEach(a => {
+    const p = parseFloat(a.percentage);
+    if (isNaN(p)) return;
+    const cur = bestByTest.get(a.test_id);
+    if (!cur || p > parseFloat(cur.percentage)) bestByTest.set(a.test_id, a);
+  });
+
+  const all = tests || [];
+  const sat   = all.filter(t => bestByTest.has(t.id));
+  const open  = all.filter(t => !bestByTest.has(t.id) && testWindow(t, now).open);
+  const soon  = all.filter(t => !bestByTest.has(t.id) && t.open_at && new Date(t.open_at) > now);
+
+  document.getElementById('open-list').innerHTML = open.length
+    ? open.map(t => row(t, `<a href="/portal/take-test.html?id=${t.id}" class="btn btn-primary btn-sm">Start</a>`)).join('')
+    : `<div class="card-body">${emptyState('Nothing to sit right now', 'Tests appear here when your teacher opens them.')}</div>`;
+
+  document.getElementById('done-list').innerHTML = sat.length
+    ? sat.map(t => {
+        const a = bestByTest.get(t.id);
+        const canRetake = testWindow(t, now).open;
+        return row(t,
+          `<span class="badge ${a.passed ? 'b-green' : 'b-red'}">${pct(a.percentage)}</span>` +
+          (canRetake ? `<a href="/portal/take-test.html?id=${t.id}" class="btn btn-outline btn-xs">Try again</a>` : ''),
+          `Best mark · ${timeAgo(a.completed_at)}`);
+      }).join('')
+    : `<div class="card-body">${emptyState('Nothing sat yet', 'Your results will collect here.')}</div>`;
+
+  document.getElementById('soon-list').innerHTML = soon.length
+    ? soon.map(t => row(t, `<span class="badge b-yellow">${escHtml(testWindow(t, now).label)}</span>`)).join('')
+    : `<div class="card-body"><p class="small muted" style="text-align:center;padding:20px">Nothing scheduled.</p></div>`;
+
+  function row(t, right, subOverride) {
+    const bits = [t.courses?.title, t.time_limit_min ? t.time_limit_min + ' min' : null, `pass at ${t.passing_score_pct}%`]
+      .filter(Boolean).join(' · ');
+    return `<div class="list-row">
+      <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+      <div style="flex:1;min-width:0">
+        <div class="lr-title">${escHtml(t.title)}</div>
+        <div class="lr-sub">${escHtml(subOverride || bits)}</div>
+      </div>
+      ${right}
+    </div>`;
+  }
+})();
+</script>
+</body>
+</html>

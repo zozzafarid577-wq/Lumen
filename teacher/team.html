@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistants | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Assistants</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openNew()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add assistant
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="alert alert-info mb24">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>An assistant signs in to the same portal you do, but sees only the pages you tick. They can never add or remove another assistant, and they cannot see your subscription.</div>
+    </div>
+
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Your assistants</span></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Name</th><th>Can do</th><th>Added</th><th>Status</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Activity log</span>
+        <span class="small muted">The last 50 things done in your space</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Who</th><th>What</th><th>Detail</th><th>When</th></tr></thead>
+          <tbody id="log-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── ADD / EDIT ─────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="a-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="am-title">Add an assistant</span>
+      <button class="modal-close" onclick="closeModal('a-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="am-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div id="am-fields">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="as-name">Full name *</label>
+            <input type="text" class="form-input" id="as-name" placeholder="Nour Hassan">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="as-email">Email *</label>
+            <input type="email" class="form-input" id="as-email" placeholder="nour@example.com">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="as-phone">Phone</label>
+          <input type="tel" class="form-input" id="as-phone">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">What they may do *</label>
+        <div id="perm-boxes" style="border:1.5px solid var(--border);border-radius:10px;padding:12px 14px"></div>
+      </div>
+
+      <div id="creds-box" style="display:none;margin-top:18px">
+        <div class="alert alert-success mb16">Assistant added. Give them these details — the password is shown only once.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div class="spread" style="margin-bottom:8px">
+            <span class="small muted">Email</span><span class="small" style="font-weight:700" id="cred-email">—</span>
+          </div>
+          <div class="spread">
+            <span class="small muted">Password</span>
+            <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="cred-pw">—</span>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="copyCreds()">Copy details</button>
+      </div>
+    </div>
+    <div class="modal-foot" id="am-foot">
+      <button class="btn btn-ghost" onclick="closeModal('a-modal')">Cancel</button>
+      <button class="btn btn-primary" id="am-save" onclick="save()">Add assistant</button>
+    </div>
+    <div class="modal-foot" id="am-done" style="display:none">
+      <button class="btn btn-primary" onclick="closeModal('a-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let staff = [];
+let editingStaff = null;
+let lastCreds = null;
+
+const PERM_LABELS = {
+  students:      'Students — create accounts, reset passwords, pause access',
+  courses:       'Courses & lessons — add and edit content',
+  questions:     'Question bank — write and import questions',
+  tests:         'Tests — build and schedule',
+  assignments:   'Assignments — set work and mark it',
+  announcements: 'Announcements — post to your students',
+  reports:       'Progress — see every student’s results',
+};
+
+(async () => {
+  // Assistants are not shown this page at all: renderShell leaves the
+  // link out, and this guard is what makes that more than cosmetic.
+  me = await requireAuth('teacher');
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Assistants' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(5, 2);
+  document.getElementById('log-rows').innerHTML = skeletonRows(4, 4);
+  await Promise.all([loadStaff(), loadLog()]);
+})();
+
+async function loadStaff() {
+  const { data, error } = await sb.from('profiles')
+    .select('id, full_name, email, phone, staff_perms, is_active, created_at')
+    .eq('teacher_id', me.teacher_id).eq('role', 'assistant')
+    .order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('rows');
+  if (error) { tbody.innerHTML = emptyRow(5, friendlyError(error.message)); return; }
+  staff = data || [];
+
+  if (!staff.length) { tbody.innerHTML = emptyRow(5, 'No assistants yet. You are running this space on your own.'); return; }
+
+  tbody.innerHTML = staff.map(s => `
+    <tr>
+      <td>
+        <div style="font-weight:600">${escHtml(s.full_name)}</div>
+        <div class="small muted">${escHtml(s.email || '')}</div>
+      </td>
+      <td class="small">${(s.staff_perms || []).map(p => `<span class="badge b-brand" style="margin:1px 2px 1px 0">${escHtml(p)}</span>`).join('') || '<span class="muted">—</span>'}</td>
+      <td class="small muted">${fmtDate(s.created_at)}</td>
+      <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Suspended'}</span></td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openEdit('${s.id}')">Permissions</button>
+        <button class="btn btn-ghost btn-xs" onclick="toggleActive('${s.id}')">${s.is_active ? 'Suspend' : 'Restore'}</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="remove('${s.id}')">Remove</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function loadLog() {
+  const { data } = await sb.from('activity_log')
+    .select('actor_name, event_type, detail, created_at')
+    .eq('teacher_id', me.teacher_id)
+    .order('created_at', { ascending: false }).limit(50);
+
+  const tbody = document.getElementById('log-rows');
+  if (!data?.length) { tbody.innerHTML = emptyRow(4, 'Nothing recorded yet.'); return; }
+
+  tbody.innerHTML = data.map(e => `
+    <tr>
+      <td class="small" style="font-weight:600">${escHtml(e.actor_name || '—')}</td>
+      <td class="small">${escHtml(e.event_type.replace(/_/g, ' '))}</td>
+      <td class="small muted">${escHtml(e.detail || '')}</td>
+      <td class="small muted">${timeAgo(e.created_at)}</td>
+    </tr>`).join('');
+}
+
+// ── Add / edit ────────────────────────────────────────────────────
+// The permission list and the credentials box swap places, so both
+// openers reset the dialog to its editing state before filling it.
+function showPermissions(selected) {
+  document.getElementById('perm-boxes').parentElement.style.display = 'block';
+  document.getElementById('perm-boxes').innerHTML = Object.entries(PERM_LABELS).map(([key, label]) =>
+    `<label class="form-check"><input type="checkbox" value="${key}" ${selected.includes(key) ? 'checked' : ''}>${escHtml(label)}</label>`
+  ).join('');
+}
+
+function openNew() {
+  editingStaff = null;
+  lastCreds = null;
+  ['as-name', 'as-email', 'as-phone'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('am-title').textContent = 'Add an assistant';
+  document.getElementById('am-fields').style.display = 'block';
+  document.getElementById('creds-box').style.display = 'none';
+  document.getElementById('am-foot').style.display = 'flex';
+  document.getElementById('am-done').style.display = 'none';
+  document.getElementById('am-save').textContent = 'Add assistant';
+  document.getElementById('am-save').disabled = false;
+  showPermissions([]);
+  say('am-alert', '');
+  openModal('a-modal');
+}
+
+function openEdit(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  editingStaff = s;
+  document.getElementById('am-title').textContent = 'What ' + s.full_name.split(' ')[0] + ' may do';
+  document.getElementById('am-fields').style.display = 'none';
+  document.getElementById('creds-box').style.display = 'none';
+  document.getElementById('am-foot').style.display = 'flex';
+  document.getElementById('am-done').style.display = 'none';
+  document.getElementById('am-save').textContent = 'Save permissions';
+  document.getElementById('am-save').disabled = false;
+  showPermissions(s.staff_perms || []);
+  say('am-alert', '');
+  openModal('a-modal');
+}
+
+function chosenPerms() {
+  return [...document.querySelectorAll('#perm-boxes input:checked')].map(i => i.value);
+}
+
+async function save() {
+  const perms = chosenPerms();
+  if (!perms.length) { say('am-alert', 'Tick at least one thing they may do.'); return; }
+
+  const btn = document.getElementById('am-save');
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Saving…';
+  say('am-alert', '');
+
+  try {
+    if (editingStaff) {
+      await apiPost('/api/staff', { action: 'set_perms', staff_id: editingStaff.id, staff_perms: perms });
+      closeModal('a-modal');
+      showToast('Permissions updated.', 'success');
+    } else {
+      const data = await apiPost('/api/staff', {
+        action: 'create',
+        full_name: document.getElementById('as-name').value,
+        email: document.getElementById('as-email').value,
+        phone: document.getElementById('as-phone').value,
+        staff_perms: perms,
+      });
+      lastCreds = { email: data.email, password: data.password };
+      document.getElementById('cred-email').textContent = data.email;
+      document.getElementById('cred-pw').textContent = data.password;
+      document.getElementById('am-fields').style.display = 'none';
+      document.getElementById('perm-boxes').parentElement.style.display = 'none';
+      document.getElementById('creds-box').style.display = 'block';
+      document.getElementById('am-foot').style.display = 'none';
+      document.getElementById('am-done').style.display = 'flex';
+    }
+    await loadStaff();
+  } catch (err) {
+    say('am-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+function copyCreds() {
+  if (!lastCreds) return;
+  const text = `Lumen sign-in: ${location.origin}/login.html\nEmail: ${lastCreds.email}\nPassword: ${lastCreds.password}`;
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('Copied.', 'success'))
+    .catch(() => showToast('Your browser would not let us copy. Select the details and copy them by hand.', 'error'));
+}
+
+async function toggleActive(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  try {
+    await apiPost('/api/staff', { action: 'set_active', staff_id: id, is_active: !s.is_active });
+    showToast(s.is_active ? `${s.full_name} is suspended.` : `${s.full_name} is back.`, 'success');
+    await loadStaff();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function remove(id) {
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`Remove ${s.full_name}? Their sign-in stops working immediately. Anything they wrote stays in your space.`)) return;
+  try {
+    await apiPost('/api/staff', { action: 'remove', staff_id: id });
+    showToast('Removed.', 'success');
+    await loadStaff();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+</script>
+</body>
+</html>
