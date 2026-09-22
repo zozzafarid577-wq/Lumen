@@ -144,6 +144,25 @@ describe('the permission map in js/auth.js', () => {
   });
 });
 
+describe('path tests in js/', () => {
+  // Vercel's cleanUrls serves /teacher/settings for settings.html, so a
+  // guard anchored on the extension never matches the page it just
+  // redirected to. That cost an infinite redirect loop on every
+  // teacher's first sign-in. Checks must accept both spellings.
+  const files = ['js/auth.js', 'js/ui.js', 'js/site.js'];
+
+  it.each(files)('%s never tests a path for a required .html', (file) => {
+    const src = readFileSync(join(ROOT, file), 'utf8');
+    for (const line of src.split('\n')) {
+      if (!/location\.pathname/.test(line) && !/isPage\(/.test(line)) continue;
+      // Stripping the extension off both sides before comparing is fine;
+      // requiring it in a test is not.
+      const requiresHtml = /\/[^/\n]*\\\.html\$\//.test(line) && !/\.replace\(/.test(line);
+      expect(requiresHtml, `${file}: ${line.trim()}`).toBe(false);
+    }
+  });
+});
+
 describe('js/config.js', () => {
   const config = readFileSync(join(ROOT, 'js/config.js'), 'utf8');
 

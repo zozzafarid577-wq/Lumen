@@ -69,6 +69,17 @@ function withTimeout(promise, ms, what) {
   ]);
 }
 
+// ── Which page are we on? ─────────────────────────────────────────
+// The host may or may not serve the ".html" — Vercel's cleanUrls turns
+// /teacher/settings.html into /teacher/settings — so no path test here
+// may depend on the extension being present. Getting this wrong once
+// cost a redirect loop on every teacher's first sign-in: the guard sent
+// them to settings.html, the host rewrote it, the guard did not
+// recognise the page it had just chosen, and round it went.
+function isPage(name) {
+  return new RegExp(`/${name}(\\.html)?$`).test(location.pathname);
+}
+
 // ── Where each role belongs ───────────────────────────────────────
 const HOME_FOR = {
   owner:     '/admin/',
@@ -194,7 +205,12 @@ async function guardPage(roles, { perm } = {}) {
   // known to someone else until it is changed. Everything else waits.
   // Lumen's own staff have no settings page to be sent to — their
   // accounts are made by hand in Supabase, with a password of their own.
-  if (profile.must_change_pw && profile.role !== 'owner' && !/settings\.html$/.test(location.pathname)) {
+  //
+  // The ".html" is optional in every path test in this file. Vercel's
+  // cleanUrls redirects /teacher/settings.html to /teacher/settings, so
+  // a check that insisted on the extension never matched the page it had
+  // just sent the user to — and sent them again, and again.
+  if (profile.must_change_pw && profile.role !== 'owner' && !isPage('settings')) {
     location.replace((profile.role === 'student' ? '/portal/' : '/teacher/') + 'settings.html?first=1');
     return null;
   }
@@ -209,7 +225,7 @@ async function guardPage(roles, { perm } = {}) {
         : n + ' test results that could not be saved earlier have now been saved.', 'success');
     } catch (_) {}
     try { installContentGuard(profile); } catch (_) {}
-    if (/take-test\.html$/.test(location.pathname)) { try { installWatermark(profile); } catch (_) {} }
+    if (isPage('take-test')) { try { installWatermark(profile); } catch (_) {} }
   }
 
   if (profile.role === 'assistant') {
