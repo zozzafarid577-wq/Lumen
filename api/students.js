@@ -2,6 +2,7 @@ import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, logActivity } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
+import { sendEmail, studentWelcome, passwordReset, loginUrlFor } from './_lib/email.js';
 
 // Everything a teacher does to a student account. Creating an auth user,
 // setting a password and deleting an account all need the service-role
@@ -17,8 +18,8 @@ export default handler(async (req, res) => {
   const action = body.action || 'create';
 
   switch (action) {
-    case 'create':         return createStudent(res, profile, teacherId, body);
-    case 'reset_password': return resetPassword(res, profile, teacherId, body);
+    case 'create':         return createStudent(res, profile, teacherId, body, req);
+    case 'reset_password': return resetPassword(res, profile, teacherId, body, req);
     case 'set_active':     return setActive(res, profile, teacherId, body);
     case 'delete':         return deleteStudent(res, profile, teacherId, body);
     default: throw new HttpError(400, 'Unknown action.');
@@ -26,7 +27,7 @@ export default handler(async (req, res) => {
 });
 
 // ── Create ────────────────────────────────────────────────────────
-async function createStudent(res, actor, teacherId, body) {
+async function createStudent(res, actor, teacherId, body, req) {
   const fullName = cleanName(body.full_name, 'Student name');
   const email    = cleanEmail(body.email);
   const phone    = cleanText(body.phone, { max: 40 });
@@ -91,14 +92,28 @@ async function createStudent(res, actor, teacherId, body) {
 
   await logActivity(teacherId, actor, 'student_created', `${fullName} <${email}>`);
 
-  // The password is returned once, to be handed over in person or over
-  // WhatsApp. It is never stored anywhere readable, and the student is
-  // made to change it on first sign-in.
-  return res.status(200).json({ student_id: studentId, email, password });
+  // Email is a convenience on top of the handover, never a replacement
+  // for it: the password comes back either way, and a mail provider
+  // having a bad afternoon must not undo a student who now exists.
+  // The student should see whose space this is, not "Lumen" — they were
+  // enrolled by a person, not by us.
+  const { data: space } = await admin
+    .from('teachers').select('display_name').eq('id', teacherId).single();
+
+  const mail = await sendEmail({
+    to: email, toName: fullName,
+    ...studentWelcome({
+      name: fullName, email, password,
+      spaceName: space?.display_name || null,
+      loginUrl: loginUrlFor(req),
+    }),
+  });
+
+  return res.status(200).json({ student_id: studentId, email, password, email_sent: mail.sent, email_error: mail.error || null });
 }
 
 // ── Reset password ────────────────────────────────────────────────
-async function resetPassword(res, actor, teacherId, body) {
+async function resetPassword(res, actor, teacherId, body, req) {
   const student = await getStudent(body.student_id, teacherId);
   const password = generatePassword();
 
@@ -110,7 +125,12 @@ async function resetPassword(res, actor, teacherId, body) {
   await admin.from('profiles').update({ must_change_pw: true }).eq('id', student.id);
   await logActivity(teacherId, actor, 'student_password_reset', student.full_name);
 
-  return res.status(200).json({ email: student.email, password });
+  const mail = await sendEmail({
+    to: student.email, toName: student.full_name,
+    ...passwordReset({ name: student.full_name, email: student.email, password, loginUrl: loginUrlFor(req) }),
+  });
+
+  return res.status(200).json({ email: student.email, password, email_sent: mail.sent, email_error: mail.error || null });
 }
 
 // ── Activate / deactivate ─────────────────────────────────────────

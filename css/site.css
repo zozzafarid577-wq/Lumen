@@ -44,15 +44,23 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 .wrap { width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 24px; }
 .center { text-align: center; }
 
-/* ── WORDMARK ────────────────────────────────────────────────── */
-.wordmark {
-  font-family: 'Manrope', system-ui, sans-serif;
-  font-weight: 500; letter-spacing: -.045em; line-height: 1; color: var(--ink);
-  display: inline-flex; align-items: baseline;
-}
-.wordmark .u {
-  color: var(--primary); font-weight: 700;
-  border-bottom: .12em solid var(--primary); padding-bottom: .04em;
+/* ── LOGO ────────────────────────────────────────────────────────
+   The supplied artwork, not a typeset imitation of it. Two files:
+   the black-ink original for light surfaces, and a white-ink version
+   of the same file (the purple "u" untouched) for the dark footer and
+   the auth panel. Sized by height so both keep their proportions. */
+.logo-img { display: block; width: auto; max-width: 100%; }
+.logo-nav { height: 30px; }
+.logo-footer { height: 34px; }
+.logo-auth { height: 38px; }
+.logo-auth-card { height: 32px; }
+
+.tagline-img { display: block; width: auto; max-width: 100%; height: 22px; margin-bottom: 22px; }
+.tagline-auth { height: 26px; margin-bottom: 15px; }
+
+@media (max-width: 720px) {
+  .tagline-img { height: 18px; }
+  .logo-nav { height: 26px; }
 }
 
 /* ── NAV ─────────────────────────────────────────────────────── */
@@ -261,8 +269,6 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 
 .footer { background: var(--ink); color: rgba(255,255,255,.6); padding: 56px 0 30px; }
 .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 36px; padding-bottom: 36px; border-bottom: 1px solid rgba(255,255,255,.1); }
-.footer .wordmark { color: #fff; font-size: 1.5rem; }
-.footer .wordmark .u { color: var(--primary-l); border-bottom-color: var(--primary-l); }
 .footer-blurb { font-size: .86rem; margin-top: 14px; max-width: 34ch; }
 .footer h4 { color: #fff; font-size: .74rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 15px; }
 .footer ul { list-style: none; display: grid; gap: 10px; }
@@ -298,8 +304,6 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   content: ''; position: absolute; top: -120px; right: -90px;
   width: 340px; height: 340px; border-radius: 50%; background: rgba(255,255,255,.05);
 }
-.auth-side .wordmark { color: #fff; font-size: 1.7rem; position: relative; }
-.auth-side .wordmark .u { color: #EBB8E9; border-bottom-color: #EBB8E9; }
 .auth-side h2 { color: #fff; font-size: 1.85rem; font-weight: 800; margin-bottom: 15px; position: relative; }
 .auth-side p { font-size: .94rem; max-width: 40ch; position: relative; }
 .auth-points { list-style: none; display: grid; gap: 13px; margin-top: 26px; position: relative; }

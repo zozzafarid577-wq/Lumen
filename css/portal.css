@@ -59,25 +59,6 @@ h1, h2, h3, h4, h5, h6,
 }
 svg { stroke-linecap: round; stroke-linejoin: round; }
 
-/* ── WORDMARK ────────────────────────────────────────────────────
-   The logo is a typeset word, not an image: "Lumen" with the "u" in
-   brand purple and underscored. Drawing it in CSS keeps it crisp at
-   every size and lets it inherit the surrounding colour. */
-.wordmark {
-  font-family: 'Manrope', system-ui, sans-serif;
-  font-weight: 500; letter-spacing: -.045em; line-height: 1;
-  display: inline-flex; align-items: baseline;
-}
-.wordmark .u {
-  color: var(--primary); font-weight: 700;
-  border-bottom: .12em solid var(--primary);
-  padding-bottom: .04em;
-}
-.wordmark-tagline {
-  font-family: 'Manrope', system-ui, sans-serif;
-  font-weight: 500; letter-spacing: -.02em; color: var(--text-2);
-}
-
 /* ── SIDEBAR ─────────────────────────────────────────────────── */
 .sidebar {
   position: fixed; top: 0; left: 0; bottom: 0; width: var(--side);
@@ -92,16 +73,27 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   border-bottom: 1px solid var(--border);
   font-size: 1.05rem; color: var(--text); overflow: hidden; white-space: nowrap;
 }
-/* The mark sits on the sidebar itself rather than on a coloured chip, so
-   it reads the same here as it does in the browser tab. `color` drives
-   both halves of it — the stroke and the underline are currentColor —
-   which is also what makes it lighten by itself in dark mode. */
-.sidebar-brand .b-dot {
+/* Two forms of the brand share this slot. `.b-full` is the supplied
+   logo artwork plus the space name; `.b-mark` is the "u" on its own,
+   for the collapsed rail where the full logo will not fit. Exactly one
+   of them is displayed — see the rail rules further down. */
+.sidebar-brand .b-mark {
   width: 30px; height: 30px; flex-shrink: 0;
-  background: none; color: var(--primary);
+  color: var(--primary);
   display: flex; align-items: center; justify-content: center;
 }
-.sidebar-brand .b-dot svg { width: 27px; height: 27px; }
+.sidebar-brand .b-mark svg { width: 27px; height: 27px; }
+.sidebar-brand .b-full { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.logo-side { height: 21px; width: auto; display: block; }
+.brand-sub {
+  font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The artwork comes in an ink version and a white one; the sidebar is a
+   light surface in one theme and a dark one in the other. */
+.on-dark { display: none; }
+html[data-theme="dark"] .on-light { display: none; }
+html[data-theme="dark"] .on-dark { display: block; }
 .sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 10px; }
 .sidebar-scroll::-webkit-scrollbar { width: 3px; }
 .sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -157,8 +149,9 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   }
   .sidebar:not(:hover) .nav-item,
   .sidebar:not(:hover) .nav-section,
-  .sidebar:not(:hover) .sidebar-brand,
   .sidebar:not(:hover) .user-info { font-size: 0; }
+  .sidebar:not(:hover) .b-full { display: none; }
+  .sidebar:hover .b-mark { display: none; }
   .sidebar:not(:hover) .logout-btn { opacity: 0; pointer-events: none; }
   .sidebar:not(:hover) .nav-badge { font-size: 0; min-width: 8px; padding: 4px; }
 }
@@ -453,6 +446,7 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 }
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
+  .b-mark { display: none; }
   .sidebar.open { transform: translateX(0); }
   .sidebar-overlay.show { display: block; }
   .main { margin-left: 0; }

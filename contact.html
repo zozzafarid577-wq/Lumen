@@ -12,7 +12,7 @@
 
 <header class="nav">
   <div class="wrap nav-inner">
-    <a href="/" class="wordmark nav-brand" aria-label="Lumen home">L<span class="u">u</span>men</a>
+    <a href="/" class="nav-brand" aria-label="Lumen home"><img src="/assets/lumen-logo.png" alt="Lumen" class="logo-img logo-nav"></a>
     <nav class="nav-links" id="nav-links">
       <a href="/features.html">What's included</a>
       <a href="/pricing.html">Pricing</a>
@@ -126,15 +126,9 @@
     </div>
 
     <div class="panel" style="padding:0;overflow:hidden">
-      <!-- Google's appointment schedule.
-           Two things to know if this ever needs changing:
-           · The ?gv=true URL is the embeddable one. The short
-             calendar.app.google link is NOT — it answers with
-             X-Frame-Options: SAMEORIGIN and renders as a blank box.
-           · Plenty of browsers block third-party frames outright
-             regardless. So the card below is shown first and the iframe
-             only replaces it once it has actually loaded; a blocked
-             frame leaves the card in place rather than a blank panel. -->
+      <!-- Google's appointment schedule. The ?gv=true URL is the
+           embeddable one; the short calendar.app.google link is NOT —
+           it answers X-Frame-Options: SAMEORIGIN and renders blank. -->
       <iframe id="book-frame"
         src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ2yrr82lXIOJMAWfDMpUdGKWYa51XeSkXEoOQUIXuadFtQC800UvAndZFy1OCQYn0v6XD_I9aq2?gv=true"
         title="Book a setup call with Lumen"
@@ -163,7 +157,7 @@
   <div class="wrap">
     <div class="footer-top">
       <div>
-        <div class="wordmark">L<span class="u">u</span>men</div>
+        <img src="/assets/lumen-logo-light.png" alt="Lumen" class="logo-img logo-footer">
         <p class="footer-blurb">Educational dashboards and student management for teachers — set up, organised and managed for you.</p>
       </div>
       <div>

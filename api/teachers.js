@@ -1,6 +1,7 @@
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, logActivity } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanSlug, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
+import { sendEmail, teacherWelcome, loginUrlFor } from './_lib/email.js';
 
 // The Lumen console: opening a teacher's space, putting them on a plan,
 // and raising the invoices that go with it.
@@ -14,7 +15,7 @@ export default handler(async (req, res) => {
 
   const body = req.body || {};
   switch (body.action || 'create') {
-    case 'create':        return createSpace(res, profile, body);
+    case 'create':        return createSpace(res, profile, body, req);
     case 'set_plan':      return setPlan(res, profile, body);
     case 'set_active':    return setActive(res, profile, body);
     case 'add_invoice':   return addInvoice(res, profile, body);
@@ -27,7 +28,7 @@ export default handler(async (req, res) => {
 // The setup fee in the price list buys this step: Lumen creates the
 // space, the teacher's sign-in, and the subscription in one go, and hands
 // over a password.
-async function createSpace(res, actor, body) {
+async function createSpace(res, actor, body, req) {
   const fullName = cleanName(body.full_name, 'Teacher name');
   const email    = cleanEmail(body.email);
   const spaceName = cleanName(body.display_name || fullName, 'Space name');
@@ -103,7 +104,16 @@ async function createSpace(res, actor, body) {
   }
 
   await logActivity(teacher.id, actor, 'space_created', `${spaceName} <${email}>`);
-  return res.status(200).json({ teacher_id: teacher.id, slug, email, password });
+
+  const mail = await sendEmail({
+    to: email, toName: fullName,
+    ...teacherWelcome({ name: fullName, email, password, spaceName, loginUrl: loginUrlFor(req) }),
+  });
+
+  return res.status(200).json({
+    teacher_id: teacher.id, slug, email, password,
+    email_sent: mail.sent, email_error: mail.error || null,
+  });
 }
 
 // ── Move a teacher onto a plan ────────────────────────────────────

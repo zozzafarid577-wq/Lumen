@@ -84,9 +84,12 @@ function renderShell(which, profile, { title } = {}) {
 function sidebarHtml(which, profile) {
   const items = (NAVS[which] || []).filter(i => !(i.teacherOnly && profile.role === 'assistant'));
 
-  const brandLabel = which === 'admin'
-    ? '<span style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Console</span>'
-    : `<span data-tenant-name style="font-size:.78rem;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lumen</span>`;
+  // The supplied logo wherever there is room for it. The rail collapses
+  // to 74px on desktop, where there is not — so the "u" alone stands in
+  // there, the same mark as the browser tab.
+  const subtitle = which === 'admin'
+    ? '<span class="brand-sub">Console</span>'
+    : '<span class="brand-sub" data-tenant-name></span>';
 
   const nav = items.map(i => i.section
     ? `<div class="nav-section">${escHtml(i.section)}</div>`
@@ -95,12 +98,16 @@ function sidebarHtml(which, profile) {
        </a>`).join('');
 
   return `
-    <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/'}">
-      <span class="b-dot"><svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/'}" aria-label="Lumen">
+      <span class="b-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none">
         <path d="M17 7v24a15 15 0 0 0 30 0V7" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
         <rect x="12" y="53" width="40" height="8" rx="4" fill="currentColor"/>
       </svg></span>
-      ${brandLabel}
+      <span class="b-full">
+        <img src="/assets/lumen-logo.png" alt="Lumen" class="logo-side on-light">
+        <img src="/assets/lumen-logo-light.png" alt="" class="logo-side on-dark">
+        ${subtitle}
+      </span>
     </a>
     <div class="sidebar-scroll">${nav}</div>
     <div class="sidebar-foot">
