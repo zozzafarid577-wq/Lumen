@@ -147,16 +147,31 @@ describe('the permission map in js/auth.js', () => {
 describe('js/config.js', () => {
   const config = readFileSync(join(ROOT, 'js/config.js'), 'utf8');
 
-  it('ships with placeholders, not somebody’s project', () => {
-    expect(config).toMatch(/YOUR-PROJECT\.supabase\.co/);
-    expect(config).toMatch(/YOUR-ANON-KEY/);
+  it('points at a Supabase project', () => {
+    expect(config).toMatch(/SUPABASE_URL:\s*'https:\/\/[a-z0-9-]+\.supabase\.co'/);
   });
 
-  it('never carries a service-role key', () => {
-    // The anon key is meant to be public; the service-role key is not,
-    // and it would be a total breach of every tenant at once.
+  // This file is served to every visitor, so whatever key is in it is
+  // public. The anon key is designed for that. The service-role key
+  // bypasses row-level security completely — putting it here would
+  // expose every tenant at once, and it is an easy copy-paste to make
+  // because the two sit next to each other in the Supabase dashboard
+  // and look identical. So check the claim rather than trusting the
+  // variable name.
+  it('carries an anon key, never a service-role key', () => {
+    const [, token] = config.match(/SUPABASE_ANON_KEY:\s*'([^']+)'/) || [];
+    expect(token, 'no SUPABASE_ANON_KEY found').toBeTruthy();
+
+    const [, payload] = token.split('.');
+    expect(payload, 'the key is not a JWT').toBeTruthy();
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+
+    expect(claims.role).toBe('anon');
+    expect(claims.role).not.toBe('service_role');
+  });
+
+  it('mentions no service-role key anywhere', () => {
     expect(config).not.toMatch(/service_role/i);
-    expect(config).not.toMatch(/SERVICE_ROLE/);
   });
 });
 
