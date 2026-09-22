@@ -56,21 +56,11 @@ CREATE OR REPLACE FUNCTION public.is_member_of(t UUID) RETURNS BOOLEAN
   SELECT t IS NOT NULL AND public.jwt_teacher_id() = t
 $$;
 
--- Is the caller a student who is NOT on this course? Used to narrow the
--- content policies: staff see everything in their space, a student sees
--- only the courses they are enrolled on. Phrased as the exclusion so the
--- policies below read as "…AND NOT locked out of this course".
---
--- It reads `enrollments`, whose own policy lets a student see their own
--- rows, so no elevated privilege is needed here.
-CREATE OR REPLACE FUNCTION public.student_outside_course(c UUID) RETURNS BOOLEAN
-  LANGUAGE SQL STABLE AS $$
-  SELECT public.jwt_role() = 'student'
-     AND NOT EXISTS (
-       SELECT 1 FROM public.enrollments e
-       WHERE e.course_id = c AND e.student_id = auth.uid()
-     )
-$$;
+-- One more helper, public.student_outside_course(), narrows the content
+-- policies by enrolment. It reads the `enrollments` table, and a
+-- SQL-language function has its body checked when it is created — so it
+-- is defined further down, right after that table exists, rather than
+-- here with the rest.
 
 -- ────────────────────────────────────────
 -- TEACHERS (the tenant)
@@ -302,6 +292,48 @@ ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "courses_staff_all" ON public.courses
   FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
 
+-- courses_student_read needs student_outside_course(), which needs the
+-- enrollments table — both are just below.
+
+-- ────────────────────────────────────────
+-- ENROLLMENTS
+-- ────────────────────────────────────────
+-- Out of alphabetical order on purpose: every content policy from here
+-- down is narrowed by enrolment, so this table and the function that
+-- reads it have to exist before any of them are written.
+CREATE TABLE IF NOT EXISTS public.enrollments (
+  teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  student_id  UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  course_id   UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at  TIMESTAMPTZ,
+  PRIMARY KEY (student_id, course_id)
+);
+
+ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "enrollments_staff_all" ON public.enrollments
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+CREATE POLICY "enrollments_own_read" ON public.enrollments
+  FOR SELECT USING (auth.uid() = student_id);
+
+-- Is the caller a student who is NOT on this course? Used to narrow the
+-- content policies: staff see everything in their space, a student sees
+-- only the courses they are enrolled on. Phrased as the exclusion so the
+-- policies below read as "…AND NOT locked out of this course".
+--
+-- It reads `enrollments`, whose own policy lets a student see their own
+-- rows, so no elevated privilege is needed here.
+CREATE OR REPLACE FUNCTION public.student_outside_course(c UUID) RETURNS BOOLEAN
+  LANGUAGE SQL STABLE AS $$
+  SELECT public.jwt_role() = 'student'
+     AND NOT EXISTS (
+       SELECT 1 FROM public.enrollments e
+       WHERE e.course_id = c AND e.student_id = auth.uid()
+     )
+$$;
+
 CREATE POLICY "courses_student_read" ON public.courses
   FOR SELECT USING (
     public.is_member_of(teacher_id) AND is_active = true
@@ -410,26 +442,6 @@ CREATE POLICY "materials_student_read" ON public.lesson_materials
       )
     )
   );
-
--- ────────────────────────────────────────
--- ENROLLMENTS
--- ────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.enrollments (
-  teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
-  student_id  UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  course_id   UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-  enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at  TIMESTAMPTZ,
-  PRIMARY KEY (student_id, course_id)
-);
-
-ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "enrollments_staff_all" ON public.enrollments
-  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
-
-CREATE POLICY "enrollments_own_read" ON public.enrollments
-  FOR SELECT USING (auth.uid() = student_id);
 
 -- ────────────────────────────────────────
 -- LESSON COMPLETIONS
