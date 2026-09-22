@@ -22,8 +22,8 @@ function baseResults(overrides = {}) {
   return {
     'teachers.select': (call) => call.filters.slug
       ? { data: null, error: null }
-      : { data: { id: TEACHER_ID, display_name: 'Dr Mai Biology', slug: 'dr-mai-biology' }, error: null },
-    'teachers.insert': { data: { id: 'teacher-new', slug: 'dr-mai-biology' }, error: null },
+      : { data: { id: TEACHER_ID, display_name: 'Advanced Biology', slug: 'advanced-biology' }, error: null },
+    'teachers.insert': { data: { id: 'teacher-new', slug: 'advanced-biology' }, error: null },
     'plans.select':    { data: PLAN, error: null },
     ...overrides,
   };
@@ -45,15 +45,15 @@ describe('opening a teacher space', () => {
   it('creates the tenant, the sign-in and the subscription together', async () => {
     const res = await call({
       action: 'create',
-      full_name: 'Dr Mai Abd El Salam',
-      email: 'mai@example.com',
-      display_name: 'Dr Mai Biology',
+      full_name: 'A New Teacher',
+      email: 'teacher@example.com',
+      display_name: 'Advanced Biology',
       plan_code: 'full-60',
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.password).toHaveLength(12);
-    expect(res.body.slug).toBe('dr-mai-biology');
+    expect(res.body.slug).toBe('advanced-biology');
 
     const [user] = getSupabaseCalls('auth.admin.createUser');
     expect(user.payload.app_metadata).toEqual({ role: 'teacher', teacher_id: 'teacher-new' });
@@ -73,7 +73,7 @@ describe('opening a teacher space', () => {
 
   it('opens a trial when no plan is chosen', async () => {
     const res = await call({
-      action: 'create', full_name: 'Dr Mai', email: 'mai@example.com', display_name: 'Dr Mai Biology',
+      action: 'create', full_name: 'A New Teacher', email: 'teacher@example.com', display_name: 'Advanced Biology',
     });
     expect(res.statusCode).toBe(200);
     expect(getSupabaseCalls('subscriptions.insert')[0].payload).toMatchObject({ status: 'trial', student_limit: 10 });
@@ -83,7 +83,7 @@ describe('opening a teacher space', () => {
   it('rolls the whole thing back when the profile insert fails', async () => {
     configureSupabaseMock({ results: { 'profiles.insert': { data: null, error: { message: 'boom' } } } });
     const res = await call({
-      action: 'create', full_name: 'Dr Mai', email: 'mai@example.com', display_name: 'Dr Mai Biology',
+      action: 'create', full_name: 'A New Teacher', email: 'teacher@example.com', display_name: 'Advanced Biology',
     });
 
     expect(res.statusCode).toBe(500);
@@ -94,9 +94,9 @@ describe('opening a teacher space', () => {
   });
 
   it('refuses a slug that is already taken', async () => {
-    configureSupabaseMock({ results: { 'teachers.select': { data: { id: 'existing', slug: 'dr-mai-biology' }, error: null } } });
+    configureSupabaseMock({ results: { 'teachers.select': { data: { id: 'existing', slug: 'advanced-biology' }, error: null } } });
     const res = await call({
-      action: 'create', full_name: 'Dr Mai', email: 'mai@example.com', display_name: 'Dr Mai Biology',
+      action: 'create', full_name: 'A New Teacher', email: 'teacher@example.com', display_name: 'Advanced Biology',
     });
     expect(res.statusCode).toBe(409);
     expect(getSupabaseCalls('teachers.insert')).toHaveLength(0);
@@ -104,7 +104,7 @@ describe('opening a teacher space', () => {
 
   it('refuses a slug the site itself uses', async () => {
     const res = await call({
-      action: 'create', full_name: 'Dr Mai', email: 'mai@example.com', display_name: 'Admin',
+      action: 'create', full_name: 'A New Teacher', email: 'teacher@example.com', display_name: 'Admin',
     });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/not available/i);

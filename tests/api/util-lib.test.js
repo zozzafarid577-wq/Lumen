@@ -58,7 +58,7 @@ describe('cleanName', () => {
 
 describe('cleanSlug', () => {
   it('makes a URL-safe name', () => {
-    expect(cleanSlug('Dr Mai Abd El Salam')).toBe('dr-mai-abd-el-salam');
+    expect(cleanSlug('Advanced Biology Revision')).toBe('advanced-biology-revision');
     expect(cleanSlug('  Bio--101!!  ')).toBe('bio-101');
   });
 

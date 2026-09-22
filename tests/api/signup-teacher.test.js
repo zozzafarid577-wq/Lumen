@@ -7,10 +7,10 @@ import { makeReq, makeRes } from '../helpers/http.js';
 import handler from '../../api/signup-teacher.js';
 
 const GOOD = {
-  full_name: 'Dr Mai Abd El Salam',
-  email: 'mai@example.com',
+  full_name: 'A New Teacher',
+  email: 'teacher@example.com',
   password: 'a-good-password',
-  display_name: 'Dr Mai Biology',
+  display_name: 'Advanced Biology',
   subject: 'Biology',
 };
 
@@ -26,7 +26,7 @@ beforeEach(() => {
   configureSupabaseMock({
     results: {
       'teachers.select': { data: null, error: null },       // slug is free
-      'teachers.insert': { data: { id: 'teacher-new', slug: 'dr-mai-biology' }, error: null },
+      'teachers.insert': { data: { id: 'teacher-new', slug: 'advanced-biology' }, error: null },
     },
   });
 });
@@ -36,7 +36,7 @@ describe('a teacher starting their own trial', () => {
     const res = await call(GOOD);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ teacher_id: 'teacher-new', slug: 'dr-mai-biology', student_limit: 10 });
+    expect(res.body).toMatchObject({ teacher_id: 'teacher-new', slug: 'advanced-biology', student_limit: 10 });
 
     const [user] = getSupabaseCalls('auth.admin.createUser');
     expect(user.payload.app_metadata).toEqual({ role: 'teacher', teacher_id: 'teacher-new' });
@@ -68,7 +68,7 @@ describe('a teacher starting their own trial', () => {
 
   it('says plainly when the address already has an account', async () => {
     configureSupabaseMock({
-      results: { 'auth.admin.listUsers': { data: { users: [{ email: 'mai@example.com' }] }, error: null } },
+      results: { 'auth.admin.listUsers': { data: { users: [{ email: 'teacher@example.com' }] }, error: null } },
     });
     const res = await call(GOOD);
     expect(res.statusCode).toBe(409);
