@@ -150,14 +150,28 @@ export function teacherWelcome({ name, email, password, spaceName, loginUrl }) {
   };
 }
 
-// Where the sign-in page lives. PUBLIC_URL wins; otherwise the host the
-// request arrived on, which is right on Vercel and in local dev without
-// anything being configured.
+// Where the sign-in page lives.
+//
+// PUBLIC_URL pins it. Leaving it unset is a valid choice, not an
+// oversight: the link then follows the host the request arrived on, so
+// it is already right the day the site moves to a different domain,
+// whereas a PUBLIC_URL nobody remembered to update sends every teacher
+// to a domain that no longer answers.
+//
+// The trade is preview deployments — mail triggered from one carries
+// that deployment's throwaway URL. Pin it once the final domain exists.
 export function loginUrlFor(req) {
   const configured = (process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
-  if (configured) return `${configured}/login.html`;
-  const host = req?.headers?.host;
+  if (configured) {
+    // Tolerate "lumen.education" as well as "https://lumen.education".
+    // This gets edited by hand when a domain changes, and a missing
+    // scheme would otherwise produce a link that goes nowhere.
+    const base = /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
+    return `${base}/login.html`;
+  }
+
+  const host = (req?.headers?.host || '').trim();
   if (!host) return '/login.html';
-  const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
+  const proto = /^(localhost|127\.|\[::1\])/.test(host) ? 'http' : 'https';
   return `${proto}://${host}/login.html`;
 }

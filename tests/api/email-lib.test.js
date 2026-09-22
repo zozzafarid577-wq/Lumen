@@ -116,8 +116,18 @@ describe('loginUrlFor', () => {
     expect(loginUrlFor({ headers: { host: 'whatever' } })).toBe('https://lumen.education/login.html');
   });
 
+  it('tolerates PUBLIC_URL without a scheme', () => {
+    // This field gets edited by hand whenever the domain changes, and a
+    // missing https:// would otherwise produce a dead link in every email.
+    configure({ url: 'lumen.education' });
+    expect(loginUrlFor({ headers: { host: 'x' } })).toBe('https://lumen.education/login.html');
+  });
+
   it('falls back to the host the request came in on', () => {
+    // Leaving PUBLIC_URL unset is deliberate-friendly: links follow the
+    // domain actually used, so they stay right across a domain move.
     expect(loginUrlFor({ headers: { host: 'lumen.vercel.app' } })).toBe('https://lumen.vercel.app/login.html');
+    expect(loginUrlFor({ headers: { host: 'lumen.education' } })).toBe('https://lumen.education/login.html');
   });
 
   it('uses http for local development', () => {
