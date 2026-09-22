@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Request a setup | Lumen</title>
-<meta name="description" content="Tell Lumen about your class and we will set up your dashboard, organise your content and manage it for you.">
+<title>Book a setup call | Lumen</title>
+<meta name="description" content="Book a setup call with Lumen. We will go through your class and your content, agree a package, and build your teaching dashboard for you.">
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="stylesheet" href="/css/site.css">
 </head>
@@ -31,62 +31,71 @@
 
 <section class="section">
   <div class="wrap">
-    <div class="grid-2" style="gap:44px;align-items:start">
+    <div class="sec-head">
+      <div class="sec-kicker">Get in touch</div>
+      <h2>Book your setup call</h2>
+      <p>Pick a time that suits you. We will go through your class, your content and
+         which package fits — and your space is built straight after.</p>
+    </div>
 
+    <div class="book-grid">
+
+      <!-- The calendar leads. Everything else on this page supports it. -->
       <div>
-        <div class="sec-kicker">Get in touch</div>
-        <h2 style="font-size:clamp(1.8rem,3.6vw,2.4rem);margin-bottom:16px">Tell us about your class</h2>
-        <p style="font-size:1rem;margin-bottom:28px">
-          We will set up your personalised account on the existing platform, organise
-          your content, and manage the dashboard — with ongoing support to help you
-          and your students get the best experience.
-        </p>
+        <div class="panel" style="padding:0;overflow:hidden">
+          <!-- Google's appointment schedule. The ?gv=true URL is the
+               embeddable one; the short calendar.app.google link is NOT —
+               it answers X-Frame-Options: SAMEORIGIN and renders blank. -->
+          <iframe id="book-frame"
+            src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ2yrr82lXIOJMAWfDMpUdGKWYa51XeSkXEoOQUIXuadFtQC800UvAndZFy1OCQYn0v6XD_I9aq2?gv=true"
+            title="Book a setup call with Lumen"
+            loading="lazy"
+            style="border:0;width:100%;height:640px;display:block"></iframe>
+        </div>
 
-        <div class="panel panel-blush">
-          <h3 style="font-size:1.05rem;margin-bottom:18px">What happens next</h3>
-          <div class="check-list">
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>You send your details and pick a time below</div>
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>On the call we agree the package and the tier for your class size</div>
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We build your space and load your first content</div>
-            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We walk you through it, and you go live</div>
-          </div>
-          <p style="font-size:.85rem;margin-top:20px;color:var(--muted)">
-            Prefer to just email? <a href="mailto:lumenacademy21@gmail.com" style="color:var(--primary);font-weight:600">lumenacademy21@gmail.com</a>
-          </p>
+        <!-- Always here, never conditional. Whether a third-party frame
+             renders is the browser's call, and a refused frame still
+             fires `load`, so there is no honest way to detect it and
+             swap in a fallback. The way out is simply always on the page. -->
+        <div style="text-align:center;margin-top:18px">
+          <a href="https://calendar.app.google/LcnPSSChfHWaALB38" target="_blank" rel="noopener"
+             class="btn btn-outline btn-sm">Open the booking calendar in a new tab</a>
         </div>
       </div>
 
-      <div class="panel">
-        <h3 style="font-size:1.15rem;margin-bottom:22px">Request a setup</h3>
-        <div class="form-msg" id="lead-msg" style="display:none" role="status"></div>
+      <!-- Beside it, not after it: optional context so the call starts
+           somewhere useful rather than at "so, tell me about yourself". -->
+      <aside>
+        <div class="panel">
+          <h3 style="font-size:1.05rem;margin-bottom:6px">Tell us about your class</h3>
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:20px">
+            Optional — it just means we arrive already knowing what you teach.
+          </p>
 
-        <form id="lead-form" novalidate>
-          <div class="field-row">
+          <div class="form-msg" id="lead-msg" style="display:none" role="status"></div>
+
+          <form id="lead-form" novalidate>
             <div class="field">
               <label for="lf-name">Your name</label>
               <input type="text" id="lf-name" name="full_name" required autocomplete="name" placeholder="Your full name">
             </div>
             <div class="field">
-              <label for="lf-subject">Subject you teach</label>
-              <input type="text" id="lf-subject" name="subject" autocomplete="off" placeholder="Biology">
-            </div>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
               <label for="lf-email">Email</label>
               <input type="email" id="lf-email" name="email" required autocomplete="email" placeholder="you@example.com">
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="lf-subject">Subject</label>
+                <input type="text" id="lf-subject" name="subject" autocomplete="off" placeholder="Biology">
+              </div>
+              <div class="field">
+                <label for="lf-count">Students</label>
+                <input type="number" id="lf-count" name="student_count" min="1" max="5000" placeholder="60">
+              </div>
             </div>
             <div class="field">
               <label for="lf-phone">Phone / WhatsApp</label>
               <input type="tel" id="lf-phone" name="phone" autocomplete="tel" placeholder="+20 1xx xxx xxxx">
-            </div>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label for="lf-count">How many students?</label>
-              <input type="number" id="lf-count" name="student_count" min="1" max="5000" placeholder="60">
             </div>
             <div class="field">
               <label for="lf-plan">Package you have in mind</label>
@@ -96,59 +105,33 @@
                 <option value="full-60">Platform + Student Support — 8,000 EGP / month</option>
               </select>
             </div>
-          </div>
+            <div class="field">
+              <label for="lf-message">Anything we should know?</label>
+              <textarea id="lf-message" name="message" style="min-height:90px" placeholder="How you teach, what content you already have…"></textarea>
+            </div>
 
-          <div class="field">
-            <label for="lf-message">Anything we should know?</label>
-            <textarea id="lf-message" name="message" placeholder="How you teach, what content you already have, when you would like to start…"></textarea>
-          </div>
+            <button type="submit" class="btn btn-primary btn-block">Send these details</button>
+            <p style="font-size:.76rem;color:var(--muted);margin-top:12px;text-align:center">
+              Used only to prepare for your call.
+            </p>
+          </form>
+        </div>
 
-          <button type="submit" class="btn btn-primary btn-block btn-lg">Send request</button>
-          <p style="font-size:.78rem;color:var(--muted);margin-top:14px;text-align:center">
-            We use these details only to contact you about setting up your space.
-            Then pick a time below — it takes a minute.
+        <div class="panel panel-blush" style="margin-top:20px">
+          <h3 style="font-size:1rem;margin-bottom:16px">What happens after</h3>
+          <div class="check-list">
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We agree the package and the tier for your class size</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We build your space and load your first content</div>
+            <div class="check-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span>We walk you through it, and you go live</div>
+          </div>
+          <p style="font-size:.85rem;margin-top:18px;color:var(--muted)">
+            Rather not book online? Email
+            <a href="mailto:lumenacademy21@gmail.com" style="color:var(--primary);font-weight:600">lumenacademy21@gmail.com</a>
+            and we will find a time.
           </p>
-        </form>
-      </div>
+        </div>
+      </aside>
 
-    </div>
-  </div>
-</section>
-
-<!-- ── BOOK THE CALL ──────────────────────────────────────────── -->
-<section class="section section-alt" id="book">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="sec-kicker">Step two</div>
-      <h2>Book your setup call</h2>
-      <p>Pick a time that suits you. We will go through your class, your content and
-         which package fits, and your space is built straight after.</p>
-    </div>
-
-    <div class="panel" style="padding:0;overflow:hidden">
-      <!-- Google's appointment schedule. The ?gv=true URL is the
-           embeddable one; the short calendar.app.google link is NOT —
-           it answers X-Frame-Options: SAMEORIGIN and renders blank. -->
-      <iframe id="book-frame"
-        src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ2yrr82lXIOJMAWfDMpUdGKWYa51XeSkXEoOQUIXuadFtQC800UvAndZFy1OCQYn0v6XD_I9aq2?gv=true"
-        title="Book a setup call with Lumen"
-        loading="lazy"
-        style="border:0;width:100%;height:660px;display:block"></iframe>
-    </div>
-
-    <!-- Always here, never conditional. Whether a third-party frame
-         renders is the browser's call, not ours, and there is no
-         reliable way to ask it after the fact — a refused frame still
-         fires `load`. So the way out is simply always on the page,
-         which costs one line and works in every case. -->
-    <div style="text-align:center;margin-top:22px">
-      <a href="https://calendar.app.google/LcnPSSChfHWaALB38" target="_blank" rel="noopener"
-         class="btn btn-outline">Open the booking calendar in a new tab</a>
-      <p style="margin-top:14px;font-size:.86rem;color:var(--muted)">
-        Rather not book online? Email
-        <a href="mailto:lumenacademy21@gmail.com" style="color:var(--primary);font-weight:600">lumenacademy21@gmail.com</a>
-        and we will find a time.
-      </p>
     </div>
   </div>
 </section>
@@ -172,7 +155,7 @@
         <h4>Get started</h4>
         <ul>
           <li><a href="/contact.html">Book a call</a></li>
-          <li><a href="/contact.html">Request a setup</a></li>
+          <li><a href="/contact.html">Book a setup call</a></li>
           <li><a href="/login.html">Sign in</a></li>
         </ul>
       </div>

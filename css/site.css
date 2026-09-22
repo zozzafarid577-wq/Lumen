@@ -276,6 +276,14 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 .footer a:hover { color: var(--primary-l); }
 .footer-bot { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 24px; font-size: .8rem; flex-wrap: wrap; }
 
+/* ── CONTACT: calendar first, details beside it ──────────────────
+   One step, not two. The calendar needs the width (Google's scheduler
+   shows a month and a column of times side by side), so it takes the
+   wide column and the optional details sit next to it. Below 960px
+   they stack, calendar still first. */
+.book-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 960px) { .book-grid { grid-template-columns: 1fr; gap: 24px; } }
+
 /* ── FORMS on the public site ────────────────────────────────── */
 .field { margin-bottom: 18px; }
 .field label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
