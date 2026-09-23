@@ -8,6 +8,18 @@
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="stylesheet" href="/css/portal.css">
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .unit { border: 1px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; background: var(--card); }
+  .unit-head { padding: 15px 20px; background: var(--bg); display: flex; align-items: center; gap: 12px; }
+  .locked-card { padding: 22px 20px; text-align: center; color: var(--muted); font-size: .84rem; }
+  /* Anything that belongs to one lesson — its handouts and its papers —
+     is stepped in under it, so it reads as part of that lesson rather
+     than as the next thing in the unit. */
+  .list-row.under { padding-left: 46px; background: var(--bg); }
+  .unit-tests { padding: 9px 20px 4px; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+                letter-spacing: .08em; color: var(--muted); border-top: 1px solid var(--border); }
+  .course-head { display: flex; align-items: flex-start; gap: 14px; }
+</style>
 </head>
 <body>
 <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -21,13 +33,15 @@
       </button>
       <span class="page-title">My courses</span>
     </div>
+    <div class="topbar-right">
+      <select class="form-select" id="course-pick" style="max-width:240px;display:none" aria-label="Choose a course"></select>
+    </div>
   </header>
 
   <main class="content">
-    <div class="courses-grid" id="courses">
-      <div class="skel" style="height:130px"></div>
-      <div class="skel" style="height:130px"></div>
-    </div>
+    <div id="course-card"></div>
+    <div id="units"><div class="skel" style="height:120px;margin-bottom:16px"></div><div class="skel" style="height:120px"></div></div>
+    <div id="course-tests"></div>
   </main>
 </div>
 
@@ -39,58 +53,300 @@
 <script src="/js/auth.js"></script>
 <script src="/js/shell.js"></script>
 <script>
+// This is the whole of a student's course: the units their teacher has
+// opened, the handouts on each lesson, and the papers set on them. There
+// is no separate lessons or tests page to go looking at — a student
+// opens their course and everything in it is on the page.
+let me = null;
+let courses = [];
+let doneIds = new Set();
+let bestByTest = new Map();   // test_id -> the student's best attempt
+let practiceByUnit = {};      // module_id -> how many bank questions to practise
+let practiceFetchedFor = null;
+
 (async () => {
-  const me = await requireAuth('student');
+  me = await requireAuth('student');
   if (!me) return;
   renderShell('student', me, { title: 'My courses' });
 
-  const [{ data: enrolments }, { data: done }, { data: lessons }] = await Promise.all([
-    sb.from('enrollments').select('expires_at, courses(id, title, subject, description, exam_date)').eq('student_id', me.id),
-    sb.from('lesson_completions').select('lesson_id').eq('student_id', me.id),
-    sb.from('lessons').select('id, modules(course_id)'),
-  ]);
+  const { data: enrolments } = await sb.from('enrollments')
+    .select('expires_at, courses(id, title, subject, description, exam_date)')
+    .eq('student_id', me.id);
 
-  const courses = (enrolments || []).map(e => ({ ...e.courses, expires_at: e.expires_at })).filter(c => c?.id);
-  const host = document.getElementById('courses');
+  courses = (enrolments || []).map(e => ({ ...e.courses, expires_at: e.expires_at }))
+    .filter(c => c?.id).sort((a, b) => a.title.localeCompare(b.title));
 
   if (!courses.length) {
-    host.innerHTML = `<div class="card" style="grid-column:1/-1"><div class="card-body">${emptyState(
-      'No courses yet',
-      'Your teacher has not enrolled you on anything yet. Once they do, your lessons, tests and assignments all appear here.')}</div></div>`;
+    document.getElementById('units').innerHTML =
+      `<div class="card"><div class="card-body">${emptyState('No courses yet',
+        'Your teacher has not enrolled you on anything yet. Once they do, your units, handouts and tests all appear here.')}</div></div>`;
     return;
   }
 
-  const doneIds = new Set((done || []).map(d => d.lesson_id));
-  const counts = new Map();
-  (lessons || []).forEach(l => {
-    const cid = l.modules?.course_id;
-    if (!cid) return;
-    const row = counts.get(cid) || { total: 0, done: 0 };
-    row.total++;
-    if (doneIds.has(l.id)) row.done++;
-    counts.set(cid, row);
+  // One course is not a choice, so it is not offered as one.
+  const pick = document.getElementById('course-pick');
+  if (courses.length > 1) {
+    pick.innerHTML = courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('');
+    pick.style.display = '';
+    pick.addEventListener('change', () => {
+      history.replaceState(null, '', '?course=' + pick.value);   // so a reload stays put
+      load();
+    });
+  } else {
+    pick.innerHTML = `<option value="${courses[0].id}"></option>`;
+  }
+
+  const wanted = new URLSearchParams(location.search).get('course');
+  if (wanted && courses.some(c => c.id === wanted)) pick.value = wanted;
+
+  const { data: done } = await sb.from('lesson_completions').select('lesson_id').eq('student_id', me.id);
+  doneIds = new Set((done || []).map(d => d.lesson_id));
+
+  // Their own marks, so a test already sat shows what they got rather
+  // than inviting them to sit it again as if it were new.
+  const { data: attempts } = await sb.from('test_attempts')
+    .select('test_id, percentage, passed, completed_at')
+    .eq('student_id', me.id).not('completed_at', 'is', null);
+  (attempts || []).forEach(a => {
+    const p = parseFloat(a.percentage);
+    if (isNaN(p)) return;
+    const cur = bestByTest.get(a.test_id);
+    if (!cur || p > parseFloat(cur.percentage)) bestByTest.set(a.test_id, a);
   });
 
-  host.innerHTML = courses.map(c => {
-    const p = counts.get(c.id) || { total: 0, done: 0 };
-    const percent = p.total ? Math.round((p.done / p.total) * 100) : 0;
-    return `<a class="course-card" href="/portal/lessons.html?course=${c.id}">
-      <div class="course-icon">${escHtml(initials(c.title))}</div>
-      <div style="flex:1;min-width:0">
-        <div class="course-subject">${escHtml(c.subject || 'Course')}</div>
-        <div class="course-title">${escHtml(c.title)}</div>
-        ${c.description ? `<div class="course-desc">${escHtml(c.description)}</div>` : ''}
-        <div class="prog-row">
-          <div class="prog-bar"><div class="prog-fill" style="width:${percent}%"></div></div>
-          <span class="prog-pct">${percent}%</span>
-        </div>
-        <div class="small muted" style="margin-top:6px">
-          ${p.done} of ${p.total} lesson${p.total === 1 ? '' : 's'}${c.exam_date ? ' · exam ' + fmtDate(c.exam_date) : ''}
+  await load();
+})();
+
+async function load() {
+  const courseId = document.getElementById('course-pick').value;
+  const course = courses.find(c => c.id === courseId);
+  const host = document.getElementById('units');
+  host.innerHTML = '<div class="skel" style="height:120px"></div>';
+
+  // The lessons inside a unit that has not been released are not
+  // returned at all — the database refuses them, not this page. So an
+  // empty `lessons` array on a closed unit is the expected shape, and
+  // the lock below is a label on that, not the lock itself.
+  const [{ data, error }, { data: tests }] = await Promise.all([
+    sb.from('modules')
+      .select('*, lessons(*, lesson_materials(id, title, file_url, kind))')
+      .eq('course_id', courseId).order('order_index'),
+    // A test's questions are locked until it opens, but the test itself
+    // is worth seeing early: a student should know a paper is coming on
+    // the lesson they are reading.
+    sb.from('practice_tests').select('*, test_sections(name)')
+      .eq('course_id', courseId).eq('is_active', true).order('created_at'),
+  ]);
+
+  if (error) { host.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
+
+  const units = data || [];
+  const visible = units.filter(u => u.is_done || u.open_at);   // drafts stay out of sight entirely
+  const openUnits = visible.filter(u => moduleOpen(u));
+
+  // Filed by where the teacher put it: on a lesson, on a unit, or on
+  // nothing in particular. The last kind used to live on a separate Tests
+  // page; it now sits at the foot of the course, which is the only place
+  // left for it to be found.
+  const byLesson = new Map();
+  const byUnit = new Map();
+  const placed = new Set();
+  const lessonIds = new Set();
+  openUnits.forEach(u => (u.lessons || []).forEach(l => lessonIds.add(l.id)));
+
+  const file = (map, key, t) => {
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+    placed.add(t.id);
+  };
+  (tests || []).forEach(t => {
+    if (t.lesson_id && lessonIds.has(t.lesson_id)) return file(byLesson, t.lesson_id, t);
+    if (t.module_id && openUnits.some(u => u.id === t.module_id)) return file(byUnit, t.module_id, t);
+  });
+
+  // Whatever found no home above — a course-wide paper, or one set on a
+  // unit that is not open yet. It is still a test this student may sit,
+  // so it is shown rather than dropped.
+  const loose = (tests || []).filter(t => !placed.has(t.id));
+
+  // Which units have bank questions behind them. The bank is closed to
+  // students, so this is a count from the server, not a query — asked
+  // once per course, since ticking a lesson off redraws this whole page.
+  // A failure here costs the Practice buttons and nothing else.
+  if (practiceFetchedFor !== courseId) {
+    practiceFetchedFor = courseId;
+    try {
+      const { units: counts } = await apiPost('/api/practice', { action: 'available', course_id: courseId });
+      practiceByUnit = counts || {};
+    } catch (_) { practiceByUnit = {}; }
+  }
+
+  drawCourseCard(course, visible);
+  drawUnits(host, visible, byUnit, byLesson);
+  drawLooseTests(loose);
+}
+
+function drawCourseCard(c, units) {
+  const all = units.filter(u => moduleOpen(u)).flatMap(u => u.lessons || []);
+  const done = all.filter(l => doneIds.has(l.id)).length;
+  const percent = all.length ? Math.round((done / all.length) * 100) : 0;
+
+  document.getElementById('course-card').innerHTML = `
+    <div class="card mb24"><div class="card-body">
+      <div class="course-head">
+        <div class="course-icon">${escHtml(initials(c.title))}</div>
+        <div style="flex:1;min-width:0">
+          <div class="course-subject">${escHtml(c.subject || 'Course')}</div>
+          <div class="course-title">${escHtml(c.title)}</div>
+          ${c.description ? `<div class="course-desc">${escHtml(c.description)}</div>` : ''}
+          <div class="prog-row">
+            <div class="prog-bar"><div class="prog-fill" style="width:${percent}%"></div></div>
+            <span class="prog-pct">${percent}%</span>
+          </div>
+          <div class="small muted" style="margin-top:6px">
+            ${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done${c.exam_date ? ' · exam ' + fmtDate(c.exam_date) : ''}
+          </div>
         </div>
       </div>
-    </a>`;
+    </div></div>`;
+}
+
+function drawUnits(host, visible, byUnit, byLesson) {
+  if (!visible.length) {
+    host.innerHTML = `<div class="card"><div class="card-body">${emptyState(
+      'Nothing released yet', 'Units appear here as your teacher opens them.')}</div></div>`;
+    return;
+  }
+
+  host.innerHTML = visible.map(u => {
+    const open = moduleOpen(u);
+    const lessons = (u.lessons || []).sort((a, b) => a.order_index - b.order_index);
+    const unitTests = byUnit.get(u.id) || [];
+    const counts = [`${lessons.length} lesson${lessons.length === 1 ? '' : 's'}`];
+    const matCount = lessons.reduce((n, l) => n + (l.lesson_materials || []).length, 0);
+    if (matCount) counts.push(`${matCount} handout${matCount === 1 ? '' : 's'}`);
+    const testCount = unitTests.length + lessons.reduce((n, l) => n + (byLesson.get(l.id) || []).length, 0);
+    if (testCount) counts.push(`${testCount} test${testCount === 1 ? '' : 's'}`);
+
+    return `<div class="unit${open ? '' : ' lr-locked'}">
+      <div class="unit-head">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.9rem">${escHtml(u.title)}</div>
+          <div class="small muted">${open ? counts.join(' · ') : 'Not open yet'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
+        </div>
+        ${open
+          ? `<span class="badge b-green">${lessons.filter(l => doneIds.has(l.id)).length}/${lessons.length} done</span>`
+          : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
+        ${open && practiceByUnit[u.id]
+          // Offered only where there is something behind it, so the
+          // button never leads to an empty page.
+          ? `<a class="btn btn-outline btn-xs" href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">Practise</a>`
+          : ''}
+      </div>
+      ${open
+        ? (lessons.length || unitTests.length
+            // Each lesson, then what hangs off it: the handouts to read
+            // and the papers set on it, without leaving the page.
+            ? lessons.map(l =>
+                lessonRow(l)
+                + (l.lesson_materials || []).map(materialRow).join('')
+                + (byLesson.get(l.id) || []).map(t => testRow(t, true)).join('')
+              ).join('')
+              + (unitTests.length
+                  ? `<div class="unit-tests">On the whole unit</div>${unitTests.map(t => testRow(t, false)).join('')}`
+                  : '')
+            : '<div class="locked-card">No lessons in this unit yet.</div>')
+        : `<div class="locked-card">This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
+    </div>`;
   }).join('');
-})();
+}
+
+// Papers that belong to the course rather than to any one unit — and any
+// whose unit is still closed. Without this they would be invisible.
+function drawLooseTests(loose) {
+  const host = document.getElementById('course-tests');
+  if (!loose.length) { host.innerHTML = ''; return; }
+  host.innerHTML = `
+    <div class="card">
+      <div class="card-header"><span class="card-title">On the whole course</span></div>
+      ${loose.map(t => testRow(t, false)).join('')}
+    </div>`;
+}
+
+const MAT_LABEL = { pdf: 'PDF', link: 'Link', sheet: 'Worksheet', recording: 'Recording' };
+
+function materialRow(m) {
+  const kind = MAT_LABEL[m.kind] || 'File';
+  return `<div class="list-row under">
+    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <div style="flex:1;min-width:0">
+      <div class="lr-title">${escHtml(m.title)}</div>
+      <div class="lr-sub">${escHtml(kind)}</div>
+    </div>
+    <a href="${escHtml(m.file_url)}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">Open</a>
+  </div>`;
+}
+
+function testRow(t, under) {
+  const best = bestByTest.get(t.id);
+  const w = testWindow(t, new Date());
+  const bits = [t.time_limit_min ? t.time_limit_min + ' min' : null, `pass at ${t.passing_score_pct}%`]
+    .filter(Boolean).join(' · ');
+
+  // Three states, and only one of them is a button: sit it, sit it again
+  // for a better mark, or wait. A test whose window has closed is left
+  // showing the mark, with nothing to click.
+  const action = w.open
+    ? `<a href="/portal/take-test.html?id=${t.id}" class="btn ${best ? 'btn-outline' : 'btn-primary'} btn-xs">${best ? 'Try again' : 'Start'}</a>`
+    : `<span class="badge b-yellow">${escHtml(w.label)}</span>`;
+
+  return `<div class="list-row${under ? ' under' : ''}">
+    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+    <div style="flex:1;min-width:0">
+      <div class="lr-title">${escHtml(t.title)}
+        ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
+      <div class="lr-sub">${escHtml(bits)}</div>
+    </div>
+    ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>` : ''}
+    ${action}
+  </div>`;
+}
+
+function lessonRow(l) {
+  const done = doneIds.has(l.id);
+  return `<div class="list-row">
+    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+    <div style="flex:1;min-width:0">
+      <div class="lr-title">${escHtml(l.title)}</div>
+      <div class="lr-sub">${l.duration_min ? l.duration_min + ' min' : 'Lesson'}${l.description ? ' · ' + escHtml(l.description) : ''}</div>
+    </div>
+    ${l.video_url ? `<a href="${escHtml(l.video_url)}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">Watch</a>` : ''}
+    <button class="btn ${done ? 'btn-ghost' : 'btn-primary'} btn-xs" onclick="toggleDone('${l.id}')">
+      ${done ? 'Done ✓' : 'Mark done'}
+    </button>
+  </div>`;
+}
+
+async function toggleDone(lessonId) {
+  const done = doneIds.has(lessonId);
+
+  // Marking a lesson done is the one write a student makes casually, so
+  // move the tick straight away and put it back only if the save fails.
+  if (done) doneIds.delete(lessonId); else doneIds.add(lessonId);
+  await load();
+
+  const { error } = done
+    ? await sb.from('lesson_completions').delete().eq('student_id', me.id).eq('lesson_id', lessonId)
+    : await sb.from('lesson_completions').insert({
+        teacher_id: me.teacher_id, student_id: me.id, lesson_id: lessonId,
+      });
+
+  if (error) {
+    if (done) doneIds.add(lessonId); else doneIds.delete(lessonId);
+    showToast(friendlyError(error.message), 'error');
+    await load();
+  }
+}
 </script>
 </body>
 </html>

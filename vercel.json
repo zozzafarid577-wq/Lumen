@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/portal/lessons", "destination": "/portal/courses", "permanent": false },
+    { "source": "/portal/lessons.html", "destination": "/portal/courses", "permanent": false },
+    { "source": "/portal/tests", "destination": "/portal/courses", "permanent": false },
+    { "source": "/portal/tests.html", "destination": "/portal/courses", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",

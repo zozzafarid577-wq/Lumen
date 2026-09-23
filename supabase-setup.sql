@@ -527,6 +527,12 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   difficulty    TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
   image_url     TEXT,
   is_published  BOOLEAN NOT NULL DEFAULT true,
+  -- May a student meet this question in practice? Practice shows the
+  -- answer once they have had their go, and tests are built by copying
+  -- bank rows — so a question being saved for the paper is held back
+  -- here, or it is rehearsed before the exam it was written for.
+  -- Default true: holding one back is the deliberate act, not the norm.
+  practice_ok   BOOLEAN NOT NULL DEFAULT true,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   -- Saving a test files its questions into the bank, and a teacher who
   -- picks the same question onto three tests must not end up with three
@@ -550,6 +556,11 @@ CREATE POLICY "bank_staff_all" ON public.question_bank
 -- student who could read it would have the answers to every test their
 -- teacher has set or is about to set. Students only ever see the copies
 -- inside `test_questions`, and only once the test has opened.
+--
+-- Practice is the one exception and it does not change that: it goes
+-- through api/practice.js, which holds the service-role key, strips
+-- `correct` off every option before sending, and marks each answer
+-- server-side. This table stays closed to the browser either way.
 
 -- ────────────────────────────────────────
 -- PRACTICE TESTS
@@ -829,6 +840,9 @@ CREATE INDEX IF NOT EXISTS idx_completions_student   ON public.lesson_completion
 CREATE INDEX IF NOT EXISTS idx_bank_tenant           ON public.question_bank(teacher_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_bank_unit             ON public.question_bank(teacher_id, module_id, lesson_id);
 CREATE INDEX IF NOT EXISTS idx_bank_section          ON public.question_bank(teacher_id, section_id);
+-- The one question api/practice.js asks of the bank.
+CREATE INDEX IF NOT EXISTS idx_bank_practice         ON public.question_bank(teacher_id, module_id)
+  WHERE is_published = true AND practice_ok = true;
 CREATE INDEX IF NOT EXISTS idx_sections_tenant       ON public.test_sections(teacher_id, order_index);
 -- The lookup that keeps saving a test from filing the same question twice.
 CREATE INDEX IF NOT EXISTS idx_bank_text_key         ON public.question_bank(teacher_id, text_key);

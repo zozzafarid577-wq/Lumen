@@ -67,6 +67,9 @@ export default handler(async (req, res) => {
       explanation: q.explanation,
       difficulty,
       is_published: body.is_published !== false,
+      // A batch brought in for a paper is held back as a batch. Absent
+      // means practisable, the same as everywhere else.
+      practice_ok: body.practice_ok !== false,
     }))
   );
   if (error) throw new HttpError(500, 'Those questions could not be saved. Please try again.');

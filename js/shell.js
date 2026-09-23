@@ -43,13 +43,15 @@ const NAVS = {
     { href: '/teacher/subscription.html',   icon: 'card',      label: 'Subscription', teacherOnly: true },
     { href: '/teacher/settings.html',       icon: 'cog',       label: 'Settings' },
   ],
+  // A student has one place to work from: their course. The units, the
+  // handouts on each lesson and the papers set on them are all on that
+  // page, so there is no separate Lessons or Tests tab to keep in step
+  // with it — those pages now send you here.
   student: [
     { section: 'Learn' },
     { href: '/portal/',                     icon: 'dashboard', label: 'Dashboard' },
     { href: '/portal/courses.html',         icon: 'courses',   label: 'My courses' },
-    { href: '/portal/lessons.html',         icon: 'play',      label: 'Lessons' },
     { section: 'Work' },
-    { href: '/portal/tests.html',           icon: 'tests',     label: 'Tests' },
     { href: '/portal/assignments.html',     icon: 'tasks',     label: 'Assignments' },
     { href: '/portal/scores.html',          icon: 'award',     label: 'My scores' },
     { section: 'More' },

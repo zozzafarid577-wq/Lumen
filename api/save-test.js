@@ -148,6 +148,12 @@ async function fileIntoBank(teacherId, questions, tags) {
         explanation: q.explanation,
         image_url: q.image_url,
         is_published: true,
+        // Held back from practice, unlike a question written straight
+        // into the bank. This one arrived on a paper: practice shows the
+        // answer, and a paper that has not opened yet would be rehearsed
+        // by the students about to sit it. The teacher can let it into
+        // practice from the bank whenever the test is behind them.
+        practice_ok: false,
       })));
       if (error) throw new Error(error.message);
     }

@@ -51,7 +51,7 @@
   <div class="row" style="flex-wrap:nowrap">
     <span class="clock" id="clock" style="display:none">--:--</span>
     <button class="btn btn-primary btn-sm" id="submit-btn" onclick="submitTest()" style="display:none">Hand in</button>
-    <a href="/portal/tests.html" class="btn btn-ghost btn-sm" id="leave-btn">Leave</a>
+    <a href="/portal/courses.html" class="btn btn-ghost btn-sm" id="leave-btn">Leave</a>
   </div>
 </div>
 
@@ -299,7 +299,7 @@ function showResult(row, outcome) {
         <p class="small muted">${row.score} of ${row.max_score} marks · pass mark ${test.passing_score_pct}% · ${Math.round(row.time_taken_sec / 60)} min</p>
         <div class="row" style="justify-content:center;margin-top:20px">
           <a href="/portal/scores.html" class="btn btn-outline btn-sm">My scores</a>
-          <a href="/portal/tests.html" class="btn btn-primary btn-sm">Back to tests</a>
+          <a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my courses</a>
         </div>
       </div>
     </div>
@@ -333,7 +333,7 @@ function fail(title, detail) {
   document.getElementById('t-title').textContent = 'Test';
   document.getElementById('wrap').innerHTML =
     `<div class="card"><div class="card-body">${emptyState(title, detail,
-      '<a href="/portal/tests.html" class="btn btn-primary btn-sm">Back to my tests</a>')}</div></div>`;
+      '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my courses</a>')}</div></div>`;
 }
 </script>
 </body>

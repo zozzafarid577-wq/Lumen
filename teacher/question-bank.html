@@ -113,9 +113,17 @@
         <label class="form-label" for="qm-topic">Topic</label>
         <input type="text" class="form-input" id="qm-topic" placeholder="Cell division">
       </div>
-      <div class="form-group" style="margin-bottom:0">
+      <div class="form-group">
         <label class="form-label" for="qm-exp">Explanation</label>
         <textarea class="form-textarea" id="qm-exp" style="min-height:66px" placeholder="Shown to the student after they answer."></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="row" for="qm-practice" style="flex-wrap:nowrap;cursor:pointer">
+          <input type="checkbox" id="qm-practice" checked style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0">
+          <span class="form-label" style="margin:0">Students may practise this question</span>
+        </label>
+        <p class="form-hint">Practice shows the answer once they have tried it. Untick this to keep the
+          question for a test — it stays in the bank and can still be put on a paper.</p>
       </div>
     </div>
     <div class="modal-foot">
@@ -178,7 +186,15 @@ Answer: B"></textarea>
         <label class="form-label" for="im-section">Section</label>
         <select class="form-select" id="im-section"><option value="">No section</option></select>
       </div>
-      <p class="form-hint" style="margin-bottom:0">Applied to every question in this batch. They are what the unit and lesson filters above search on.</p>
+      <p class="form-hint">Applied to every question in this batch. They are what the unit and lesson filters above search on.</p>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="row" for="im-practice" style="flex-wrap:nowrap;cursor:pointer">
+          <input type="checkbox" id="im-practice" checked style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0">
+          <span class="form-label" style="margin:0">Students may practise these</span>
+        </label>
+        <p class="form-hint" style="margin-bottom:0">Untick to bring a whole paper in for tests only. You can change
+          any single question afterwards.</p>
+      </div>
       <div id="im-preview"></div>
     </div>
     <div class="modal-foot">
@@ -347,6 +363,10 @@ function render() {
       <div class="spread" style="align-items:flex-start;margin-bottom:8px">
         <div class="q-text">${escHtml(b.question_text)}</div>
         <div class="row" style="flex-wrap:nowrap">
+          <button class="btn btn-ghost btn-xs" onclick="togglePractice('${b.id}')"
+            title="${b.practice_ok === false ? 'Let students practise this question' : 'Keep this question for tests only'}">
+            ${b.practice_ok === false ? 'Allow practice' : 'Hold back'}
+          </button>
           <button class="btn btn-ghost btn-xs" onclick="editQuestion('${b.id}')">Edit</button>
           <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteQuestion('${b.id}')">Delete</button>
         </div>
@@ -357,6 +377,7 @@ function render() {
       ${b.explanation ? `<p class="small muted" style="margin-top:10px">${escHtml(b.explanation)}</p>` : ''}
       <div class="row" style="margin-top:10px">
         <span class="badge b-brand">${escHtml(b.difficulty)}</span>
+        ${b.practice_ok === false ? '<span class="badge b-yellow">Tests only</span>' : ''}
         ${(b.options || []).filter(o => o.correct).length > 1
           ? `<span class="badge b-yellow">${(b.options || []).filter(o => o.correct).length} answers</span>` : ''}
         ${b.test_sections?.name ? `<span class="badge b-green">${escHtml(b.test_sections.name)}</span>` : ''}
@@ -378,6 +399,9 @@ async function editQuestion(id) {
   document.getElementById('qm-exp').value = b?.explanation || '';
   document.getElementById('qm-diff').value = b?.difficulty || 'medium';
   document.getElementById('qm-section').value = b?.section_id || '';
+  // A new question is practisable unless the teacher says otherwise, and
+  // so is a row written before this column existed.
+  document.getElementById('qm-practice').checked = b ? b.practice_ok !== false : true;
   await setCascade('qm-course', 'qm-unit', 'qm-lesson', b, 'Not tied to a unit', 'Not tied to a lesson');
   renderOptions(b?.options || [{ text: '', correct: true }, { text: '', correct: false }]);
   say('qm-alert', '');
@@ -428,6 +452,7 @@ async function saveQuestion() {
     options,
     explanation: document.getElementById('qm-exp').value.trim() || null,
     difficulty: document.getElementById('qm-diff').value,
+    practice_ok: document.getElementById('qm-practice').checked,
   };
 
   const btn = document.getElementById('qm-save');
@@ -441,6 +466,27 @@ async function saveQuestion() {
   closeModal('q-modal');
   showToast('Question saved.', 'success');
   await loadBank();
+}
+
+// Holding a question back is a thing teachers do in runs — the ten they
+// are saving for the mock — so it is one click on the card rather than a
+// trip through the editor.
+async function togglePractice(id) {
+  const b = bank.find(x => x.id === id);
+  if (!b) return;
+  const next = b.practice_ok === false;
+
+  b.practice_ok = next;   // moved first; put back below if the save fails
+  render();
+
+  const { error } = await sb.from('question_bank').update({ practice_ok: next }).eq('id', id);
+  if (error) {
+    b.practice_ok = !next;
+    render();
+    showToast(friendlyError(error.message), 'error');
+    return;
+  }
+  showToast(next ? 'Students may practise this question.' : 'Held back for tests only.', 'success');
 }
 
 async function deleteQuestion(id) {
@@ -457,6 +503,7 @@ async function openImport() {
   document.getElementById('im-topic').value = '';
   await setCascade('im-course', 'im-unit', 'im-lesson', null, 'Not tied to a unit', 'Not tied to a lesson');
   document.getElementById('im-section').value = '';
+  document.getElementById('im-practice').checked = true;
   document.getElementById('im-preview').innerHTML = '';
   document.getElementById('im-save').disabled = true;
   say('im-alert', '');
@@ -508,6 +555,7 @@ async function runImport() {
       lesson_id: document.getElementById('im-lesson').value || null,
       section_id: document.getElementById('im-section').value || null,
       topic: document.getElementById('im-topic').value,
+      practice_ok: document.getElementById('im-practice').checked,
     });
     closeModal('import-modal');
     showToast(`${data.imported} question${data.imported === 1 ? '' : 's'} added${data.problems?.length ? `, ${data.problems.length} skipped` : ''}.`, 'success');

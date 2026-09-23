@@ -132,6 +132,35 @@ Two things are enforced in the database rather than only in the pages:
 So the lock icons in the student portal are labels on a rule the database
 is already applying, not the rule itself.
 
+The **question bank has no student policy at all**: every row in it says
+which option is correct, and tests are built by copying rows out of it.
+Students reach it only through `POST /api/practice`, which sends question
+and option text with `correct` removed and marks each answer server-side.
+It serves a question only from a released unit of a course the caller is
+enrolled on, and practice is never written to `test_attempts`.
+
+Practice shows the answer once a student has had their go, so
+`question_bank.practice_ok` decides per question whether they may meet it
+there at all. It defaults to **true**, with one exception: questions filed
+into the bank by saving a test arrive with `practice_ok = false`, because
+those were written for a paper that may not have opened yet. A teacher
+flips either way from the bank — "Hold back" / "Allow practice" on the
+card, or the tick in the editor — and the flag is checked both when
+questions are served and again when one is marked.
+
+## What a student sees
+
+A student has one page to work from: **My courses**. It holds the units
+their teacher has opened, and under each unit the lessons, the handouts on
+each lesson, and the papers set on them. Tests that belong to no unit fall
+to "On the whole course" at the foot of the page.
+
+There is deliberately no separate Lessons or Tests tab — `/portal/lessons`
+and `/portal/tests` redirect to `/portal/courses` (see `vercel.json`), so
+old links still land somewhere. A test only appears under a unit if the
+teacher chose one in the test builder; the Unit field there defaults to
+"Whole course".
+
 ## Roles
 
 | Role        | Signs in at | Can do                                                      |
@@ -171,6 +200,7 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
+| `POST /api/practice`  | student                | Serve bank questions with the answers stripped, and mark one at a time |
 | `POST /api/teachers`  | owner                  | Open, edit and delete spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.

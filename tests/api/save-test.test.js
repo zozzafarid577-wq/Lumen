@@ -295,6 +295,17 @@ describe('filing the questions into the bank', () => {
     });
   });
 
+  it('keeps what it files out of practice', async () => {
+    // These questions arrived on a paper. Practice shows the answer, so
+    // letting them straight into it would rehearse a test that may not
+    // have opened yet.
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    const [filed] = getSupabaseCalls('question_bank.insert');
+    expect(filed.payload[0].practice_ok).toBe(false);
+  });
+
   it('skips a question the bank already holds', async () => {
     // md5 of the question text, matching question_bank.text_key. A
     // question picked onto three tests must not become three copies.

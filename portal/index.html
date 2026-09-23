@@ -32,7 +32,7 @@
         <p class="welcome-note" id="hero-note"></p>
       </div>
       <div class="welcome-actions">
-        <a href="/portal/lessons.html" class="btn btn-white btn-sm">Go to lessons</a>
+        <a href="/portal/courses.html" class="btn btn-white btn-sm">Go to my courses</a>
       </div>
     </div>
 
@@ -66,7 +66,7 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title">What's waiting</span>
-          <a href="/portal/tests.html" class="btn btn-ghost btn-xs">All tests</a>
+          <a href="/portal/courses.html" class="btn btn-ghost btn-xs">My courses</a>
         </div>
         <div id="todo"><div class="card-body"><div class="skel" style="height:60px"></div></div></div>
       </div>
@@ -142,7 +142,7 @@ async function loadCourses() {
   host.innerHTML = courses.map(c => {
     const p = perCourse.get(c.id) || { total: 0, done: 0 };
     const percent = p.total ? Math.round((p.done / p.total) * 100) : 0;
-    return `<a class="course-card" href="/portal/lessons.html?course=${c.id}">
+    return `<a class="course-card" href="/portal/courses.html?course=${c.id}">
       <div class="course-icon">${escHtml(initials(c.title))}</div>
       <div style="flex:1;min-width:0">
         <div class="course-subject">${escHtml(c.subject || 'Course')}</div>

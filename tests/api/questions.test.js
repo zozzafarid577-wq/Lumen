@@ -61,6 +61,19 @@ describe('importing a batch of questions', () => {
     expect(res.body.problems[0]).toMatch(/Unmarked/);
   });
 
+  it('lets a whole batch in for practice, or holds it back', async () => {
+    // A teacher pasting next term's paper unticks the box once rather
+    // than editing forty questions afterwards. Absent means practisable,
+    // which is what every batch imported before this existed was.
+    await call({ action: 'import', text: TEXT });
+    expect(getSupabaseCalls('question_bank.insert')[0].payload[0].practice_ok).toBe(true);
+
+    resetSupabaseMock();
+    asUser(TEACHER_USER);
+    await call({ action: 'import', text: TEXT, practice_ok: false });
+    expect(getSupabaseCalls('question_bank.insert')[0].payload[0].practice_ok).toBe(false);
+  });
+
   it('refuses a course in another tenant', async () => {
     configureSupabaseMock({
       results: { 'courses.select': { data: { id: 'c1', teacher_id: OTHER_TEACHER_ID }, error: null } },
