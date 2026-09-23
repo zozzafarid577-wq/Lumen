@@ -305,6 +305,10 @@ CREATE TABLE IF NOT EXISTS public.enrollments (
   teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
   student_id  UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   course_id   UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  -- Which sitting of this course they attend. The foreign key is on the
+  -- pair (group_id, course_id), so an enrolment cannot name a group that
+  -- belongs to a different course — see the groups table below.
+  group_id    UUID,
   enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at  TIMESTAMPTZ,
   PRIMARY KEY (student_id, course_id)
@@ -338,6 +342,51 @@ CREATE POLICY "courses_student_read" ON public.courses
   FOR SELECT USING (
     public.is_member_of(teacher_id) AND is_active = true
     AND NOT public.student_outside_course(id)
+  );
+
+-- ────────────────────────────────────────
+-- GROUPS (the sittings of a course)
+-- ────────────────────────────────────────
+-- A teacher does not teach one class of forty; they teach the same
+-- course three times a week to three different sets of students. A group
+-- belongs to a COURSE rather than to a teacher, which is what makes
+-- "Sara is in the Sunday group for Biology and the Tuesday group for
+-- Chemistry" expressible: the group is the class that meets, so it
+-- teaches exactly one course at a set time.
+--
+-- Below enrollments because the student policy is narrowed by enrolment,
+-- and after courses because it points at one.
+CREATE TABLE IF NOT EXISTS public.groups (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  course_id  UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  -- 0 = Sunday … 6 = Saturday, matching JavaScript's getDay() so the
+  -- browser needs no lookup table. Empty is allowed: the name alone is
+  -- already useful before a timetable is settled.
+  days       SMALLINT[] NOT NULL DEFAULT '{}',
+  start_time TIME,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT groups_id_course_key UNIQUE (id, course_id)
+);
+
+-- ON DELETE SET NULL: deleting a group a teacher no longer runs must not
+-- unenrol its students. They lose a timetable, not their course.
+ALTER TABLE public.enrollments DROP CONSTRAINT IF EXISTS enrollments_group_fk;
+ALTER TABLE public.enrollments ADD CONSTRAINT enrollments_group_fk
+  FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id) ON DELETE SET NULL;
+
+ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "groups_staff_all" ON public.groups
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+-- A student reads the groups of a course they are on, so their portal can
+-- tell them when their class meets. Nothing here says who else is in it —
+-- that is `enrollments`, which a student only sees their own rows of.
+CREATE POLICY "groups_student_read" ON public.groups
+  FOR SELECT USING (
+    public.is_member_of(teacher_id) AND NOT public.student_outside_course(course_id)
   );
 
 -- ────────────────────────────────────────
@@ -875,6 +924,11 @@ CREATE INDEX IF NOT EXISTS idx_modules_course_order  ON public.modules(course_id
 CREATE INDEX IF NOT EXISTS idx_lessons_module_order  ON public.lessons(module_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_materials_lesson      ON public.lesson_materials(lesson_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_student   ON public.enrollments(student_id);
+CREATE INDEX IF NOT EXISTS idx_enrollments_group     ON public.enrollments(group_id);
+CREATE INDEX IF NOT EXISTS idx_groups_course         ON public.groups(teacher_id, course_id);
+-- Two groups called "Sunday" on one course make the picker useless. On
+-- lower() so "sunday" typed in a hurry is caught as the one that exists.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_unique_name ON public.groups (course_id, lower(name));
 CREATE INDEX IF NOT EXISTS idx_enrollments_course    ON public.enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_completions_student   ON public.lesson_completions(student_id);
 CREATE INDEX IF NOT EXISTS idx_bank_tenant           ON public.question_bank(teacher_id, course_id);

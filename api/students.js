@@ -50,6 +50,27 @@ async function createStudent(res, actor, teacherId, body, req) {
     throw new HttpError(400, 'One of those courses is not in your space.');
   }
 
+  // { course_id: group_id } for the courses where a group was chosen.
+  // Checked the same way the courses were: a group id from the request
+  // has to be this teacher's own AND belong to the course it is paired
+  // with, or an enrolment would name a class that meets for something
+  // else. The database enforces the pairing too — the foreign key is on
+  // (group_id, course_id) — but a 400 here says which one was wrong.
+  const groupIds = (body.group_ids && typeof body.group_ids === 'object') ? body.group_ids : {};
+  const wanted = courseIds.map(cid => groupIds[cid]).filter(Boolean);
+
+  if (wanted.length) {
+    const { data: groups } = await admin
+      .from('groups').select('id, course_id').eq('teacher_id', teacherId).in('id', wanted);
+    const byId = new Map((groups || []).map(g => [g.id, g.course_id]));
+    for (const cid of courseIds) {
+      const gid = groupIds[cid];
+      if (!gid) continue;
+      if (!byId.has(gid)) throw new HttpError(400, 'One of those groups is not in your space.');
+      if (byId.get(gid) !== cid) throw new HttpError(400, 'One of those groups belongs to a different course.');
+    }
+  }
+
   if (await findUserByEmail(admin, email)) {
     throw new HttpError(409, 'An account already exists for that email address.');
   }
@@ -80,7 +101,10 @@ async function createStudent(res, actor, teacherId, body, req) {
     if (pErr) throw new HttpError(500, 'Could not save that student’s profile.');
 
     const { error: eErr } = await admin.from('enrollments').insert(
-      courseIds.map(course_id => ({ teacher_id: teacherId, student_id: studentId, course_id }))
+      courseIds.map(course_id => ({
+        teacher_id: teacherId, student_id: studentId, course_id,
+        group_id: groupIds[course_id] || null,
+      }))
     );
     if (eErr) throw new HttpError(500, 'The account was created but the enrolment failed. Please try again.');
   } catch (err) {

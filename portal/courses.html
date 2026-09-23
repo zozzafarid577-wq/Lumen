@@ -163,11 +163,13 @@ function rememberUnit(id, open) {
   if (!me) return;
   renderShell('student', me, { title: 'My courses' });
 
+  // The group comes along with the enrolment: which sitting of this
+  // course they attend is part of what the course is, to them.
   const { data: enrolments } = await sb.from('enrollments')
-    .select('expires_at, courses(id, title, subject, description, exam_date)')
+    .select('expires_at, groups(name, days, start_time), courses(id, title, subject, description, exam_date)')
     .eq('student_id', me.id);
 
-  courses = (enrolments || []).map(e => ({ ...e.courses, expires_at: e.expires_at }))
+  courses = (enrolments || []).map(e => ({ ...e.courses, expires_at: e.expires_at, group: e.groups }))
     .filter(c => c?.id).sort((a, b) => a.title.localeCompare(b.title));
 
   if (!courses.length) {
@@ -295,6 +297,9 @@ function drawCourseCard(c, units, openTests) {
   const first = (me.full_name || '').split(' ')[0];
 
   const chips = [
+    // Their class first, when they are in one: a student checking this
+    // page on a Saturday night mostly wants to know when they are next in.
+    c.group ? chip(ICONS.clock, groupLabel(c.group)) : '',
     chip(ICONS.book, `${open.length} unit${open.length === 1 ? '' : 's'} open`),
     all.length ? chip(ICONS.tick, `${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done`) : '',
     openTests ? chip(ICONS.paper, `${openTests} test${openTests === 1 ? '' : 's'} to sit`) : '',
@@ -327,6 +332,7 @@ const ICONS = {
   file:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   play:     '<polygon points="5 3 19 12 5 21 5 3"/>',
   chev:     '<polyline points="6 9 12 15 18 9"/>',
+  clock:    '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
 };
 
 function icon(path, cls = '') {

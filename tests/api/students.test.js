@@ -48,7 +48,63 @@ describe('creating a student', () => {
     expect(profile.payload).toMatchObject({ teacher_id: TEACHER_ID, role: 'student', must_change_pw: true });
 
     const [enrol] = getSupabaseCalls('enrollments.insert');
-    expect(enrol.payload).toEqual([{ teacher_id: TEACHER_ID, student_id: 'new-uid', course_id: COURSE }]);
+    expect(enrol.payload).toEqual([{ teacher_id: TEACHER_ID, student_id: 'new-uid', course_id: COURSE, group_id: null }]);
+  });
+
+  it('puts them in the group that was chosen for that course', async () => {
+    configureSupabaseMock({ results: {
+      'groups.select': { data: [{ id: 'grp-1', course_id: COURSE }], error: null },
+    } });
+
+    const res = await call({
+      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      course_ids: [COURSE], group_ids: { [COURSE]: 'grp-1' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [enrol] = getSupabaseCalls('enrollments.insert');
+    expect(enrol.payload[0].group_id).toBe('grp-1');
+  });
+
+  it('refuses a group belonging to a different course', async () => {
+    // The database would refuse this too — the foreign key is on the
+    // pair — but a teacher deserves to be told which half was wrong.
+    configureSupabaseMock({ results: {
+      'groups.select': { data: [{ id: 'grp-1', course_id: 'course-9' }], error: null },
+    } });
+
+    const res = await call({
+      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      course_ids: [COURSE], group_ids: { [COURSE]: 'grp-1' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/different course/i);
+    expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
+  });
+
+  it('refuses a group from another teacher’s space', async () => {
+    configureSupabaseMock({ results: { 'groups.select': { data: [], error: null } } });
+
+    const res = await call({
+      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      course_ids: [COURSE], group_ids: { [COURSE]: 'grp-elsewhere' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/not in your space/i);
+  });
+
+  it('ignores a group named for a course they are not being enrolled on', async () => {
+    const res = await call({
+      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      course_ids: [COURSE], group_ids: { 'course-9': 'grp-9' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('groups.select')).toHaveLength(0);
+    const [enrol] = getSupabaseCalls('enrollments.insert');
+    expect(enrol.payload[0].group_id).toBe(null);
   });
 
   it('ignores a teacher_id in the request body', async () => {

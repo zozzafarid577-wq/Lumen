@@ -172,6 +172,24 @@ old links still land somewhere. A test only appears under a unit if the
 teacher chose one in the test builder; the Unit field there defaults to
 "Whole course".
 
+## Groups
+
+A teacher does not teach one class of forty — they teach the same course
+several times a week to different sets of students. A **group** is one of
+those sittings: a name, the days it meets (0–6, matching JavaScript's
+`getDay()`) and a start time.
+
+A group belongs to a **course**, and which one a student attends lives on
+their **enrolment**. That is what makes "Sara is in the Sunday group for
+Biology and the Tuesday group for Chemistry" expressible. The foreign key
+is on the pair `(group_id, course_id)`, so an enrolment naming a group
+from a different course is refused by the database, not just by the page.
+
+Groups are written under **Courses & lessons → Groups**; a student is put
+in one under **Students → Courses & groups**, which is also the only place
+an existing student's enrolments can be changed. Deleting a group sets its
+enrolments back to no group — students keep the course.
+
 ## Roles
 
 | Role        | Signs in at | Can do                                                      |

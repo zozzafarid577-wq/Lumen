@@ -50,6 +50,42 @@ function initials(name) {
   return (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
+// ── Groups ────────────────────────────────────────────────────────
+// A group's days are stored 0–6 matching JavaScript's getDay(), so this
+// is an index rather than a lookup.
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// '16:30:00' from Postgres, or '16:30' from an <input type="time">.
+function fmtTime(value) {
+  if (!value) return '';
+  const [h, m] = String(value).split(':');
+  const hour = parseInt(h, 10);
+  if (!Number.isFinite(hour)) return '';
+  const suffix = hour < 12 ? 'am' : 'pm';
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}:${m ?? '00'}${suffix}`;
+}
+
+// "Sun & Tue, 4:00pm" — how a group is said everywhere it appears. A
+// group with no days set yet is not a bug: the name alone is useful
+// before the timetable is settled, so this returns nothing rather than
+// inventing a schedule.
+function groupWhen(group) {
+  if (!group) return '';
+  const days = [...(group.days || [])].sort((a, b) => a - b).map(d => DAY_SHORT[d]).filter(Boolean);
+  const time = fmtTime(group.start_time);
+  if (!days.length) return time;
+  const when = days.length > 2 ? days.join(', ') : days.join(' & ');
+  return time ? `${when}, ${time}` : when;
+}
+
+// The name with its schedule after it, for a badge or a chip.
+function groupLabel(group) {
+  if (!group) return '';
+  const when = groupWhen(group);
+  return when ? `${group.name} · ${when}` : group.name;
+}
+
 // Egyptian pounds, the currency every price in Lumen is quoted in.
 function egp(amount) {
   if (amount == null) return '—';

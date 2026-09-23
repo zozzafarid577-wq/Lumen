@@ -38,6 +38,11 @@
           <select class="form-select" id="course-filter" style="max-width:220px" aria-label="Filter by course">
             <option value="">All courses</option>
           </select>
+          <!-- Only worth offering once a course is picked: "Sunday" means
+               nothing until you know which course's Sunday. -->
+          <select class="form-select" id="group-filter" style="max-width:190px" aria-label="Filter by group" disabled>
+            <option value="">All groups</option>
+          </select>
           <select class="form-select" id="status-filter" style="max-width:150px" aria-label="Filter by status">
             <option value="active">Active</option>
             <option value="paused">Paused</option>
@@ -49,7 +54,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th>Courses</th><th>Contact</th><th>Added</th><th>Status</th><th></th></tr>
+            <tr><th>Student</th><th>Courses &amp; groups</th><th>Contact</th><th>Added</th><th>Status</th><th></th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -163,6 +168,30 @@
   </div>
 </div>
 
+<!-- ── COURSES & GROUPS ───────────────────────────────────────── -->
+<!-- Until now enrolments could only be set when the account was made, so
+     a student who switched to the Tuesday class could not be moved. -->
+<div class="modal-backdrop" id="enrol-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <span class="modal-title">Courses &amp; groups</span>
+      <button class="modal-close" onclick="closeModal('enrol-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="en-alert" style="display:none;margin-bottom:16px"></div>
+      <p class="small muted" id="en-who" style="margin-bottom:14px"></p>
+      <div id="en-rows"></div>
+      <p class="form-hint" style="margin-top:12px">Unticking a course takes it off their portal. Their results are kept.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('enrol-modal')">Cancel</button>
+      <button class="btn btn-primary" id="en-save" onclick="saveEnrolments()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── DELETE ─────────────────────────────────────────────────── -->
 <div class="modal-backdrop" id="delete-modal">
   <div class="modal" style="max-width:480px">
@@ -202,6 +231,8 @@
 let me = null;
 let courses = [];
 let students = [];
+let groups = [];              // every group across every course
+let editingEnrol = null;
 let lastCreated = null;
 let lastReset = null;
 let pendingDelete = null;
@@ -212,14 +243,19 @@ let pendingDelete = null;
   renderShell('teacher', me, { title: 'Students' });
 
   document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  await loadGroups();
   await loadCourses();
   await loadStudents();
 
   const allow = await studentAllowance();
   if (allow) renderSubscriptionNotice(allow);
 
-  ['q', 'course-filter', 'status-filter'].forEach(id =>
+  ['q', 'course-filter', 'status-filter', 'group-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
+
+  // A group only means something inside a course, so the group filter
+  // follows whichever course is picked above it.
+  document.getElementById('course-filter').addEventListener('change', fillGroupFilter);
 
   if (new URLSearchParams(location.search).get('action') === 'new') openNew();
 })();
@@ -233,16 +269,14 @@ async function loadCourses() {
   document.getElementById('course-filter').innerHTML = '<option value="">All courses</option>'
     + courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('');
 
-  document.getElementById('ns-courses').innerHTML = courses.length
-    ? courses.map(c => `<label class="form-check"><input type="checkbox" value="${c.id}">${escHtml(c.title)}</label>`).join('')
-    : '<p class="small muted">No courses yet. <a href="/teacher/courses.html" style="color:var(--primary);font-weight:600">Create one first</a>.</p>';
+  renderNewCourses();
 }
 
 async function loadStudents() {
   // Enrolments come back nested so the course column does not need a
   // second round trip per student.
   const { data, error } = await sb.from('profiles')
-    .select('id, full_name, email, phone, parent_phone, is_active, created_at, enrollments(course_id, courses(title))')
+    .select('id, full_name, email, phone, parent_phone, is_active, created_at, enrollments(course_id, group_id, courses(title))')
     .eq('teacher_id', me.teacher_id).eq('role', 'student')
     .order('created_at', { ascending: false });
 
@@ -251,16 +285,149 @@ async function loadStudents() {
   render();
 }
 
+// The add-student picker: a course, and which of its groups they join.
+// Drawn after groups are loaded, so it waits for both.
+function renderNewCourses() {
+  const host = document.getElementById('ns-courses');
+  if (!courses.length) {
+    host.innerHTML = '<p class="small muted">No courses yet. <a href="/teacher/courses.html" style="color:var(--primary);font-weight:600">Create one first</a>.</p>';
+    return;
+  }
+  host.innerHTML = courses.map(c => {
+    const mine = groupsFor(c.id);
+    return `<div style="margin-bottom:8px">
+      <label class="form-check" style="margin:0">
+        <input type="checkbox" class="ns-course" value="${c.id}"
+          onchange="const g=document.getElementById('ns-g-${c.id}'); if(g) g.disabled = !this.checked">
+        ${escHtml(c.title)}
+      </label>
+      ${mine.length ? `<select class="form-select" id="ns-g-${c.id}" disabled style="margin-top:6px"
+        aria-label="Group for ${escHtml(c.title)}">
+        <option value="">No group yet</option>
+        ${mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('')}
+      </select>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Groups ────────────────────────────────────────────────────────
+// Every group across every course, loaded once. A teacher has a handful,
+// not hundreds, and both the filter and the enrolment editor want them.
+async function loadGroups() {
+  const { data } = await sb.from('groups')
+    .select('id, course_id, name, days, start_time').eq('teacher_id', me.teacher_id).order('name');
+  groups = data || [];
+}
+
+function groupsFor(courseId) { return groups.filter(g => g.course_id === courseId); }
+
+function fillGroupFilter() {
+  const courseId = document.getElementById('course-filter').value;
+  const pick = document.getElementById('group-filter');
+  const mine = groupsFor(courseId);
+
+  // Without a course chosen, "Sunday" is ambiguous across courses — so
+  // the filter waits rather than offering a list that cannot be read.
+  pick.innerHTML = '<option value="">All groups</option>'
+    + mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('')
+    + (courseId ? '<option value="none">Not in a group</option>' : '');
+  pick.disabled = !courseId || !mine.length;
+  pick.value = '';
+  render();
+}
+
+// ── Courses and groups for one student ────────────────────────────
+function openEnrol(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  editingEnrol = s;
+
+  document.getElementById('en-who').textContent = `What ${s.full_name} is enrolled on.`;
+  say('en-alert', '');
+
+  const host = document.getElementById('en-rows');
+  if (!courses.length) {
+    host.innerHTML = '<p class="small muted">No courses yet.</p>';
+    return openModal('enrol-modal');
+  }
+
+  host.innerHTML = courses.map(c => {
+    const on = (s.enrollments || []).find(e => e.course_id === c.id);
+    const mine = groupsFor(c.id);
+    return `<div style="border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:9px">
+      <label class="form-check" style="margin:0">
+        <input type="checkbox" class="en-course" value="${c.id}" ${on ? 'checked' : ''}
+          onchange="document.getElementById('en-g-${c.id}').disabled = !this.checked">
+        ${escHtml(c.title)}
+      </label>
+      <div style="margin-top:9px">
+        <select class="form-select" id="en-g-${c.id}" ${on ? '' : 'disabled'} aria-label="Group for ${escHtml(c.title)}">
+          <option value="">No group</option>
+          ${mine.map(g => `<option value="${g.id}" ${on?.group_id === g.id ? 'selected' : ''}>${escHtml(groupLabel(g))}</option>`).join('')}
+        </select>
+        ${mine.length ? '' : '<p class="form-hint">No groups on this course yet — add them under Courses &amp; lessons.</p>'}
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal('enrol-modal');
+}
+
+async function saveEnrolments() {
+  const s = editingEnrol;
+  if (!s) return;
+
+  const ticked = [...document.querySelectorAll('.en-course')].filter(el => el.checked).map(el => el.value);
+  const had = new Set((s.enrollments || []).map(e => e.course_id));
+  const groupOf = (cid) => document.getElementById('en-g-' + cid).value || null;
+
+  const btn = document.getElementById('en-save');
+  btn.disabled = true;
+
+  // Three shapes of change, and a failure in any of them leaves the rest
+  // alone rather than half-applying: the reload at the end is what the
+  // teacher ends up looking at either way.
+  const removed = [...had].filter(cid => !ticked.includes(cid));
+  const jobs = [];
+  if (removed.length) {
+    jobs.push(sb.from('enrollments').delete().eq('student_id', s.id).in('course_id', removed));
+  }
+  ticked.forEach(cid => {
+    jobs.push(had.has(cid)
+      ? sb.from('enrollments').update({ group_id: groupOf(cid) }).eq('student_id', s.id).eq('course_id', cid)
+      : sb.from('enrollments').insert({
+          teacher_id: me.teacher_id, student_id: s.id, course_id: cid, group_id: groupOf(cid),
+        }));
+  });
+
+  const results = await Promise.all(jobs);
+  btn.disabled = false;
+
+  const failed = results.find(r => r.error);
+  if (failed) { say('en-alert', friendlyError(failed.error.message)); return; }
+
+  closeModal('enrol-modal');
+  await loadStudents();
+  showToast('Saved.', 'success');
+}
+
 // ── Rendering ─────────────────────────────────────────────────────
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const courseId = document.getElementById('course-filter').value;
   const status = document.getElementById('status-filter').value;
 
+  const groupId = document.getElementById('group-filter').value;
+
   const list = students.filter(s => {
     if (status === 'active' && !s.is_active) return false;
     if (status === 'paused' && s.is_active) return false;
-    if (courseId && !(s.enrollments || []).some(e => e.course_id === courseId)) return false;
+    const on = (s.enrollments || []).find(e => e.course_id === courseId);
+    if (courseId && !on) return false;
+    // "none" is the one a teacher chasing loose ends actually wants:
+    // who is on this course but has not been put in a class yet.
+    if (groupId === 'none' && on?.group_id) return false;
+    if (groupId && groupId !== 'none' && on?.group_id !== groupId) return false;
     if (q && !(`${s.full_name} ${s.email || ''}`.toLowerCase().includes(q))) return false;
     return true;
   });
@@ -277,17 +444,26 @@ function render() {
   }
 
   tbody.innerHTML = list.map(s => {
-    const names = (s.enrollments || []).map(e => e.courses?.title).filter(Boolean);
+    // Course and group read as one thing, because that is how a teacher
+    // says it: "Biology, Sunday". A course with no group set yet shows
+    // the course alone rather than an apologetic blank.
+    const badges = (s.enrollments || []).map(e => {
+      const title = e.courses?.title;
+      if (!title) return '';
+      const g = groups.find(x => x.id === e.group_id);
+      return `<span class="badge b-brand" style="margin:1px 2px 1px 0">${escHtml(title)}${g ? ' · ' + escHtml(g.name) : ''}</span>`;
+    }).filter(Boolean);
     return `<tr>
       <td>
         <div style="font-weight:600">${escHtml(s.full_name)}</div>
         <div class="small muted">${escHtml(s.email || '')}</div>
       </td>
-      <td class="small">${names.length ? names.map(n => `<span class="badge b-brand" style="margin:1px 2px 1px 0">${escHtml(n)}</span>`).join('') : '<span class="muted">—</span>'}</td>
+      <td class="small">${badges.length ? badges.join('') : '<span class="muted">—</span>'}</td>
       <td class="small muted">${escHtml(s.phone || s.parent_phone || '—')}</td>
       <td class="small muted">${fmtDate(s.created_at)}</td>
       <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
       <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openEnrol('${s.id}')">Courses &amp; groups</button>
         <button class="btn btn-ghost btn-xs" onclick="resetPassword('${s.id}')">Reset password</button>
         <button class="btn btn-ghost btn-xs" onclick="togglePause('${s.id}')">${s.is_active ? 'Pause' : 'Resume'}</button>
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${s.id}')">Delete</button>
@@ -301,7 +477,7 @@ function openNew() {
   lastCreated = null;
   ['ns-name', 'ns-email', 'ns-phone', 'ns-parent-phone', 'ns-parent-email']
     .forEach(id => { document.getElementById(id).value = ''; });
-  document.querySelectorAll('#ns-courses input').forEach(i => { i.checked = false; });
+  renderNewCourses();
   document.getElementById('new-fields').style.display = 'block';
   document.getElementById('creds-box').style.display = 'none';
   document.getElementById('new-foot').style.display = 'flex';
@@ -314,7 +490,14 @@ function openNew() {
 }
 
 async function createStudent() {
-  const course_ids = [...document.querySelectorAll('#ns-courses input:checked')].map(i => i.value);
+  const course_ids = [...document.querySelectorAll('.ns-course:checked')].map(i => i.value);
+  // { course_id: group_id } for the ones where a group was picked. The
+  // API ignores a course that is not also in course_ids.
+  const group_ids = {};
+  course_ids.forEach(cid => {
+    const g = document.getElementById('ns-g-' + cid);
+    if (g?.value) group_ids[cid] = g.value;
+  });
   const payload = {
     full_name: document.getElementById('ns-name').value,
     email: document.getElementById('ns-email').value,
@@ -322,6 +505,7 @@ async function createStudent() {
     parent_phone: document.getElementById('ns-parent-phone').value,
     parent_email: document.getElementById('ns-parent-email').value,
     course_ids,
+    group_ids,
   };
 
   if (!payload.full_name.trim() || !payload.email.trim()) { alertNew('Name and email are both needed.'); return; }
@@ -376,8 +560,11 @@ async function copy(text) {
   }
 }
 
-function alertNew(msg) {
-  const el = document.getElementById('new-alert');
+function alertNew(msg) { say('new-alert', msg); }
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
   el.textContent = msg;
   el.style.display = msg ? 'flex' : 'none';
 }
