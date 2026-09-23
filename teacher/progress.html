@@ -8,6 +8,33 @@
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="stylesheet" href="/css/portal.css">
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  /* A row you can open. The detail is a second <tr> underneath rather
+     than a modal: a teacher comparing two students wants both open at
+     once, which a modal cannot do. */
+  .tbl tbody tr.clickable { cursor: pointer; }
+  .tbl tbody tr.clickable:hover { background: var(--bg); }
+  .tbl tbody tr.open { background: var(--primary-soft); }
+  .row-chev { display: inline-flex; color: var(--muted); transition: transform .2s; }
+  .row-chev svg { width: 16px; height: 16px; }
+  tr.open .row-chev { transform: rotate(180deg); }
+  .detail-cell { padding: 0 !important; background: var(--bg); }
+  .detail-inner { padding: 16px 18px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 900px) { .detail-inner { grid-template-columns: 1fr; } }
+  .detail-h {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); margin-bottom: 9px;
+  }
+  .mini-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .8rem; }
+  .mini-row:last-child { border-bottom: none; }
+  .mini-name { flex: 1; min-width: 0; }
+  .mini-sub { font-size: .7rem; color: var(--muted); margin-top: 1px; }
+  .mini-unit { font-size: .7rem; font-weight: 700; color: var(--text-2); margin: 11px 0 3px; }
+  .mini-unit:first-child { margin-top: 0; }
+  .tick { width: 16px; height: 16px; flex-shrink: 0; }
+  .tick.done { color: var(--success); }
+  .tick.not  { color: var(--border); }
+</style>
 </head>
 <body>
 <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -67,7 +94,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th class="num">Tests sat</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th></tr>
+            <tr><th>Student</th><th class="num">Tests sat</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th><th></th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -87,13 +114,16 @@
 <script>
 let me = null;
 let summary = [];
+let allTests = [];
+let allLessons = [];
+let enrolmentsBy = new Map();
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'reports' });
   if (!me) return;
   renderShell('teacher', me, { title: 'Progress' });
 
-  document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  document.getElementById('rows').innerHTML = skeletonRows(7, 5);
   await load();
 
   document.getElementById('q').addEventListener('input', render);
@@ -101,23 +131,40 @@ let summary = [];
 })();
 
 async function load() {
-  // Three reads rather than one per student: the tables are small per
-  // tenant, and joining them in the browser costs nothing next to N
-  // round trips.
-  const [students, attempts, completions] = await Promise.all([
+  // A handful of reads rather than one per student: the tables are small
+  // per tenant, and joining them in the browser costs nothing next to N
+  // round trips. Everything the opened rows need comes down here too, so
+  // expanding a student is instant and silent.
+  const [students, attempts, completions, tests, lessons, enrolments] = await Promise.all([
     sb.from('profiles').select('id, full_name, email')
       .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
+    // Every attempt, not just the best: "passed on the third go" is a
+    // different fact about a student than "passed".
     sb.from('test_attempts').select('student_id, test_id, percentage, passed, completed_at')
       .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null),
-    sb.from('lesson_completions').select('student_id, completed_at').eq('teacher_id', me.teacher_id),
+    sb.from('lesson_completions').select('student_id, lesson_id, completed_at').eq('teacher_id', me.teacher_id),
+    sb.from('practice_tests').select('id, title, course_id, passing_score_pct, is_active')
+      .eq('teacher_id', me.teacher_id),
+    sb.from('lessons').select('id, title, order_index, modules(id, title, course_id, order_index)')
+      .eq('teacher_id', me.teacher_id),
+    sb.from('enrollments').select('student_id, course_id, courses(title)').eq('teacher_id', me.teacher_id),
   ]);
 
+  allTests = tests.data || [];
+  allLessons = (lessons.data || []).filter(l => l.modules);
+  enrolmentsBy = new Map();
+  (enrolments.data || []).forEach(e => {
+    if (!enrolmentsBy.has(e.student_id)) enrolmentsBy.set(e.student_id, []);
+    enrolmentsBy.get(e.student_id).push(e);
+  });
+
   if (students.error) {
-    document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(students.error.message));
+    document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(students.error.message));
     return;
   }
 
-  const byStudent = new Map((students.data || []).map(s => [s.id, { ...s, attempts: [], lessons: 0, lastSeen: null }]));
+  const byStudent = new Map((students.data || []).map(s =>
+    [s.id, { ...s, attempts: [], lessons: 0, doneAt: new Map(), lastSeen: null }]));
   (attempts.data || []).forEach(a => {
     const s = byStudent.get(a.student_id);
     if (!s) return;
@@ -128,6 +175,7 @@ async function load() {
     const s = byStudent.get(c.student_id);
     if (!s) return;
     s.lessons++;
+    s.doneAt.set(c.lesson_id, c.completed_at);
     if (!s.lastSeen || c.completed_at > s.lastSeen) s.lastSeen = c.completed_at;
   });
 
@@ -167,10 +215,10 @@ function render() {
     });
 
   const tbody = document.getElementById('rows');
-  if (!list.length) { tbody.innerHTML = emptyRow(6, summary.length ? 'Nobody matches that search.' : 'No active students yet.'); return; }
+  if (!list.length) { tbody.innerHTML = emptyRow(7, summary.length ? 'Nobody matches that search.' : 'No active students yet.'); return; }
 
   tbody.innerHTML = list.map(s => `
-    <tr>
+    <tr class="clickable${open.has(s.id) ? ' open' : ''}" onclick="toggleStudent('${s.id}')">
       <td>
         <div style="font-weight:600">${escHtml(s.full_name)}</div>
         <div class="small muted">${escHtml(s.email || '')}</div>
@@ -180,7 +228,103 @@ function render() {
       <td class="num muted">${s.top == null ? '—' : s.top + '%'}</td>
       <td class="num muted">${s.lessons}</td>
       <td class="small muted">${s.lastSeen ? timeAgo(s.lastSeen) : 'Never'}</td>
-    </tr>`).join('');
+      <td style="text-align:right"><span class="row-chev">${chevron()}</span></td>
+    </tr>
+    ${open.has(s.id) ? `<tr><td class="detail-cell" colspan="7">${detailFor(s)}</td></tr>` : ''}`).join('');
+}
+
+// ── One student, opened ───────────────────────────────────────────
+// Every mark they have and every lesson they were given, rather than the
+// counts the row above carries. More than one can be open at once: a
+// teacher comparing two students should not have to remember the first.
+const open = new Set();
+
+function toggleStudent(id) {
+  if (open.has(id)) open.delete(id); else open.add(id);
+  render();
+}
+
+function chevron() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+}
+
+function detailFor(s) {
+  const courseIds = new Set((enrolmentsBy.get(s.id) || []).map(e => e.course_id));
+  const courseName = new Map((enrolmentsBy.get(s.id) || []).map(e => [e.course_id, e.courses?.title || 'Course']));
+  if (!courseIds.size) {
+    return '<div class="detail-inner"><p class="small muted">Not enrolled on any course.</p></div>';
+  }
+  return `<div class="detail-inner">
+    <div>${testDetail(s, courseIds)}</div>
+    <div>${lessonDetail(s, courseIds, courseName)}</div>
+  </div>`;
+}
+
+function testDetail(s, courseIds) {
+  // Only the tests this student was actually set. A paper on a course
+  // they are not on is not a zero for them, it is none of their business.
+  const mine = allTests.filter(t => t.is_active && courseIds.has(t.course_id));
+  if (!mine.length) return '<div class="detail-h">Tests</div><p class="small muted">No tests on their courses yet.</p>';
+
+  const byTest = new Map();
+  s.attempts.forEach(a => {
+    if (!byTest.has(a.test_id)) byTest.set(a.test_id, []);
+    byTest.get(a.test_id).push(a);
+  });
+
+  return `<div class="detail-h">Every test · ${mine.length}</div>` + mine.map(t => {
+    const tries = (byTest.get(t.id) || []).sort((a, b) => a.completed_at.localeCompare(b.completed_at));
+    if (!tries.length) {
+      return `<div class="mini-row">
+        <div class="mini-name"><div>${escHtml(t.title)}</div>
+          <div class="mini-sub">pass at ${t.passing_score_pct}%</div></div>
+        <span class="badge b-gray">Not sat</span>
+      </div>`;
+    }
+    const best = tries.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a));
+    // The exact mark, not a band — and every attempt after the first,
+    // because improving from 41 to 78 is the thing worth seeing.
+    const others = tries.length > 1
+      ? ' · tried ' + tries.length + ' times: ' + tries.map(a => pct(a.percentage)).join(', ')
+      : '';
+    return `<div class="mini-row">
+      <div class="mini-name"><div>${escHtml(t.title)}</div>
+        <div class="mini-sub">${fmtDate(best.completed_at)} · pass at ${t.passing_score_pct}%${others}</div></div>
+      <span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>
+    </div>`;
+  }).join('');
+}
+
+function lessonDetail(s, courseIds, courseName) {
+  const mine = allLessons.filter(l => courseIds.has(l.modules.course_id));
+  if (!mine.length) return '<div class="detail-h">Lessons</div><p class="small muted">No lessons on their courses yet.</p>';
+
+  // Grouped by unit and in the teacher's own order, so this reads like
+  // the course does rather than like a database table.
+  const units = new Map();
+  mine.forEach(l => {
+    const key = l.modules.id;
+    if (!units.has(key)) units.set(key, { unit: l.modules, lessons: [] });
+    units.get(key).lessons.push(l);
+  });
+
+  const ordered = [...units.values()].sort((a, b) =>
+    (a.unit.course_id).localeCompare(b.unit.course_id) || (a.unit.order_index - b.unit.order_index));
+
+  const done = mine.filter(l => s.doneAt.has(l.id)).length;
+
+  return `<div class="detail-h">Lessons · ${done} of ${mine.length} done</div>` + ordered.map(({ unit, lessons }) => `
+    <div class="mini-unit">${escHtml(courseName.get(unit.course_id) || '')} · ${escHtml(unit.title)}</div>
+    ${lessons.sort((a, b) => a.order_index - b.order_index).map(l => {
+      const at = s.doneAt.get(l.id);
+      return `<div class="mini-row">
+        <svg class="tick ${at ? 'done' : 'not'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          ${at ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="9"/>'}
+        </svg>
+        <div class="mini-name"><div${at ? '' : ' class="muted"'}>${escHtml(l.title)}</div>
+          ${at ? `<div class="mini-sub">${fmtDate(at)}</div>` : ''}</div>
+      </div>`;
+    }).join('')}`).join('');
 }
 
 function badgeFor(avg) {
