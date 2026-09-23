@@ -356,7 +356,8 @@ function renderPicker() {
     ? available.slice(0, 200).map(b => `
         <div class="pick" onclick="addQuestion('${b.id}')">
           <span class="mv">+</span>
-          <span>${escHtml(b.question_text)}${b.topic ? `<span class="muted"> · ${escHtml(b.topic)}</span>` : ''}</span>
+          <span>${escHtml(b.question_text)}${(b.options || []).filter(o => o.correct).length > 1
+            ? `<span class="muted"> · ${(b.options || []).filter(o => o.correct).length} answers</span>` : ''}${b.topic ? `<span class="muted"> · ${escHtml(b.topic)}</span>` : ''}</span>
         </div>`).join('')
     : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty — paste questions above and they will be filed here as the test saves.'}</p>`;
 

@@ -145,28 +145,66 @@ function tick() {
   }
 }
 
+// How many options a question marks as right. More than one — the
+// synonym and antonym questions in a language paper, where two of five
+// words are the answer — makes it a tick-several question rather than a
+// pick-one. Nothing on the question says which kind it is; the number of
+// correct options is the only thing that has to be true, so it is what
+// this reads.
+function rightAnswers(q) {
+  return (q.options || []).map((o, j) => (o.correct ? j : -1)).filter(j => j >= 0);
+}
+function isMulti(q) { return rightAnswers(q).length > 1; }
+
+// A student who put one answer to a two-answer question has answered it,
+// so `answers` holds an array for those and a plain number for the rest.
+// Attempts sat before today are all plain numbers and still read back.
+function chosenFor(qid) {
+  const given = answers[qid];
+  if (given == null) return [];
+  return Array.isArray(given) ? given : [given];
+}
+
 function renderQuestions() {
-  document.getElementById('wrap').innerHTML = questions.map((q, i) => `
+  document.getElementById('wrap').innerHTML = questions.map((q, i) => {
+    const multi = isMulti(q);
+    return `
     <div class="q-block" id="q-${q.id}">
       <div class="q-num">Question ${i + 1} of ${questions.length}${q.points > 1 ? ` · ${q.points} marks` : ''}</div>
       <div class="q-text">${escHtml(q.question_text)}</div>
+      ${multi ? `<p class="small muted" style="margin:-4px 0 10px">Choose ${rightAnswers(q).length} answers — you only score if you get all of them and nothing else.</p>` : ''}
       ${(q.options || []).map((o, j) => `
         <label class="q-opt" data-q="${q.id}" data-i="${j}">
-          <input type="radio" name="q-${q.id}" value="${j}">
+          <input type="${multi ? 'checkbox' : 'radio'}" name="q-${q.id}" value="${j}">
           <span>${escHtml(o.text)}</span>
         </label>`).join('')}
-    </div>`).join('') + `
+    </div>`;
+  }).join('') + `
     <div style="text-align:center;margin-top:24px">
       <button class="btn btn-primary btn-lg" onclick="submitTest()">Hand in my answers</button>
       <p class="small muted" style="margin-top:12px" id="answered-count"></p>
     </div>`;
 
-  document.querySelectorAll('.q-opt').forEach(label => {
-    label.addEventListener('click', () => {
-      const qid = label.dataset.q;
-      answers[qid] = parseInt(label.dataset.i, 10);
-      document.querySelectorAll(`.q-opt[data-q="${qid}"]`).forEach(l => l.classList.remove('chosen'));
-      label.classList.add('chosen');
+  // On the input's own change rather than the label's click: the input
+  // sits inside the label, so a click has already toggled a checkbox by
+  // the time a click handler runs, and toggling it again in code would
+  // undo the student's tick.
+  document.querySelectorAll('.q-opt input').forEach(input => {
+    input.addEventListener('change', () => {
+      const qid = input.closest('.q-opt').dataset.q;
+      const q = questions.find(x => x.id === qid);
+      const inputs = [...document.querySelectorAll(`.q-opt[data-q="${qid}"] input`)];
+      const picked = inputs.map((el, j) => (el.checked ? j : -1)).filter(j => j >= 0);
+
+      if (isMulti(q)) {
+        // Unticking the last box leaves the question unanswered rather
+        // than answered with nothing, so the count below stays honest.
+        if (picked.length) answers[qid] = picked; else delete answers[qid];
+      } else {
+        answers[qid] = picked[0];
+      }
+
+      inputs.forEach(el => el.closest('.q-opt').classList.toggle('chosen', el.checked));
       updateCount();
     });
   });
@@ -200,8 +238,12 @@ async function submitTest(auto = false) {
   questions.forEach(q => {
     const points = q.points || 1;
     maxScore += points;
-    const chosen = answers[q.id];
-    if (chosen != null && q.options[chosen]?.correct) score += points;
+    const chosen = chosenFor(q.id);
+    const right = rightAnswers(q);
+    // All of them and none of the others. No part marks: on a two-from-five
+    // question they would let a student tick all five and still score,
+    // which is not knowing the answer.
+    if (chosen.length === right.length && right.every(j => chosen.includes(j))) score += points;
   });
   const percentage = maxScore ? Math.round((score / maxScore) * 10000) / 100 : 0;
   const passed = percentage >= test.passing_score_pct;
@@ -270,17 +312,19 @@ function showResult(row, outcome) {
 }
 
 function reviewBlock(q, i) {
-  const chosen = answers[q.id];
+  const chosen = chosenFor(q.id);
   return `<div class="q-block">
     <div class="q-num">Question ${i + 1}</div>
     <div class="q-text">${escHtml(q.question_text)}</div>
     ${(q.options || []).map((o, j) => {
-      const isChosen = chosen === j;
+      const isChosen = chosen.includes(j);
       const cls = o.correct ? ' correct' : (isChosen ? ' wrong' : '');
-      const tag = o.correct ? ' ✓' : (isChosen ? ' ← you put this' : '');
+      // On a two-answer question the student needs to see which of the
+      // right ones they found, not just which ones were right.
+      const tag = o.correct ? (isChosen ? ' ✓ you put this' : ' ✓') : (isChosen ? ' ← you put this' : '');
       return `<div class="q-opt${cls}"><span>${escHtml(o.text)}${tag}</span></div>`;
     }).join('')}
-    ${chosen == null ? '<p class="small muted" style="margin-top:8px">You left this one blank.</p>' : ''}
+    ${!chosen.length ? '<p class="small muted" style="margin-top:8px">You left this one blank.</p>' : ''}
     ${q.explanation ? `<div class="q-explain">${escHtml(q.explanation)}</div>` : ''}
   </div>`;
 }
