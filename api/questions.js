@@ -37,6 +37,17 @@ export default handler(async (req, res) => {
   }
 
   if (body.course_id) await assertTenant('courses', body.course_id, teacherId);
+  if (body.module_id) await assertTenant('modules', body.module_id, teacherId);
+  // A lesson names its unit, so an import tagged with both has to agree
+  // with itself or the bank's filters would disagree with the course.
+  if (body.lesson_id) {
+    const { data: lesson } = await admin
+      .from('lessons').select('id, teacher_id, module_id').eq('id', body.lesson_id).single();
+    if (!lesson) throw new HttpError(404, 'That lesson no longer exists.');
+    if (lesson.teacher_id !== teacherId) throw new HttpError(403, 'That lesson belongs to another teacher.');
+    if (!body.module_id) throw new HttpError(400, 'Choose the unit that lesson is in as well.');
+    if (lesson.module_id !== body.module_id) throw new HttpError(400, 'That lesson is not in the unit you chose.');
+  }
 
   const topic = cleanText(body.topic, { max: 120 });
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
@@ -45,6 +56,8 @@ export default handler(async (req, res) => {
     questions.map(q => ({
       teacher_id: teacherId,
       course_id: body.course_id || null,
+      module_id: body.module_id || null,
+      lesson_id: body.lesson_id || null,
       topic,
       question_text: q.question_text,
       options: q.options,

@@ -37,6 +37,11 @@ Create a Supabase project, open the SQL editor, and run
 security policies that separate one teacher from another, the storage
 buckets, and the starting price list.
 
+A project that already has an older `supabase-setup.sql` needs each
+`supabase-migration-vN.sql` after it, in order. A fresh project does
+not: the setup file already contains what they add. Every migration is
+safe to run twice.
+
 ### 2. The front end
 
 Fill in `js/config.js` with your project's URL and **anon** key
@@ -176,6 +181,52 @@ first — which is the whole reason a teacher cannot open their own space.
 Anything that needs the service-role key lives here: creating auth users,
 setting passwords, deleting accounts, and writing rows that must land
 together. Everything else goes straight from the browser through RLS.
+
+## Where a question lives
+
+A question carries three optional pointers into the course — course,
+unit, lesson — and each is `ON DELETE SET NULL`. That is the important
+part: a question outlives the unit it was written for. It is still a
+good question when next year's units are rebuilt, and cascading would
+quietly empty a bank a teacher spent a term filling.
+
+A lesson names its unit, so both APIs refuse a pair that disagrees: a
+lesson without the unit it belongs to, or a lesson from a different
+unit than the one chosen with it. Otherwise a Unit 1 test could be
+filed under a Unit 4 lesson and appear in two places in the student
+portal.
+
+### Questions go on the test and into the bank
+
+A test used to be buildable only out of the bank, which put the work in
+the wrong order: a teacher with fifty questions in a Word file had to
+fill the bank first and build the test second. Questions can now be
+pasted straight onto a test, and **saving a test files every question on
+it into the bank**, tagged with that test's course, unit and lesson.
+
+Two things make that safe to do on every save:
+
+- **`question_bank.text_key`** — md5 of the question text, generated in
+  Postgres. The server hashes what it is about to file and asks which
+  hashes are already there, so a question picked onto three tests stays
+  one row. It compares hashes rather than texts because these go out as
+  a query string: 300 questions of 2000 characters is a URL no proxy
+  will carry.
+- **A question already filed keeps its unit.** The same question can be
+  right for two lessons, and the last test to use it does not get to
+  overwrite where it was filed. One that was never placed adopts the
+  test's, which is what makes the unit filter worth anything on a bank
+  filled before any of this existed.
+
+Filing is deliberately not fatal. The test exists by that point, and
+reporting it as failed would have the teacher build it a second time —
+so the count comes back in the response and the page says what happened.
+
+The paste box is parsed by `/api/questions` with `action: 'parse'`, the
+same endpoint the bank's own importer previews with, so what is
+understood in the two places cannot drift apart. It reads multiple
+choice: options bulleted or lettered, the answer marked with a `*`,
+a `(correct)`, or an `Answer: B` line.
 
 ## Changing a teacher's sign-in email
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, assertTenant, logActivity } from './_lib/auth.js';
 import { cleanName, cleanText } from './_lib/util.js';
@@ -21,6 +22,7 @@ export default handler(async (req, res) => {
   if (!body.course_id) throw new HttpError(400, 'Choose which course this test belongs to.');
   await assertTenant('courses', body.course_id, teacherId);
   if (body.module_id) await assertTenant('modules', body.module_id, teacherId);
+  if (body.lesson_id) await assertLessonInModule(body.lesson_id, body.module_id, teacherId);
 
   const openAt  = parseWhen(body.open_at, 'open');
   const closeAt = parseWhen(body.close_at, 'close');
@@ -32,6 +34,7 @@ export default handler(async (req, res) => {
     teacher_id: teacherId,
     course_id: body.course_id,
     module_id: body.module_id || null,
+    lesson_id: body.lesson_id || null,
     title,
     description: cleanText(body.description, { max: 1000 }),
     time_limit_min: positiveIntOrNull(body.time_limit_min, 'time limit'),
@@ -72,11 +75,111 @@ export default handler(async (req, res) => {
   );
   if (insErr) throw new HttpError(500, 'The test was saved but its questions were not. Please try again.');
 
+  // Everything on the test goes into the bank, so a question typed once
+  // is available to every test after this one — which is the whole point
+  // of having a bank, and was not true while the only way in was to fill
+  // it by hand first.
+  //
+  // Not fatal: the test exists by this line, and a bank write that fails
+  // must not report a test the teacher can see as having failed to save.
+  // The count comes back either way so the page can say what happened.
+  const banked = await fileIntoBank(teacherId, questions, {
+    course_id: body.course_id,
+    module_id: body.module_id || null,
+    lesson_id: body.lesson_id || null,
+  });
+
   await logActivity(teacherId, profile, body.test_id ? 'test_updated' : 'test_created',
     `${title} · ${questions.length} question${questions.length === 1 ? '' : 's'}`);
 
-  return res.status(200).json({ test_id: testId, question_count: questions.length });
+  return res.status(200).json({
+    test_id: testId,
+    question_count: questions.length,
+    banked: banked.filed,
+    bank_error: banked.error || null,
+  });
 });
+
+// ── Filing into the question bank ─────────────────────────────────
+// A question picked onto three tests must not become three copies of
+// itself in the bank, so each is identified by md5 of its text —
+// `question_bank.text_key` is the same hash, generated in Postgres, and
+// the index on it is what makes this a lookup rather than a scan.
+//
+// Hashes rather than the texts themselves because these go out as a
+// query string: 300 questions of 2000 characters is a URL no proxy will
+// carry, while 300 hashes chunked into hundreds is comfortably small.
+const BANK_LOOKUP_CHUNK = 100;
+
+async function fileIntoBank(teacherId, questions, tags) {
+  // The same question can appear twice in one paste. The bank gets one.
+  const wanted = new Map();
+  for (const q of questions) {
+    const key = createHash('md5').update(q.question_text).digest('hex');
+    if (!wanted.has(key)) wanted.set(key, q);
+  }
+
+  try {
+    const existing = [];
+    const keys = [...wanted.keys()];
+    for (let i = 0; i < keys.length; i += BANK_LOOKUP_CHUNK) {
+      const { data, error } = await admin
+        .from('question_bank').select('id, text_key, module_id')
+        .eq('teacher_id', teacherId).in('text_key', keys.slice(i, i + BANK_LOOKUP_CHUNK));
+      if (error) throw new Error(error.message);
+      existing.push(...(data || []));
+    }
+
+    const known = new Set(existing.map(r => r.text_key));
+    const fresh = [...wanted].filter(([key]) => !known.has(key)).map(([, q]) => q);
+
+    if (fresh.length) {
+      const { error } = await admin.from('question_bank').insert(fresh.map(q => ({
+        teacher_id: teacherId,
+        course_id: tags.course_id,
+        module_id: tags.module_id,
+        lesson_id: tags.lesson_id,
+        question_text: q.question_text,
+        options: q.options,
+        explanation: q.explanation,
+        image_url: q.image_url,
+        is_published: true,
+      })));
+      if (error) throw new Error(error.message);
+    }
+
+    // A question already filed keeps the unit it was filed under: the
+    // same question can be right for two lessons, and the last test to
+    // use it does not get to overwrite that. One that was never placed
+    // adopts this test's, which is what makes the bank's unit filter
+    // worth anything on a bank filled before any of this existed.
+    const adopt = tags.module_id ? existing.filter(r => !r.module_id).map(r => r.id) : [];
+    for (let i = 0; i < adopt.length; i += BANK_LOOKUP_CHUNK) {
+      await admin.from('question_bank')
+        .update({ module_id: tags.module_id, lesson_id: tags.lesson_id })
+        .in('id', adopt.slice(i, i + BANK_LOOKUP_CHUNK));
+    }
+
+    return { filed: fresh.length };
+  } catch (err) {
+    console.error('Filing questions into the bank failed:', err);
+    return { filed: 0, error: 'Those questions were not added to your question bank.' };
+  }
+}
+
+// A lesson names its unit, so a test tagged with both has to agree with
+// itself. Without this a request could put a Unit 1 test under a Unit 4
+// lesson, and the student portal would file it in two places at once.
+async function assertLessonInModule(lessonId, moduleId, teacherId) {
+  if (!moduleId) throw new HttpError(400, 'Choose the unit that lesson is in as well.');
+
+  const { data, error } = await admin
+    .from('lessons').select('id, teacher_id, module_id').eq('id', lessonId).single();
+  if (error || !data) throw new HttpError(404, 'That lesson no longer exists.');
+  if (data.teacher_id !== teacherId) throw new HttpError(403, 'That lesson belongs to another teacher.');
+  if (data.module_id !== moduleId) throw new HttpError(400, 'That lesson is not in the unit you chose.');
+  return data;
+}
 
 // ── Validation ────────────────────────────────────────────────────
 // A question with no correct answer marks every student wrong and there

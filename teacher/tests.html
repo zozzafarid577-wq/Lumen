@@ -16,7 +16,12 @@
   .pick { padding: 9px 11px; border-radius: 9px; font-size: .79rem; line-height: 1.45; cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
   .pick:hover { background: var(--bg); }
   .pick .mv { color: var(--primary); font-weight: 800; flex-shrink: 0; }
-  @media (max-width: 720px) { .picker { grid-template-columns: 1fr; } }
+  .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .paste-box { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
+  .paste-box textarea { min-height: 150px; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
+  .paste-eg { margin: 10px 0 0; padding: 11px 13px; background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+              font-family: ui-monospace, Menlo, monospace; font-size: .72rem; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; }
+  @media (max-width: 720px) { .picker, .form-row-3 { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -72,16 +77,24 @@
         <input type="text" class="form-input" id="b-name" placeholder="Unit 1 quiz — cell division">
       </div>
 
-      <div class="form-row">
+      <div class="form-row form-row-3">
         <div class="form-group">
           <label class="form-label" for="b-course">Course *</label>
           <select class="form-select" id="b-course" onchange="onCourseChange()"></select>
         </div>
         <div class="form-group">
           <label class="form-label" for="b-unit">Unit</label>
-          <select class="form-select" id="b-unit"><option value="">Whole course</option></select>
+          <select class="form-select" id="b-unit" onchange="onUnitChange()"><option value="">Whole course</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-lesson">Lesson</label>
+          <select class="form-select" id="b-lesson"><option value="">Whole unit</option></select>
         </div>
       </div>
+      <p class="form-hint" style="margin-top:-8px;margin-bottom:16px">
+        Where this test sits in the course. Questions saved on it are filed in your bank under the same
+        unit and lesson, so you can find them again without remembering which test they were for.
+      </p>
 
       <div class="form-row">
         <div class="form-group">
@@ -111,7 +124,33 @@
       <label class="form-check"><input type="checkbox" id="b-active" checked>Visible to students</label>
 
       <div class="section-head" style="margin:22px 0 12px"><div><h2 style="font-size:.9rem">Questions</h2><div class="sub" id="b-qcount">Nothing chosen yet</div></div>
-        <input type="search" class="form-input" id="b-search" placeholder="Search the bank…" style="max-width:220px" aria-label="Search the bank">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn btn-outline btn-sm" id="paste-toggle" onclick="togglePaste()">Paste questions</button>
+          <input type="search" class="form-input" id="b-search" placeholder="Search the bank…" style="max-width:200px" aria-label="Search the bank">
+        </div>
+      </div>
+
+      <div class="paste-box" id="paste-box" style="display:none">
+        <div class="alert alert-error" id="paste-alert" style="display:none;margin-bottom:12px"></div>
+        <label class="form-label" for="paste-text">Type or paste as many questions as you like — one blank line between them</label>
+        <textarea class="form-textarea" id="paste-text" spellcheck="false" placeholder="What is the powerhouse of the cell?
+- Nucleus
+- Mitochondrion *
+- Ribosome
+
+Which base pairs with adenine in DNA?
+A) Guanine
+B) Thymine
+C) Cytosine
+Answer: B
+Explanation: A–T and G–C are the two pairs."></textarea>
+        <p class="form-hint">Mark the correct option with a <strong>*</strong>, or name it on an <strong>Answer:</strong> line.
+           Options can be bulleted or lettered. An <strong>Explanation:</strong> line is optional.</p>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="paste-add" onclick="addPasted()">Add to test</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="togglePaste(false)">Close</button>
+          <span class="small muted" id="paste-note"></span>
+        </div>
       </div>
 
       <div class="picker">
@@ -141,7 +180,7 @@
 <script src="/js/shell.js"></script>
 <script>
 let me = null;
-let courses = [], units = [], bank = [], tests = [];
+let courses = [], units = [], lessons = [], bank = [], tests = [];
 let chosen = [];       // questions on the test being built, in order
 let editingTest = null;
 
@@ -185,7 +224,7 @@ async function loadTests() {
 
   document.getElementById('count').textContent = `${tests.length} test${tests.length === 1 ? '' : 's'}`;
   if (!tests.length) {
-    tbody.innerHTML = emptyRow(6, 'No tests yet — build one from your question bank.');
+    tbody.innerHTML = emptyRow(6, 'No tests yet — paste your questions in, or pick them from your bank.');
     return;
   }
 
@@ -227,9 +266,14 @@ async function openBuilder(id) {
   document.getElementById('b-active').checked = t ? t.is_active : true;
   document.getElementById('b-search').value = '';
   say('b-alert', '');
+  togglePaste(false);
 
   await onCourseChange();
-  if (t) document.getElementById('b-unit').value = t.module_id || '';
+  if (t) {
+    document.getElementById('b-unit').value = t.module_id || '';
+    await onUnitChange();
+    document.getElementById('b-lesson').value = t.lesson_id || '';
+  }
 
   // An existing test carries its own copies of the questions, not
   // pointers into the bank — editing the bank afterwards must not change
@@ -252,7 +296,30 @@ async function onCourseChange() {
   units = data || [];
   document.getElementById('b-unit').innerHTML = '<option value="">Whole course</option>'
     + units.map(u => `<option value="${u.id}">${escHtml(u.title)}</option>`).join('');
+  await onUnitChange();
   renderPicker();
+}
+
+// A lesson only means anything inside a unit, and the API refuses a pair
+// that disagrees — so the list is rebuilt from the unit rather than
+// offering every lesson in the course.
+async function onUnitChange() {
+  const moduleId = document.getElementById('b-unit').value;
+  const select = document.getElementById('b-lesson');
+
+  if (!moduleId) {
+    lessons = [];
+    select.innerHTML = '<option value="">Whole course</option>';
+    select.disabled = true;
+    return;
+  }
+
+  const { data } = await sb.from('lessons').select('id, title')
+    .eq('module_id', moduleId).order('order_index');
+  lessons = data || [];
+  select.disabled = !lessons.length;
+  select.innerHTML = '<option value="">Whole unit</option>'
+    + lessons.map(l => `<option value="${l.id}">${escHtml(l.title)}</option>`).join('');
 }
 
 function renderPicker() {
@@ -273,7 +340,7 @@ function renderPicker() {
           <span class="mv">+</span>
           <span>${escHtml(b.question_text)}${b.topic ? `<span class="muted"> · ${escHtml(b.topic)}</span>` : ''}</span>
         </div>`).join('')
-    : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty. <a href="/teacher/question-bank.html" style="color:var(--primary);font-weight:600">Fill it first</a>.'}</p>`;
+    : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty — paste questions above and they will be filed here as the test saves.'}</p>`;
 
   document.getElementById('chosen-col').innerHTML = chosen.length
     ? chosen.map((c, i) => `
@@ -306,6 +373,62 @@ function addQuestion(id) {
 
 function removeQuestion(i) { chosen.splice(i, 1); renderPicker(); }
 
+// ── Pasting questions straight onto the test ──────────────────────
+// Until now the only way onto a test was through the bank, which meant a
+// teacher with fifty questions in a Word file had to fill the bank first
+// and build the test second. They go on the test here and into the bank
+// when it saves, so the order stops mattering.
+function togglePaste(show) {
+  const box = document.getElementById('paste-box');
+  const open = show === undefined ? box.style.display === 'none' : show;
+  box.style.display = open ? 'block' : 'none';
+  document.getElementById('paste-toggle').textContent = open ? 'Hide the paste box' : 'Paste questions';
+  if (open) document.getElementById('paste-text').focus();
+  else { say('paste-alert', ''); document.getElementById('paste-note').textContent = ''; }
+}
+
+async function addPasted() {
+  const text = document.getElementById('paste-text').value;
+  if (!text.trim()) { say('paste-alert', 'Type or paste some questions first.'); return; }
+
+  const btn = document.getElementById('paste-add');
+  btn.disabled = true;
+  btn.textContent = 'Reading…';
+  say('paste-alert', '');
+
+  try {
+    // Parsed on the server, by the same code that reads a bank import —
+    // so what is understood here and what would be understood there can
+    // never drift apart.
+    const { questions, problems } = await apiPost('/api/questions', { action: 'parse', text });
+
+    // A question already on the test is not added twice. Pasting the
+    // same block again after fixing one line is an ordinary thing to do.
+    const already = new Set(chosen.map(c => c.question_text));
+    const fresh = questions.filter(q => !already.has(q.question_text));
+    fresh.forEach(q => chosen.push({ ...q, id: 'pasted-' + chosen.length, points: 1 }));
+
+    if (!fresh.length && !problems.length) {
+      say('paste-alert', questions.length ? 'Those are all on the test already.' : 'No questions could be read from that.');
+    } else {
+      document.getElementById('paste-text').value = '';
+      // The ones that failed are named, not just counted: a teacher who
+      // pasted fifty and got forty-seven needs to know which three.
+      document.getElementById('paste-note').textContent =
+        `${fresh.length} added${questions.length - fresh.length ? `, ${questions.length - fresh.length} already on the test` : ''}.`;
+      if (problems.length) {
+        say('paste-alert', `${problems.length} could not be read — ${problems.slice(0, 3).join('; ')}${problems.length > 3 ? '…' : ''}`);
+      }
+    }
+    renderPicker();
+  } catch (err) {
+    say('paste-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add to test';
+  }
+}
+
 async function saveTest() {
   const btn = document.getElementById('b-save');
   btn.disabled = true;
@@ -316,10 +439,11 @@ async function saveTest() {
   const closeVal = document.getElementById('b-close').value;
 
   try {
-    await apiPost('/api/save-test', {
+    const out = await apiPost('/api/save-test', {
       test_id: editingTest?.id || null,
       course_id: document.getElementById('b-course').value,
       module_id: document.getElementById('b-unit').value || null,
+      lesson_id: document.getElementById('b-lesson').value || null,
       title: document.getElementById('b-name').value,
       time_limit_min: document.getElementById('b-time').value || null,
       passing_score_pct: document.getElementById('b-pass').value,
@@ -334,8 +458,10 @@ async function saveTest() {
       })),
     });
     closeModal('builder');
-    showToast('Test saved.', 'success');
-    await loadTests();
+    if (out.bank_error) showToast(`Test saved. ${out.bank_error}`, 'error');
+    else if (out.banked) showToast(`Test saved · ${out.banked} new question${out.banked === 1 ? '' : 's'} added to your bank.`, 'success');
+    else showToast('Test saved.', 'success');
+    await Promise.all([loadTests(), loadBank()]);
   } catch (err) {
     say('b-alert', err.message);
   } finally {

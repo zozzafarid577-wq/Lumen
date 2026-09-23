@@ -70,6 +70,45 @@ describe('importing a batch of questions', () => {
     expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
   });
 
+  it('tags the whole batch with a unit and lesson', async () => {
+    configureSupabaseMock({ results: {
+      'courses.select': { data: { id: 'c1', teacher_id: TEACHER_ID }, error: null },
+      'modules.select': { data: { id: 'unit-1', teacher_id: TEACHER_ID }, error: null },
+      'lessons.select': { data: { id: 'lesson-1', teacher_id: TEACHER_ID, module_id: 'unit-1' }, error: null },
+    } });
+
+    const res = await call({
+      action: 'import', text: TEXT, course_id: 'c1', module_id: 'unit-1', lesson_id: 'lesson-1',
+    });
+
+    expect(res.statusCode).toBe(200);
+    // These are what the bank's unit and lesson filters read.
+    expect(getSupabaseCalls('question_bank.insert')[0].payload[0])
+      .toMatchObject({ course_id: 'c1', module_id: 'unit-1', lesson_id: 'lesson-1' });
+  });
+
+  it('refuses a lesson that is not in the unit chosen with it', async () => {
+    configureSupabaseMock({ results: {
+      'modules.select': { data: { id: 'unit-1', teacher_id: TEACHER_ID }, error: null },
+      'lessons.select': { data: { id: 'lesson-1', teacher_id: TEACHER_ID, module_id: 'unit-4' }, error: null },
+    } });
+
+    const res = await call({ action: 'import', text: TEXT, module_id: 'unit-1', lesson_id: 'lesson-1' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/not in the unit/i);
+    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
+  });
+
+  it('refuses a lesson in another tenant', async () => {
+    configureSupabaseMock({ results: {
+      'modules.select': { data: { id: 'unit-1', teacher_id: TEACHER_ID }, error: null },
+      'lessons.select': { data: { id: 'lesson-1', teacher_id: OTHER_TEACHER_ID, module_id: 'unit-1' }, error: null },
+    } });
+    const res = await call({ action: 'import', text: TEXT, module_id: 'unit-1', lesson_id: 'lesson-1' });
+    expect(res.statusCode).toBe(403);
+  });
+
   it('refuses empty text', async () => {
     const res = await call({ action: 'import', text: '   ' });
     expect(res.statusCode).toBe(400);

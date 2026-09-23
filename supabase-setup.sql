@@ -473,6 +473,12 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   teacher_id    UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
   course_id     UUID REFERENCES public.courses(id) ON DELETE SET NULL,
+  -- Where in the course this question belongs. Both are optional and
+  -- both survive their target being deleted, because a question outlives
+  -- the unit it was first written for — it is still a good question when
+  -- next year's units are rebuilt.
+  module_id     UUID REFERENCES public.modules(id) ON DELETE SET NULL,
+  lesson_id     UUID REFERENCES public.lessons(id) ON DELETE SET NULL,
   topic         TEXT,
   question_text TEXT NOT NULL,
   -- [{ "text": "...", "correct": true }, …]
@@ -481,7 +487,17 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   difficulty    TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
   image_url     TEXT,
   is_published  BOOLEAN NOT NULL DEFAULT true,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Saving a test files its questions into the bank, and a teacher who
+  -- picks the same question onto three tests must not end up with three
+  -- copies of it. Comparing 2000-character texts over the wire is what
+  -- this avoids: the server hashes what it is about to file and asks
+  -- which hashes are already here.
+  --
+  -- Deliberately exact rather than lower(btrim(...)): the hash has to be
+  -- reproducible character-for-character in JavaScript, and case folding
+  -- is the one operation the two languages do not agree on.
+  text_key      TEXT GENERATED ALWAYS AS (md5(question_text)) STORED
 );
 
 ALTER TABLE public.question_bank ENABLE ROW LEVEL SECURITY;
@@ -503,6 +519,10 @@ CREATE TABLE IF NOT EXISTS public.practice_tests (
   teacher_id        UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
   course_id         UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   module_id         UUID REFERENCES public.modules(id) ON DELETE SET NULL,
+  -- Narrower than the unit: "the quiz that goes with lesson 3" rather
+  -- than "a Unit 2 quiz". Set only alongside a module_id — the API
+  -- refuses a lesson that is not in the unit chosen with it.
+  lesson_id         UUID REFERENCES public.lessons(id) ON DELETE SET NULL,
   title             TEXT NOT NULL,
   description       TEXT,
   time_limit_min    INTEGER,
@@ -764,6 +784,9 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_student   ON public.enrollments(stude
 CREATE INDEX IF NOT EXISTS idx_enrollments_course    ON public.enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_completions_student   ON public.lesson_completions(student_id);
 CREATE INDEX IF NOT EXISTS idx_bank_tenant           ON public.question_bank(teacher_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_bank_unit             ON public.question_bank(teacher_id, module_id, lesson_id);
+-- The lookup that keeps saving a test from filing the same question twice.
+CREATE INDEX IF NOT EXISTS idx_bank_text_key         ON public.question_bank(teacher_id, text_key);
 CREATE INDEX IF NOT EXISTS idx_tests_tenant          ON public.practice_tests(teacher_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_test_questions_test   ON public.test_questions(test_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_attempts_student      ON public.test_attempts(student_id);

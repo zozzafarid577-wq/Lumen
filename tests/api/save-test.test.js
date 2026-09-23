@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 
 vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
@@ -43,7 +44,9 @@ describe('saving a test', () => {
     const res = await call({ title: 'Unit 1 quiz', course_id: COURSE, questions: [Q(), Q()] });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2 });
+    // Both copies go on the test; the bank gets one, because they are
+    // the same question twice.
+    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2, banked: 1, bank_error: null });
 
     const [inserted] = getSupabaseCalls('test_questions.insert');
     expect(inserted.payload).toHaveLength(2);
@@ -140,5 +143,128 @@ describe('saving a test', () => {
     asUser(ASSISTANT_USER, { profile: { staff_perms: ['students'] } });
     const res = await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('the unit and the lesson', () => {
+  const inUnit = (moduleId) => ({
+    'lessons.select': { data: { id: 'lesson-1', teacher_id: TEACHER_ID, module_id: moduleId }, error: null },
+  });
+
+  it('stores both on the test', async () => {
+    configureSupabaseMock({ results: inUnit('unit-1') });
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: 'lesson-1', questions: [Q()],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload)
+      .toMatchObject({ module_id: 'unit-1', lesson_id: 'lesson-1' });
+  });
+
+  it('refuses a lesson that is not in the unit chosen with it', async () => {
+    // Otherwise a Unit 1 test could be filed under a Unit 4 lesson and
+    // show up in two places in the student portal.
+    configureSupabaseMock({ results: inUnit('unit-4') });
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: 'lesson-1', questions: [Q()],
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/not in the unit/i);
+    expect(getSupabaseCalls('practice_tests.insert')).toHaveLength(0);
+  });
+
+  it('refuses a lesson with no unit named', async () => {
+    const res = await call({ title: 'Quiz', course_id: COURSE, lesson_id: 'lesson-1', questions: [Q()] });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/unit/i);
+  });
+
+  it('refuses a lesson in another tenant', async () => {
+    configureSupabaseMock({ results: {
+      'lessons.select': { data: { id: 'lesson-1', teacher_id: OTHER_TEACHER_ID, module_id: 'unit-1' }, error: null },
+    } });
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: 'lesson-1', questions: [Q()],
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('filing the questions into the bank', () => {
+  it('files what the bank does not already hold, tagged with the test’s unit', async () => {
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
+      questions: [Q(), { ...Q(), question_text: 'What pairs with adenine?' }],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.banked).toBe(2);
+
+    const [filed] = getSupabaseCalls('question_bank.insert');
+    expect(filed.payload).toHaveLength(2);
+    expect(filed.payload[0]).toMatchObject({
+      teacher_id: TEACHER_ID, course_id: COURSE, module_id: 'unit-1', lesson_id: null, is_published: true,
+    });
+  });
+
+  it('skips a question the bank already holds', async () => {
+    // md5 of the question text, matching question_bank.text_key. A
+    // question picked onto three tests must not become three copies.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-1' }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.banked).toBe(0);
+    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
+  });
+
+  it('gives a question that was never placed the test’s unit', async () => {
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: null }], error: null },
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: null, questions: [Q()],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.update')[0].payload)
+      .toEqual({ module_id: 'unit-1', lesson_id: null });
+  });
+
+  it('leaves a question that already has a unit alone', async () => {
+    // The same question can be right for two lessons, and the last test
+    // to use it does not get to overwrite where it was filed.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-9' }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
+  });
+
+  it('saves the test even when the bank write fails', async () => {
+    configureSupabaseMock({ results: {
+      'question_bank.insert': { data: null, error: { message: 'boom' } },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
+
+    // The test exists by then. Reporting it as failed would have the
+    // teacher build it a second time.
+    expect(res.statusCode).toBe(200);
+    expect(res.body.test_id).toBe('test-new');
+    expect(res.body.banked).toBe(0);
+    expect(res.body.bank_error).toMatch(/question bank/i);
   });
 });

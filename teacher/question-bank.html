@@ -41,9 +41,11 @@
     <div class="card mb16">
       <div class="card-header" style="flex-wrap:wrap;gap:12px">
         <div class="row" style="flex:1;min-width:240px">
-          <input type="search" class="form-input" id="q" placeholder="Search questions…" style="max-width:300px" aria-label="Search questions">
-          <select class="form-select" id="course-filter" style="max-width:220px" aria-label="Filter by course"><option value="">All courses</option></select>
-          <select class="form-select" id="diff-filter" style="max-width:140px" aria-label="Filter by difficulty">
+          <input type="search" class="form-input" id="q" placeholder="Search questions…" style="max-width:200px" aria-label="Search questions">
+          <select class="form-select" id="course-filter" style="max-width:165px" aria-label="Filter by course"><option value="">All courses</option></select>
+          <select class="form-select" id="unit-filter" style="max-width:155px" aria-label="Filter by unit" disabled><option value="">All units</option></select>
+          <select class="form-select" id="lesson-filter" style="max-width:155px" aria-label="Filter by lesson" disabled><option value="">All lessons</option></select>
+          <select class="form-select" id="diff-filter" style="max-width:150px" aria-label="Filter by difficulty">
             <option value="">Any difficulty</option>
             <option value="easy">Easy</option>
             <option value="medium">Medium</option>
@@ -90,6 +92,16 @@
             <option value="medium" selected>Medium</option>
             <option value="hard">Hard</option>
           </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="qm-unit">Unit</label>
+          <select class="form-select" id="qm-unit" disabled><option value="">Not tied to a unit</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="qm-lesson">Lesson</label>
+          <select class="form-select" id="qm-lesson" disabled><option value="">Not tied to a lesson</option></select>
         </div>
       </div>
       <div class="form-group">
@@ -147,6 +159,17 @@ Answer: B"></textarea>
           <input type="text" class="form-input" id="im-topic" placeholder="Applied to all of them">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="im-unit">Unit</label>
+          <select class="form-select" id="im-unit" disabled><option value="">Not tied to a unit</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="im-lesson">Lesson</label>
+          <select class="form-select" id="im-lesson" disabled><option value="">Not tied to a lesson</option></select>
+        </div>
+      </div>
+      <p class="form-hint" style="margin-bottom:0">Applied to every question in this batch. They are what the unit and lesson filters above search on.</p>
       <div id="im-preview"></div>
     </div>
     <div class="modal-foot">
@@ -178,9 +201,79 @@ let editingQ = null;
   await loadCourses();
   await loadBank();
 
-  ['q', 'course-filter', 'diff-filter'].forEach(id =>
+  ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
+
+  // Each of the three course pickers drives its own pair of unit and
+  // lesson lists. Wiring them here rather than with inline onchange
+  // keeps the cascade in one place.
+  cascade('course-filter', 'unit-filter', 'lesson-filter', 'All units', 'All lessons', render);
+  cascade('qm-course', 'qm-unit', 'qm-lesson', 'Not tied to a unit', 'Not tied to a lesson');
+  cascade('im-course', 'im-unit', 'im-lesson', 'Not tied to a unit', 'Not tied to a lesson');
 })();
+
+// ── Unit and lesson pickers ───────────────────────────────────────
+// A lesson only means anything inside a unit, and a unit only inside a
+// course, so each list is rebuilt from the one above it. Both lookups
+// are cached: a teacher flicking between filters should not re-query
+// the same four units every time.
+const unitsByCourse = new Map();
+const lessonsByUnit = new Map();
+
+async function unitsFor(courseId) {
+  if (!courseId) return [];
+  if (!unitsByCourse.has(courseId)) {
+    const { data } = await sb.from('modules').select('id, title')
+      .eq('course_id', courseId).order('order_index');
+    unitsByCourse.set(courseId, data || []);
+  }
+  return unitsByCourse.get(courseId);
+}
+
+async function lessonsFor(moduleId) {
+  if (!moduleId) return [];
+  if (!lessonsByUnit.has(moduleId)) {
+    const { data } = await sb.from('lessons').select('id, title')
+      .eq('module_id', moduleId).order('order_index');
+    lessonsByUnit.set(moduleId, data || []);
+  }
+  return lessonsByUnit.get(moduleId);
+}
+
+function fill(selectId, rows, placeholder) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = `<option value="">${escHtml(placeholder)}</option>`
+    + rows.map(r => `<option value="${r.id}">${escHtml(r.title)}</option>`).join('');
+  el.disabled = !rows.length;
+  return el;
+}
+
+function cascade(courseId, unitId, lessonId, unitPlaceholder, lessonPlaceholder, onChange) {
+  const course = document.getElementById(courseId);
+  const unit = document.getElementById(unitId);
+
+  course.addEventListener('change', async () => {
+    fill(unitId, await unitsFor(course.value), unitPlaceholder);
+    fill(lessonId, [], lessonPlaceholder);
+    if (onChange) onChange();
+  });
+
+  unit.addEventListener('change', async () => {
+    fill(lessonId, await lessonsFor(unit.value), lessonPlaceholder);
+    if (onChange) onChange();
+  });
+}
+
+// Put a saved question's course/unit/lesson back into a set of pickers.
+// The two lower lists have to be built before their value can be set,
+// which is the whole reason this is not three assignments.
+async function setCascade(courseId, unitId, lessonId, row, unitPlaceholder, lessonPlaceholder) {
+  document.getElementById(courseId).value = row?.course_id || '';
+  fill(unitId, await unitsFor(row?.course_id), unitPlaceholder);
+  document.getElementById(unitId).value = row?.module_id || '';
+  fill(lessonId, await lessonsFor(row?.module_id), lessonPlaceholder);
+  document.getElementById(lessonId).value = row?.lesson_id || '';
+}
 
 async function loadCourses() {
   const { data } = await sb.from('courses').select('id, title')
@@ -194,7 +287,7 @@ async function loadCourses() {
 
 async function loadBank() {
   const { data, error } = await sb.from('question_bank')
-    .select('*, courses(title)')
+    .select('*, courses(title), modules(title), lessons(title)')
     .eq('teacher_id', me.teacher_id)
     .order('created_at', { ascending: false }).limit(500);
   if (error) { document.getElementById('list').innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
@@ -205,10 +298,14 @@ async function loadBank() {
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const courseId = document.getElementById('course-filter').value;
+  const unitId = document.getElementById('unit-filter').value;
+  const lessonId = document.getElementById('lesson-filter').value;
   const diff = document.getElementById('diff-filter').value;
 
   const list = bank.filter(b =>
     (!courseId || b.course_id === courseId) &&
+    (!unitId || b.module_id === unitId) &&
+    (!lessonId || b.lesson_id === lessonId) &&
     (!diff || b.difficulty === diff) &&
     (!q || `${b.question_text} ${b.topic || ''}`.toLowerCase().includes(q)));
 
@@ -240,20 +337,22 @@ function render() {
         <span class="badge b-brand">${escHtml(b.difficulty)}</span>
         ${b.topic ? `<span class="badge">${escHtml(b.topic)}</span>` : ''}
         ${b.courses?.title ? `<span class="badge b-gray">${escHtml(b.courses.title)}</span>` : ''}
+        ${b.modules?.title ? `<span class="badge b-gray">${escHtml(b.modules.title)}</span>` : ''}
+        ${b.lessons?.title ? `<span class="badge b-gray">${escHtml(b.lessons.title)}</span>` : ''}
       </div>
     </div>`).join('');
 }
 
 // ── One question ──────────────────────────────────────────────────
-function editQuestion(id) {
+async function editQuestion(id) {
   const b = id ? bank.find(x => x.id === id) : null;
   editingQ = b || null;
   document.getElementById('qm-title').textContent = b ? 'Edit question' : 'New question';
   document.getElementById('qm-text').value = b?.question_text || '';
   document.getElementById('qm-topic').value = b?.topic || '';
   document.getElementById('qm-exp').value = b?.explanation || '';
-  document.getElementById('qm-course').value = b?.course_id || '';
   document.getElementById('qm-diff').value = b?.difficulty || 'medium';
+  await setCascade('qm-course', 'qm-unit', 'qm-lesson', b, 'Not tied to a unit', 'Not tied to a lesson');
   renderOptions(b?.options || [{ text: '', correct: true }, { text: '', correct: false }]);
   say('qm-alert', '');
   openModal('q-modal');
@@ -295,6 +394,8 @@ async function saveQuestion() {
   const row = {
     teacher_id: me.teacher_id,
     course_id: document.getElementById('qm-course').value || null,
+    module_id: document.getElementById('qm-unit').value || null,
+    lesson_id: document.getElementById('qm-lesson').value || null,
     topic: document.getElementById('qm-topic').value.trim() || null,
     question_text: text,
     options,
@@ -324,9 +425,10 @@ async function deleteQuestion(id) {
 }
 
 // ── Bulk import ───────────────────────────────────────────────────
-function openImport() {
+async function openImport() {
   document.getElementById('im-text').value = '';
   document.getElementById('im-topic').value = '';
+  await setCascade('im-course', 'im-unit', 'im-lesson', null, 'Not tied to a unit', 'Not tied to a lesson');
   document.getElementById('im-preview').innerHTML = '';
   document.getElementById('im-save').disabled = true;
   say('im-alert', '');
@@ -374,6 +476,8 @@ async function runImport() {
       action: 'import',
       text: document.getElementById('im-text').value,
       course_id: document.getElementById('im-course').value || null,
+      module_id: document.getElementById('im-unit').value || null,
+      lesson_id: document.getElementById('im-lesson').value || null,
       topic: document.getElementById('im-topic').value,
     });
     closeModal('import-modal');
