@@ -9,16 +9,92 @@
 <link rel="stylesheet" href="/css/portal.css">
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <style>
-  .unit { border: 1px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; background: var(--card); }
-  .unit-head { padding: 15px 20px; background: var(--bg); display: flex; align-items: center; gap: 12px; }
-  .locked-card { padding: 22px 20px; text-align: center; color: var(--muted); font-size: .84rem; }
-  /* Anything that belongs to one lesson — its handouts and its papers —
-     is stepped in under it, so it reads as part of that lesson rather
-     than as the next thing in the unit. */
-  .list-row.under { padding-left: 46px; background: var(--bg); }
-  .unit-tests { padding: 9px 20px 4px; font-size: .72rem; font-weight: 700; text-transform: uppercase;
-                letter-spacing: .08em; color: var(--muted); border-top: 1px solid var(--border); }
-  .course-head { display: flex; align-items: flex-start; gap: 14px; }
+  /* ── The hello ────────────────────────────────────────────────
+     The same banner the dashboard opens with, carrying this course
+     rather than the space: a student lands on their own name, what
+     they are studying, and how far through it they are. */
+  .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; position: relative; z-index: 1; }
+  .hero-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16);
+    color: #fff; border-radius: 9999px; padding: 6px 13px;
+    font-size: .73rem; font-weight: 600; white-space: nowrap;
+  }
+  .hero-chip svg { width: 13px; height: 13px; opacity: .85; }
+  .hero-prog { margin-top: 18px; max-width: 320px; position: relative; z-index: 1; }
+  .hero-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .hero-fill { height: 100%; border-radius: 4px; background: #fff; transition: width .8s cubic-bezier(.4,0,.2,1); }
+  .hero-prog-label { font-size: .71rem; color: rgba(255,255,255,.72); margin-top: 7px; font-weight: 500; }
+
+  /* ── A unit ───────────────────────────────────────────────────
+     Numbered, because "Unit 3" is how a student and their teacher
+     talk about it, and the number is what they scan the page for. */
+  .unit {
+    border: 1px solid var(--border); border-radius: 16px; margin-bottom: 16px;
+    overflow: hidden; background: var(--card); box-shadow: var(--shadow-xs);
+    transition: box-shadow .22s, border-color .22s;
+    animation: rise .38s cubic-bezier(.4,0,.2,1) both;
+  }
+  .unit:hover { box-shadow: var(--shadow-sm); }
+  .unit.is-open:hover { border-color: var(--primary-line); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .unit { animation: none; } }
+
+  .unit-head { padding: 16px 20px; background: var(--bg); display: flex; align-items: center; gap: 14px; }
+  .unit-num {
+    width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Manrope', sans-serif; font-size: 1rem; font-weight: 800; color: #fff;
+    background: linear-gradient(140deg, var(--primary) 0%, var(--primary-hover) 100%);
+    box-shadow: var(--shadow-brand);
+  }
+  /* A unit that has not opened wears a padlock instead of its number:
+     the number promises a place to go, and there is not one yet. */
+  .unit-num.locked {
+    background: var(--border); color: var(--muted); box-shadow: none;
+  }
+  .unit-num.locked svg { width: 18px; height: 18px; }
+  .unit-title { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: .95rem; letter-spacing: -.01em; }
+  .unit-bar { height: 4px; background: var(--border); }
+  .unit-bar span { display: block; height: 100%; background: var(--primary); transition: width .7s cubic-bezier(.4,0,.2,1); }
+  .locked-card { padding: 26px 20px; text-align: center; color: var(--muted); font-size: .84rem; }
+  .locked-card .lock-big { display: block; width: 22px; height: 22px; margin: 0 auto 9px; opacity: .55; }
+  .unit-tests { padding: 11px 20px 5px; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+                letter-spacing: .1em; color: var(--muted); border-top: 1px solid var(--border); background: var(--bg); }
+
+  /* ── The rows inside it ───────────────────────────────────────
+     Anything that belongs to one lesson — its handouts and its papers —
+     is stepped in under it, and tinted by what it is, so a unit can be
+     read at a glance rather than word by word. */
+  .list-row { transition: background .15s; }
+  .list-row:hover { background: var(--bg); }
+  .list-row.under { padding-left: 48px; background: var(--bg); }
+  .list-row.under::before {
+    content: ''; position: absolute; left: 32px; top: 0; bottom: 0;
+    width: 2px; background: var(--border); border-radius: 1px;
+  }
+  .list-row.under { position: relative; }
+  .list-row.under:hover { background: var(--primary-soft); }
+  .lr-ic.ic-doc  { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+  .lr-ic.ic-test { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+  .lr-done .lr-ic { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+  .lr-done .lr-title { color: var(--text-2); }
+
+  .unit-meta { flex: 1; min-width: 0; }
+  .practise-btn { display: inline-flex; align-items: center; gap: 6px; }
+  .practise-btn svg { width: 13px; height: 13px; }
+  .course-tests-card .card-header { background: var(--bg); }
+
+  /* On a phone the title, the tally and the button cannot share a line
+     without the title being squeezed into one word per row. The number
+     and the title keep the first line; everything else drops below. */
+  @media (max-width: 700px) {
+    .unit-head { flex-wrap: wrap; row-gap: 10px; }
+    .unit-meta { flex: 1 1 60%; }
+    .unit-head .badge { margin-left: 56px; }
+    .unit-head .badge + .practise-btn, .unit-head .badge ~ .btn { margin-left: auto; }
+    .hero-chip { font-size: .7rem; padding: 5px 11px; }
+  }
 </style>
 </head>
 <body>
@@ -181,34 +257,65 @@ async function load() {
     } catch (_) { practiceByUnit = {}; }
   }
 
-  drawCourseCard(course, visible);
+  // What the banner counts as waiting: open right now, and not yet sat.
+  const now = new Date();
+  const toSit = (tests || []).filter(t => testWindow(t, now).open && !bestByTest.has(t.id)).length;
+
+  drawCourseCard(course, visible, toSit);
   drawUnits(host, visible, byUnit, byLesson);
   drawLooseTests(loose);
 }
 
-function drawCourseCard(c, units) {
-  const all = units.filter(u => moduleOpen(u)).flatMap(u => u.lessons || []);
+// The hello. A student opening this page should be met by their own
+// name and the state of their course, not by a list — so the counts that
+// would otherwise be scattered down the page are gathered here.
+function drawCourseCard(c, units, openTests) {
+  const open = units.filter(u => moduleOpen(u));
+  const all = open.flatMap(u => u.lessons || []);
   const done = all.filter(l => doneIds.has(l.id)).length;
   const percent = all.length ? Math.round((done / all.length) * 100) : 0;
+  const first = (me.full_name || '').split(' ')[0];
+
+  const chips = [
+    chip(ICONS.book, `${open.length} unit${open.length === 1 ? '' : 's'} open`),
+    all.length ? chip(ICONS.tick, `${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done`) : '',
+    openTests ? chip(ICONS.paper, `${openTests} test${openTests === 1 ? '' : 's'} to sit`) : '',
+    c.exam_date ? chip(ICONS.calendar, 'Exam ' + fmtDate(c.exam_date)) : '',
+  ].filter(Boolean).join('');
 
   document.getElementById('course-card').innerHTML = `
-    <div class="card mb24"><div class="card-body">
-      <div class="course-head">
-        <div class="course-icon">${escHtml(initials(c.title))}</div>
-        <div style="flex:1;min-width:0">
-          <div class="course-subject">${escHtml(c.subject || 'Course')}</div>
-          <div class="course-title">${escHtml(c.title)}</div>
-          ${c.description ? `<div class="course-desc">${escHtml(c.description)}</div>` : ''}
-          <div class="prog-row">
-            <div class="prog-bar"><div class="prog-fill" style="width:${percent}%"></div></div>
-            <span class="prog-pct">${percent}%</span>
-          </div>
-          <div class="small muted" style="margin-top:6px">
-            ${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done${c.exam_date ? ' · exam ' + fmtDate(c.exam_date) : ''}
-          </div>
-        </div>
+    <div class="welcome-banner" style="display:block">
+      <div class="welcome-text">
+        <div class="welcome-sub">${escHtml(c.subject || 'My course')}</div>
+        <div class="welcome-name">Hello, ${escHtml(first || 'there')}</div>
+        <p class="welcome-note">${escHtml(c.title)}${c.description ? ' — ' + escHtml(c.description) : ''}</p>
       </div>
-    </div></div>`;
+      <div class="hero-chips">${chips}</div>
+      ${all.length ? `
+        <div class="hero-prog">
+          <div class="hero-bar"><div class="hero-fill" style="width:${percent}%"></div></div>
+          <div class="hero-prog-label">${percent}% of this course behind you</div>
+        </div>` : ''}
+    </div>`;
+}
+
+const ICONS = {
+  book:     '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  tick:     '<polyline points="20 6 9 17 4 12"/>',
+  paper:    '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  lock:     '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  spark:    '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3.2"/>',
+  file:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  play:     '<polygon points="5 3 19 12 5 21 5 3"/>',
+};
+
+function icon(path, cls = '') {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="${cls}">${path}</svg>`;
+}
+
+function chip(path, label) {
+  return `<span class="hero-chip">${icon(path)}${escHtml(label)}</span>`;
 }
 
 function drawUnits(host, visible, byUnit, byLesson) {
@@ -218,31 +325,41 @@ function drawUnits(host, visible, byUnit, byLesson) {
     return;
   }
 
-  host.innerHTML = visible.map(u => {
+  host.innerHTML = visible.map((u, i) => {
     const open = moduleOpen(u);
     const lessons = (u.lessons || []).sort((a, b) => a.order_index - b.order_index);
     const unitTests = byUnit.get(u.id) || [];
+    const doneHere = lessons.filter(l => doneIds.has(l.id)).length;
+    const percent = lessons.length ? Math.round((doneHere / lessons.length) * 100) : 0;
+
     const counts = [`${lessons.length} lesson${lessons.length === 1 ? '' : 's'}`];
     const matCount = lessons.reduce((n, l) => n + (l.lesson_materials || []).length, 0);
     if (matCount) counts.push(`${matCount} handout${matCount === 1 ? '' : 's'}`);
     const testCount = unitTests.length + lessons.reduce((n, l) => n + (byLesson.get(l.id) || []).length, 0);
     if (testCount) counts.push(`${testCount} test${testCount === 1 ? '' : 's'}`);
 
-    return `<div class="unit${open ? '' : ' lr-locked'}">
+    // Staggered, so the units settle in one after another rather than
+    // all at once. Capped: the eighth unit should not wait a second.
+    const delay = Math.min(i, 6) * 55;
+
+    return `<div class="unit${open ? ' is-open' : ' lr-locked'}" style="animation-delay:${delay}ms">
       <div class="unit-head">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.9rem">${escHtml(u.title)}</div>
+        <div class="unit-num${open ? '' : ' locked'}">${open ? String(i + 1).padStart(2, '0') : icon(ICONS.lock)}</div>
+        <div class="unit-meta">
+          <div class="unit-title">${escHtml(u.title)}</div>
           <div class="small muted">${open ? counts.join(' · ') : 'Not open yet'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
         </div>
         ${open
-          ? `<span class="badge b-green">${lessons.filter(l => doneIds.has(l.id)).length}/${lessons.length} done</span>`
+          ? `<span class="badge ${doneHere === lessons.length && lessons.length ? 'b-green' : 'b-gray'}">${doneHere}/${lessons.length} done</span>`
           : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
         ${open && practiceByUnit[u.id]
           // Offered only where there is something behind it, so the
           // button never leads to an empty page.
-          ? `<a class="btn btn-outline btn-xs" href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">Practise</a>`
+          ? `<a class="btn btn-outline btn-xs practise-btn" href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">
+               ${icon(ICONS.spark)}Practise</a>`
           : ''}
       </div>
+      ${open && lessons.length ? `<div class="unit-bar"><span style="width:${percent}%"></span></div>` : ''}
       ${open
         ? (lessons.length || unitTests.length
             // Each lesson, then what hangs off it: the handouts to read
@@ -256,7 +373,7 @@ function drawUnits(host, visible, byUnit, byLesson) {
                   ? `<div class="unit-tests">On the whole unit</div>${unitTests.map(t => testRow(t, false)).join('')}`
                   : '')
             : '<div class="locked-card">No lessons in this unit yet.</div>')
-        : `<div class="locked-card">This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
+        : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
     </div>`;
   }).join('');
 }
@@ -267,8 +384,11 @@ function drawLooseTests(loose) {
   const host = document.getElementById('course-tests');
   if (!loose.length) { host.innerHTML = ''; return; }
   host.innerHTML = `
-    <div class="card">
-      <div class="card-header"><span class="card-title">On the whole course</span></div>
+    <div class="card course-tests-card">
+      <div class="card-header">
+        <span class="card-title">On the whole course</span>
+        <span class="small muted">${loose.length} paper${loose.length === 1 ? '' : 's'}</span>
+      </div>
       ${loose.map(t => testRow(t, false)).join('')}
     </div>`;
 }
@@ -278,7 +398,7 @@ const MAT_LABEL = { pdf: 'PDF', link: 'Link', sheet: 'Worksheet', recording: 'Re
 function materialRow(m) {
   const kind = MAT_LABEL[m.kind] || 'File';
   return `<div class="list-row under">
-    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <div class="lr-ic ic-doc">${icon(ICONS.file)}</div>
     <div style="flex:1;min-width:0">
       <div class="lr-title">${escHtml(m.title)}</div>
       <div class="lr-sub">${escHtml(kind)}</div>
@@ -301,7 +421,7 @@ function testRow(t, under) {
     : `<span class="badge b-yellow">${escHtml(w.label)}</span>`;
 
   return `<div class="list-row${under ? ' under' : ''}">
-    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+    <div class="lr-ic ic-test">${icon(ICONS.paper)}</div>
     <div style="flex:1;min-width:0">
       <div class="lr-title">${escHtml(t.title)}
         ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
@@ -314,8 +434,11 @@ function testRow(t, under) {
 
 function lessonRow(l) {
   const done = doneIds.has(l.id);
-  return `<div class="list-row">
-    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+  // A finished lesson turns its own icon into the tick, rather than
+  // carrying a tick somewhere else on the row: it is the same piece of
+  // information and it belongs in one place.
+  return `<div class="list-row${done ? ' lr-done' : ''}">
+    <div class="lr-ic">${icon(done ? ICONS.tick : ICONS.play)}</div>
     <div style="flex:1;min-width:0">
       <div class="lr-title">${escHtml(l.title)}</div>
       <div class="lr-sub">${l.duration_min ? l.duration_min + ' min' : 'Lesson'}${l.description ? ' · ' + escHtml(l.description) : ''}</div>
