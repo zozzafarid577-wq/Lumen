@@ -26,6 +26,11 @@
   .unit-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
   .lesson-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); }
   .lesson-row .ln { flex: 1; min-width: 0; }
+  /* A test set on one lesson is stepped in under it, so the filing a
+     teacher chose in the builder is visible here without opening it. */
+  .lesson-row.under { padding-left: 44px; background: var(--bg); }
+  .unit-tests { padding: 9px 18px 3px; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+                letter-spacing: .08em; color: var(--muted); border-top: 1px solid var(--border); }
   @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -196,6 +201,8 @@ let me = null;
 let courses = [];
 let currentCourseId = null;
 let units = [];          // units of the current course, each with .lessons
+let testsByLesson = new Map();   // lesson_id -> the papers set on it
+let testsByUnit = new Map();     // module_id -> papers set on the unit, no lesson
 let editing = { course: null, unit: null, lesson: null };
 
 (async () => {
@@ -296,12 +303,29 @@ async function loadUnits() {
   const course = courses.find(c => c.id === currentCourseId);
   if (!course) return;
 
-  const { data, error } = await sb.from('modules')
-    .select('*, lessons(*, lesson_materials(id, title, file_url))')
-    .eq('course_id', course.id).order('order_index');
+  const [{ data, error }, { data: tests }] = await Promise.all([
+    sb.from('modules')
+      .select('*, lessons(*, lesson_materials(id, title, file_url))')
+      .eq('course_id', course.id).order('order_index'),
+    // Where each paper was filed, shown next to the lesson it was filed
+    // under. A teacher who has set four papers on a unit should be able
+    // to see that here rather than opening each one in the builder.
+    sb.from('practice_tests').select('id, title, module_id, lesson_id, is_active, open_at, close_at, test_sections(name), test_questions(id)')
+      .eq('course_id', course.id).order('created_at'),
+  ]);
   if (error) { pane.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
 
   units = (data || []).map(u => ({ ...u, lessons: (u.lessons || []).sort((a, b) => a.order_index - b.order_index) }));
+
+  testsByLesson = new Map();
+  testsByUnit = new Map();
+  (tests || []).forEach(t => {
+    if (!t.module_id) return;   // course-wide papers live on the Tests page
+    const map = t.lesson_id ? testsByLesson : testsByUnit;
+    const key = t.lesson_id || t.module_id;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+  });
 
   const header = `
     <div class="card mb16">
@@ -341,7 +365,7 @@ function unitHtml(u) {
     <div class="unit-head">
       <div style="flex:1;min-width:0">
         <div class="unit-title">${escHtml(u.title)}</div>
-        <div class="unit-meta">${u.lessons.length} lesson${u.lessons.length === 1 ? '' : 's'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
+        <div class="unit-meta">${unitMeta(u)}</div>
       </div>
       ${state}
       <button class="btn btn-ghost btn-xs" onclick="editUnit('${u.id}')">Edit</button>
@@ -357,7 +381,35 @@ function unitHtml(u) {
         </div>
         <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}','${l.id}')">Edit</button>
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteLesson('${l.id}')">Delete</button>
-      </div>`).join('')}
+      </div>` + (testsByLesson.get(l.id) || []).map(testRow).join('')).join('')}
+    ${(testsByUnit.get(u.id) || []).length
+      ? `<div class="unit-tests">On the whole unit</div>${(testsByUnit.get(u.id) || []).map(testRow).join('')}`
+      : ''}
+  </div>`;
+}
+
+function unitMeta(u) {
+  const n = u.lessons.length;
+  const tests = (testsByUnit.get(u.id) || []).length
+    + u.lessons.reduce((sum, l) => sum + (testsByLesson.get(l.id) || []).length, 0);
+  return [`${n} lesson${n === 1 ? '' : 's'}`, tests ? `${tests} test${tests === 1 ? '' : 's'}` : null, u.description]
+    .filter(Boolean).map(escHtml).join(' · ');
+}
+
+// The section is a label beside the title, not a word in the line below
+// it: on a unit with a vocabulary paper and a grammar paper set on the
+// same lesson, it is the only thing telling the two apart at a glance.
+function testRow(t) {
+  const w = testWindow(t);
+  const n = (t.test_questions || []).length;
+  return `<div class="lesson-row under">
+    <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+    <div class="ln">
+      <div class="lr-title">${escHtml(t.title)}
+        ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
+      <div class="lr-sub">${n} question${n === 1 ? '' : 's'} · ${escHtml(w.label)}</div>
+    </div>
+    <a href="/teacher/tests.html" class="btn btn-ghost btn-xs">Open in Tests</a>
   </div>`;
 }
 
