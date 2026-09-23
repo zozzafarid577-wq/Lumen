@@ -67,6 +67,11 @@
       </div>
     </div>
 
+    <!-- What students have sent through Lumi. Above quick actions
+         because someone is stuck right now: it is only on the page at
+         all when there is something waiting. -->
+    <div id="help-requests"></div>
+
     <div class="section-head"><div><h2>Quick actions</h2><div class="sub">Straight into the thing you came to do</div></div></div>
     <div class="qa-grid mb24" id="quick-actions"></div>
 
@@ -142,7 +147,7 @@ const QUICK = [
 
   // One failure should not blank the whole dashboard, so each panel
   // loads and fails on its own.
-  await Promise.allSettled([loadStats(), loadRecentStudents(), loadRecentAttempts()]);
+  await Promise.allSettled([loadStats(), loadRecentStudents(), loadRecentAttempts(), loadHelp()]);
 })();
 
 async function loadStats() {
@@ -180,6 +185,61 @@ async function loadRecentStudents() {
       <td class="muted">${fmtDate(s.created_at)}</td>
       <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
     </tr>`).join('');
+}
+
+// ── What students have sent through Lumi ──────────────────────────
+const HELP_LABEL = { technical: 'Something is broken', course: 'About their course', other: 'Something else' };
+
+async function loadHelp() {
+  const { data, error } = await sb.from('support_requests')
+    .select('id, name, kind, message, created_at, profiles(full_name)')
+    .eq('teacher_id', me.teacher_id).eq('status', 'open')
+    .order('created_at', { ascending: false }).limit(8);
+
+  // A space whose database predates migration v4 has no such table. That
+  // is a missing feature, not a broken dashboard — say nothing and move on.
+  if (error || !data?.length) return;
+
+  document.getElementById('help-requests').innerHTML = `
+    <div class="section-head"><div><h2>Asked for help</h2>
+      <div class="sub">Sent by students from inside their portal</div></div></div>
+    <div class="card mb24" id="help-card">
+      ${data.map(r => helpRow(r)).join('')}
+    </div>`;
+}
+
+function helpRow(r) {
+  const kind = HELP_LABEL[r.kind] || HELP_LABEL.other;
+  return `<div class="list-row" id="help-${r.id}">
+    <div class="lr-ic" style="background:color-mix(in srgb, var(--warning) 14%, transparent);color:var(--warning)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div class="lr-title">${escHtml(r.profiles?.full_name || r.name)}
+        <span class="badge b-gray" style="margin-left:6px">${escHtml(kind)}</span></div>
+      <div class="lr-sub" style="white-space:pre-wrap">${escHtml(r.message)}</div>
+      <div class="small muted" style="margin-top:4px">${timeAgo(r.created_at)}</div>
+    </div>
+    <button class="btn btn-outline btn-xs" onclick="closeHelp('${r.id}')">Mark done</button>
+  </div>`;
+}
+
+async function closeHelp(id) {
+  const row = document.getElementById('help-' + id);
+  if (row) row.style.opacity = '.5';
+
+  const { error } = await sb.from('support_requests').update({ status: 'done' }).eq('id', id);
+  if (error) {
+    if (row) row.style.opacity = '';
+    showToast(friendlyError(error.message), 'error');
+    return;
+  }
+
+  row?.remove();
+  // The last one closed takes the whole section with it, rather than
+  // leaving an empty card headed "Asked for help".
+  if (!document.querySelector('#help-card .list-row')) document.getElementById('help-requests').innerHTML = '';
+  showToast('Marked as dealt with.', 'success');
 }
 
 async function loadRecentAttempts() {

@@ -40,7 +40,17 @@
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .unit { animation: none; } }
 
+  /* The whole head is the handle. `list-style:none` in both spellings —
+     Safari still wants the -webkit- one — or the browser draws its own
+     triangle next to ours. */
+  .unit-summary { cursor: pointer; list-style: none; }
+  .unit-summary::-webkit-details-marker { display: none; }
+  .unit-summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
   .unit-head { padding: 16px 20px; background: var(--bg); display: flex; align-items: center; gap: 14px; }
+  .unit-summary:hover .unit-head { background: var(--primary-soft); }
+  .unit-chev { display: flex; color: var(--muted); transition: transform .22s cubic-bezier(.4,0,.2,1); }
+  .unit-chev svg { width: 18px; height: 18px; }
+  .unit[open] .unit-chev { transform: rotate(180deg); }
   .unit-num {
     width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -139,6 +149,14 @@ let doneIds = new Set();
 let bestByTest = new Map();   // test_id -> the student's best attempt
 let practiceByUnit = {};      // module_id -> how many bank questions to practise
 let practiceFetchedFor = null;
+// Which units the student has opened. Ticking a lesson off redraws the
+// whole page, and a unit that shut itself because they marked something
+// done inside it would be maddening.
+const expanded = new Set();
+
+function rememberUnit(id, open) {
+  if (open) expanded.add(id); else expanded.delete(id);
+}
 
 (async () => {
   me = await requireAuth('student');
@@ -308,6 +326,7 @@ const ICONS = {
   spark:    '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3.2"/>',
   file:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   play:     '<polygon points="5 3 19 12 5 21 5 3"/>',
+  chev:     '<polyline points="6 9 12 15 18 9"/>',
 };
 
 function icon(path, cls = '') {
@@ -342,24 +361,33 @@ function drawUnits(host, visible, byUnit, byLesson) {
     // all at once. Capped: the eighth unit should not wait a second.
     const delay = Math.min(i, 6) * 55;
 
-    return `<div class="unit${open ? ' is-open' : ' lr-locked'}" style="animation-delay:${delay}ms">
-      <div class="unit-head">
-        <div class="unit-num${open ? '' : ' locked'}">${open ? String(i + 1).padStart(2, '0') : icon(ICONS.lock)}</div>
-        <div class="unit-meta">
-          <div class="unit-title">${escHtml(u.title)}</div>
-          <div class="small muted">${open ? counts.join(' · ') : 'Not open yet'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
+    // A <details>, so the keyboard and screen readers get the open and
+    // shut for free. Every unit starts closed: a term's worth of units
+    // all open at once is a page nobody can find anything in.
+    return `<details class="unit${open ? ' is-open' : ' lr-locked'}" style="animation-delay:${delay}ms"
+        ${expanded.has(u.id) ? 'open' : ''} ontoggle="rememberUnit('${u.id}', this.open)">
+      <summary class="unit-summary">
+        <div class="unit-head">
+          <div class="unit-num${open ? '' : ' locked'}">${open ? String(i + 1).padStart(2, '0') : icon(ICONS.lock)}</div>
+          <div class="unit-meta">
+            <div class="unit-title">${escHtml(u.title)}</div>
+            <div class="small muted">${open ? counts.join(' · ') : 'Not open yet'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
+          </div>
+          ${open
+            ? `<span class="badge ${doneHere === lessons.length && lessons.length ? 'b-green' : 'b-gray'}">${doneHere}/${lessons.length} done</span>`
+            : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
+          ${open && practiceByUnit[u.id]
+            // Offered only where there is something behind it, so the
+            // button never leads to an empty page. The click is stopped
+            // short of the summary, or opening practice would also flip
+            // the unit shut behind them.
+            ? `<a class="btn btn-outline btn-xs practise-btn" onclick="event.stopPropagation()"
+                 href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">${icon(ICONS.spark)}Practise</a>`
+            : ''}
+          <span class="unit-chev">${icon(ICONS.chev)}</span>
         </div>
-        ${open
-          ? `<span class="badge ${doneHere === lessons.length && lessons.length ? 'b-green' : 'b-gray'}">${doneHere}/${lessons.length} done</span>`
-          : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
-        ${open && practiceByUnit[u.id]
-          // Offered only where there is something behind it, so the
-          // button never leads to an empty page.
-          ? `<a class="btn btn-outline btn-xs practise-btn" href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">
-               ${icon(ICONS.spark)}Practise</a>`
-          : ''}
-      </div>
-      ${open && lessons.length ? `<div class="unit-bar"><span style="width:${percent}%"></span></div>` : ''}
+        ${open && lessons.length ? `<div class="unit-bar"><span style="width:${percent}%"></span></div>` : ''}
+      </summary>
       ${open
         ? (lessons.length || unitTests.length
             // Each lesson, then what hangs off it: the handouts to read
@@ -374,7 +402,7 @@ function drawUnits(host, visible, byUnit, byLesson) {
                   : '')
             : '<div class="locked-card">No lessons in this unit yet.</div>')
         : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
-    </div>`;
+    </details>`;
   }).join('');
 }
 

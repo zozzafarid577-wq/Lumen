@@ -25,18 +25,24 @@
 
   <main class="content">
 
-    <div class="welcome-banner">
-      <div class="welcome-text">
-        <div class="welcome-sub" data-tenant-name>Your teacher</div>
-        <div class="welcome-name" id="hero-name">Welcome back</div>
-        <p class="welcome-note" id="hero-note"></p>
+    <!-- The greeting is a line, not a banner: the courses below are what
+         a student came for, and the big hello now lives on the course
+         page itself where it carries that course's progress. -->
+    <div class="hello-row">
+      <div>
+        <div class="hello-sub" data-tenant-name>Your teacher</div>
+        <div class="hello-name" id="hero-name">Welcome back</div>
       </div>
-      <div class="welcome-actions">
-        <a href="/portal/courses.html" class="btn btn-white btn-sm">Go to my courses</a>
-      </div>
+      <p class="hello-note small muted" id="hero-note"></p>
     </div>
 
     <div id="urgent"></div>
+
+    <div class="section-head"><div><h2>My courses</h2><div class="sub">Pick up where you left off</div></div></div>
+    <div class="courses-grid mb24" id="courses">
+      <div class="skel" style="height:130px"></div>
+      <div class="skel" style="height:130px"></div>
+    </div>
 
     <div class="stats-grid">
       <div class="stat-card">
@@ -62,26 +68,25 @@
       </div>
     </div>
 
+    <!-- Both of these are glances, not destinations: three items each,
+         and a link to the page that holds the rest. -->
     <div class="g2">
-      <div class="card">
+      <div class="card mini">
         <div class="card-header">
           <span class="card-title">What's waiting</span>
           <a href="/portal/courses.html" class="btn btn-ghost btn-xs">My courses</a>
         </div>
-        <div id="todo"><div class="card-body"><div class="skel" style="height:60px"></div></div></div>
+        <div id="todo"><div class="card-body"><div class="skel" style="height:44px"></div></div></div>
       </div>
 
-      <div class="card">
+      <div class="card mini">
         <div class="card-header">
           <span class="card-title">Announcements</span>
           <a href="/portal/announcements.html" class="btn btn-ghost btn-xs">All</a>
         </div>
-        <div class="card-body" id="anns"><div class="skel" style="height:60px"></div></div>
+        <div class="card-body" id="anns"><div class="skel" style="height:44px"></div></div>
       </div>
     </div>
-
-    <div class="section-head"><div><h2>My courses</h2><div class="sub">How far through each one you are</div></div></div>
-    <div class="courses-grid" id="courses"></div>
 
   </main>
 </div>
@@ -184,7 +189,7 @@ async function loadTodo() {
   }
 
   host.innerHTML =
-    openTests.slice(0, 4).map(t => `
+    openTests.slice(0, 3).map(t => `
       <a class="list-row" href="/portal/take-test.html?id=${t.id}">
         <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
         <div style="flex:1;min-width:0">
@@ -193,7 +198,7 @@ async function loadTodo() {
         </div>
         <span class="badge b-brand">Start</span>
       </a>`).join('') +
-    openWork.slice(0, 4).map(a => {
+    openWork.slice(0, 3).map(a => {
       const late = a.due_at && new Date(a.due_at) < now;
       return `<a class="list-row" href="/portal/assignments.html">
         <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
@@ -209,7 +214,7 @@ async function loadTodo() {
 async function loadAnnouncements() {
   const { data } = await sb.from('announcements')
     .select('title, body, priority, created_at')
-    .eq('is_active', true).order('created_at', { ascending: false }).limit(4);
+    .eq('is_active', true).order('created_at', { ascending: false }).limit(3);
 
   const urgent = (data || []).filter(a => a.priority === 'urgent');
   document.getElementById('urgent').innerHTML = urgent.slice(0, 1).map(a => `

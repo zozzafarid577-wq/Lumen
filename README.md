@@ -150,10 +150,21 @@ questions are served and again when one is marked.
 
 ## What a student sees
 
-A student has one page to work from: **My courses**. It holds the units
-their teacher has opened, and under each unit the lessons, the handouts on
-each lesson, and the papers set on them. Tests that belong to no unit fall
-to "On the whole course" at the foot of the page.
+Their dashboard opens on **their courses**, with the counts under them and
+"what's waiting" and announcements as glances beside each other.
+
+The work itself is on one page: **My courses**. It holds the units their
+teacher has opened, and under each unit the lessons, the handouts on each
+lesson, and the papers set on them. Units start collapsed — a term's worth
+open at once is a page nobody can find anything in. Tests that belong to no
+unit fall to "On the whole course" at the foot of the page.
+
+**Lumi**, the character in the corner, is on every student page and is
+mounted by `renderShell()`. What a student writes to it lands in
+`support_requests` (migration v4) and shows on their teacher's dashboard
+until the teacher marks it done. It is a row rather than an email on
+purpose: a button that silently drops what a child typed is worse than no
+button at all.
 
 There is deliberately no separate Lessons or Tests tab — `/portal/lessons`
 and `/portal/tests` redirect to `/portal/courses` (see `vercel.json`), so

@@ -81,6 +81,146 @@ function renderShell(which, profile, { title } = {}) {
   // a student should see whose space they are in, not a product name.
   paintIdentity(profile);
   markActiveNav();
+
+  // Lumi rides along on every student page, not just the dashboard: a
+  // page that will not load is exactly the page they are stuck on.
+  if (which === 'student') mountHelper(profile);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Lumi — the Lumen character
+//
+// A student who cannot open a PDF, or whose test will not load, has
+// nowhere to say so. They will not email, and they should not have to
+// find their teacher's phone number to report that a page is broken. So
+// there is a face in the corner, and what they type lands in
+// support_requests where their teacher sees it.
+// ─────────────────────────────────────────────────────────────────
+
+// The lamp from the logo, given eyes. The "u" is its body and the bar
+// under it is the base it stands on, so the character and the mark in
+// the browser tab are recognisably the same thing.
+const LUMI_SVG = `
+<svg viewBox="0 0 64 64" aria-hidden="true" class="lumi-face">
+  <defs>
+    <linearGradient id="lumi-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C77BC4"/><stop offset="1" stop-color="#8B3F89"/>
+    </linearGradient>
+  </defs>
+  <g class="lumi-rays" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".5">
+    <line x1="32" y1="2" x2="32" y2="7"/>
+    <line x1="11" y1="9" x2="14.5" y2="12.5"/>
+    <line x1="53" y1="9" x2="49.5" y2="12.5"/>
+  </g>
+  <rect x="11" y="12" width="42" height="36" rx="15" fill="url(#lumi-body)"/>
+  <g class="lumi-eyes">
+    <circle cx="24" cy="28" r="4.2" fill="#fff"/><circle cx="40" cy="28" r="4.2" fill="#fff"/>
+    <circle cx="24.9" cy="29" r="1.9" fill="#3A1F39"/><circle cx="40.9" cy="29" r="1.9" fill="#3A1F39"/>
+  </g>
+  <path d="M25.5 37.5q6.5 5.5 13 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <rect x="29" y="46" width="6" height="7" fill="currentColor"/>
+  <rect x="18" y="52" width="28" height="7" rx="3.5" fill="currentColor"/>
+</svg>`;
+
+const HELP_KINDS = [
+  ['technical', 'Something is broken'],
+  ['course',    'A question about my course'],
+  ['other',     'Something else'],
+];
+
+function mountHelper(profile) {
+  if (document.getElementById('lumi')) return;   // pages re-render; Lumi does not
+
+  const host = document.createElement('div');
+  host.id = 'lumi';
+  host.innerHTML = `
+    <button class="lumi-btn" type="button" onclick="toggleHelp()" aria-label="Ask for help">
+      ${LUMI_SVG}
+      <span class="lumi-bubble">Need a hand?</span>
+    </button>
+    <div class="lumi-panel" id="lumi-panel" role="dialog" aria-label="Ask for help">
+      <div class="lumi-head">
+        <div>
+          <div class="lumi-name">Hi, I'm Lumi</div>
+          <div class="lumi-sub">Tell your teacher what is wrong and they will see it.</div>
+        </div>
+        <button class="modal-close" type="button" onclick="toggleHelp(false)" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="lumi-body">
+        <div class="alert alert-error" id="lumi-alert" style="display:none;margin-bottom:12px"></div>
+        <div class="form-group">
+          <label class="form-label" for="lumi-name">Your name</label>
+          <input type="text" class="form-input" id="lumi-name" value="${escHtml(profile.full_name || '')}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lumi-kind">What is it about?</label>
+          <select class="form-select" id="lumi-kind">
+            ${HELP_KINDS.map(([v, label]) => `<option value="${v}">${escHtml(label)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="lumi-msg">What happened?</label>
+          <textarea class="form-textarea" id="lumi-msg" style="min-height:92px"
+            placeholder="The PDF on lesson 3 will not open on my phone."></textarea>
+        </div>
+      </div>
+      <div class="lumi-foot">
+        <button class="btn btn-primary btn-sm" id="lumi-send" type="button" onclick="sendHelp()">Send to my teacher</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  window.__lumiProfile = profile;
+}
+
+function toggleHelp(force) {
+  const panel = document.getElementById('lumi-panel');
+  if (!panel) return;
+  const open = force === undefined ? !panel.classList.contains('open') : force;
+  panel.classList.toggle('open', open);
+  if (open) document.getElementById('lumi-msg').focus();
+}
+
+async function sendHelp() {
+  const profile = window.__lumiProfile || {};
+  const name = document.getElementById('lumi-name').value.trim();
+  const message = document.getElementById('lumi-msg').value.trim();
+  const alert = document.getElementById('lumi-alert');
+
+  const say = (msg) => { alert.textContent = msg; alert.style.display = msg ? 'flex' : 'none'; };
+  if (!name) { say('Put your name in so your teacher knows who asked.'); return; }
+  if (message.length < 5) { say('Tell us a little about what went wrong.'); return; }
+
+  const btn = document.getElementById('lumi-send');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  say('');
+
+  const { error } = await sb.from('support_requests').insert({
+    teacher_id: profile.teacher_id,
+    student_id: profile.id,
+    name,
+    email: profile.email || null,
+    kind: document.getElementById('lumi-kind').value,
+    message,
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Send to my teacher';
+
+  if (error) { say(friendlyError(error.message)); return; }
+
+  // The panel becomes the receipt rather than closing on them — a form
+  // that empties itself and vanishes leaves a child wondering whether
+  // anything happened at all.
+  document.querySelector('.lumi-body').innerHTML = `
+    <div style="text-align:center;padding:14px 6px">
+      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">Sent to your teacher</div>
+      <p class="small muted">They will see it next time they open Lumen. You can close this now.</p>
+    </div>`;
+  document.querySelector('.lumi-foot').innerHTML =
+    '<button class="btn btn-ghost btn-sm" type="button" onclick="toggleHelp(false)">Close</button>';
 }
 
 function sidebarHtml(which, profile) {

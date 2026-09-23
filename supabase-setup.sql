@@ -750,6 +750,46 @@ CREATE POLICY "announcements_student_read" ON public.announcements
   );
 
 -- ────────────────────────────────────────
+-- SUPPORT REQUESTS
+-- ────────────────────────────────────────
+-- What a student writes to the Lumen character in the corner of their
+-- portal. A row rather than an email: a request that depends on a mail
+-- provider having a good afternoon is a request that can vanish, and a
+-- button that silently drops what a child typed is worse than no button.
+CREATE TABLE IF NOT EXISTS public.support_requests (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  -- SET NULL rather than CASCADE: a student who leaves the space should
+  -- not take an unanswered question with them.
+  student_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  name       TEXT NOT NULL,
+  email      TEXT,
+  kind       TEXT NOT NULL DEFAULT 'other'
+             CHECK (kind IN ('technical', 'course', 'other')),
+  message    TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.support_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "support_staff_all" ON public.support_requests
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+-- Both halves matter: without the student_id check one student could
+-- file a request as another, and without is_member_of they could file
+-- into another teacher's inbox.
+CREATE POLICY "support_student_write" ON public.support_requests
+  FOR INSERT WITH CHECK (public.is_member_of(teacher_id) AND student_id = auth.uid());
+
+CREATE POLICY "support_student_read" ON public.support_requests
+  FOR SELECT USING (student_id = auth.uid());
+
+-- Deliberately no student UPDATE or DELETE policy: closing a request is
+-- the teacher's word on it, and a student cannot withdraw a report of a
+-- problem that may still be real for everyone else.
+
+-- ────────────────────────────────────────
 -- ACTIVITY LOG (per tenant)
 -- ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activity_log (
@@ -843,6 +883,9 @@ CREATE INDEX IF NOT EXISTS idx_bank_section          ON public.question_bank(tea
 -- The one question api/practice.js asks of the bank.
 CREATE INDEX IF NOT EXISTS idx_bank_practice         ON public.question_bank(teacher_id, module_id)
   WHERE is_published = true AND practice_ok = true;
+-- What the teacher's dashboard asks for: the requests still waiting.
+CREATE INDEX IF NOT EXISTS idx_support_open          ON public.support_requests(teacher_id, created_at DESC)
+  WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS idx_sections_tenant       ON public.test_sections(teacher_id, order_index);
 -- The lookup that keeps saving a test from filing the same question twice.
 CREATE INDEX IF NOT EXISTS idx_bank_text_key         ON public.question_bank(teacher_id, text_key);
