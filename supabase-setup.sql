@@ -467,6 +467,43 @@ CREATE POLICY "completions_staff_read" ON public.lesson_completions
   FOR SELECT USING (public.is_staff_of(teacher_id));
 
 -- ────────────────────────────────────────
+-- TEST SECTIONS (what kind of test this is)
+-- ────────────────────────────────────────
+-- A unit and a lesson say *where* in the course a test sits. They do not
+-- say what it asks. A language teacher sets one paper on vocabulary and
+-- another on grammar for the very same lesson, and needs to tell them
+-- apart in a list of forty tests.
+--
+-- Each teacher writes their own list rather than choosing from ours.
+-- Lumen is sold to whoever teaches: "Vocabulary" and "Grammar" are the
+-- right two for an English teacher and meaningless to a chemistry one,
+-- and a fixed set would be a migration every time a teacher wanted a
+-- section we had not thought of.
+CREATE TABLE IF NOT EXISTS public.test_sections (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.test_sections ENABLE ROW LEVEL SECURITY;
+
+-- Two sections called "Grammar" in one space make the filter useless and
+-- the picker baffling. On lower() rather than the column, so "grammar"
+-- typed in a hurry is caught as the name that already exists.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sections_unique_name
+  ON public.test_sections (teacher_id, lower(name));
+
+CREATE POLICY "sections_staff_all" ON public.test_sections
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+-- Students read them: a test's section is part of how it is labelled in
+-- their portal, the same way its title is.
+CREATE POLICY "sections_member_read" ON public.test_sections
+  FOR SELECT USING (public.is_member_of(teacher_id));
+
+-- ────────────────────────────────────────
 -- QUESTION BANK
 -- ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.question_bank (
@@ -479,6 +516,9 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   -- next year's units are rebuilt.
   module_id     UUID REFERENCES public.modules(id) ON DELETE SET NULL,
   lesson_id     UUID REFERENCES public.lessons(id) ON DELETE SET NULL,
+  -- What the question asks, as opposed to where it sits: vocabulary,
+  -- grammar, whatever this teacher's list holds.
+  section_id    UUID REFERENCES public.test_sections(id) ON DELETE SET NULL,
   topic         TEXT,
   question_text TEXT NOT NULL,
   -- [{ "text": "...", "correct": true }, …]
@@ -523,6 +563,9 @@ CREATE TABLE IF NOT EXISTS public.practice_tests (
   -- than "a Unit 2 quiz". Set only alongside a module_id — the API
   -- refuses a lesson that is not in the unit chosen with it.
   lesson_id         UUID REFERENCES public.lessons(id) ON DELETE SET NULL,
+  -- Which of the teacher's sections this paper is: two tests on the same
+  -- lesson are told apart by this and nothing else.
+  section_id        UUID REFERENCES public.test_sections(id) ON DELETE SET NULL,
   title             TEXT NOT NULL,
   description       TEXT,
   time_limit_min    INTEGER,
@@ -785,6 +828,8 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_course    ON public.enrollments(cours
 CREATE INDEX IF NOT EXISTS idx_completions_student   ON public.lesson_completions(student_id);
 CREATE INDEX IF NOT EXISTS idx_bank_tenant           ON public.question_bank(teacher_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_bank_unit             ON public.question_bank(teacher_id, module_id, lesson_id);
+CREATE INDEX IF NOT EXISTS idx_bank_section          ON public.question_bank(teacher_id, section_id);
+CREATE INDEX IF NOT EXISTS idx_sections_tenant       ON public.test_sections(teacher_id, order_index);
 -- The lookup that keeps saving a test from filing the same question twice.
 CREATE INDEX IF NOT EXISTS idx_bank_text_key         ON public.question_bank(teacher_id, text_key);
 CREATE INDEX IF NOT EXISTS idx_tests_tenant          ON public.practice_tests(teacher_id, course_id);

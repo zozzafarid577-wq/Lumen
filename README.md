@@ -184,8 +184,8 @@ together. Everything else goes straight from the browser through RLS.
 
 ## Where a question lives
 
-A question carries three optional pointers into the course — course,
-unit, lesson — and each is `ON DELETE SET NULL`. That is the important
+A question carries four optional pointers — course, unit, lesson, and
+section — and every one is `ON DELETE SET NULL`. That is the important
 part: a question outlives the unit it was written for. It is still a
 good question when next year's units are rebuilt, and cascading would
 quietly empty a bank a teacher spent a term filling.
@@ -195,6 +195,31 @@ lesson without the unit it belongs to, or a lesson from a different
 unit than the one chosen with it. Otherwise a Unit 1 test could be
 filed under a Unit 4 lesson and appear in two places in the student
 portal.
+
+### Sections say what a paper asks
+
+Course, unit and lesson say **where** in the course a test sits. They do
+not say what it asks. A language teacher sets one paper on vocabulary
+and another on grammar for the very same lesson, and needs to tell them
+apart in a list of forty tests. `test_sections` is that label.
+
+**Each teacher writes their own list** rather than choosing from ours.
+Lumen is sold to whoever teaches: "Vocabulary" and "Grammar" are the
+right two for an English teacher and meaningless to a chemistry one, and
+a fixed set would be a migration every time a teacher wanted a section
+we had not thought of. Nothing is seeded — a space that opens with
+somebody else's words already in it reads as a bug. Teachers add their
+own under **Settings → Test sections**.
+
+Names are unique per teacher on `lower(name)`, so "grammar" typed in a
+hurry is caught as the section that already exists. Removing a section
+nulls the label on the rows that point at it; the dialog says how many
+tests and questions that is, and that none of them are deleted.
+
+When a test is saved, its section is filed alongside its unit — but the
+two are decided **separately**. A question can easily know where it sits
+and not what it asks, so filling both or neither would leave half the
+bank unfilterable the day a teacher first adds sections.
 
 ### Questions go on the test and into the bank
 

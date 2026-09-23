@@ -109,6 +109,28 @@ describe('importing a batch of questions', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('tags the whole batch with a section', async () => {
+    configureSupabaseMock({ results: {
+      'test_sections.select': { data: { id: 'sec-1', teacher_id: TEACHER_ID }, error: null },
+    } });
+
+    const res = await call({ action: 'import', text: TEXT, section_id: 'sec-1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.insert')[0].payload[0].section_id).toBe('sec-1');
+  });
+
+  it('refuses a section from another teacher’s list', async () => {
+    configureSupabaseMock({ results: {
+      'test_sections.select': { data: { id: 'sec-1', teacher_id: OTHER_TEACHER_ID }, error: null },
+    } });
+
+    const res = await call({ action: 'import', text: TEXT, section_id: 'sec-1' });
+
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
+  });
+
   it('refuses empty text', async () => {
     const res = await call({ action: 'import', text: '   ' });
     expect(res.statusCode).toBe(400);

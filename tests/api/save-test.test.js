@@ -146,6 +146,92 @@ describe('saving a test', () => {
   });
 });
 
+describe('the section', () => {
+  const ownedSection = (teacherId) => ({
+    'test_sections.select': { data: { id: 'sec-1', teacher_id: teacherId }, error: null },
+  });
+
+  it('stores which of the teacher’s sections this paper is', async () => {
+    configureSupabaseMock({ results: ownedSection(TEACHER_ID) });
+    const res = await call({ title: 'Quiz', course_id: COURSE, section_id: 'sec-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload.section_id).toBe('sec-1');
+  });
+
+  it('refuses a section from another teacher’s list', async () => {
+    configureSupabaseMock({ results: ownedSection(OTHER_TEACHER_ID) });
+    const res = await call({ title: 'Quiz', course_id: COURSE, section_id: 'sec-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('practice_tests.insert')).toHaveLength(0);
+  });
+
+  it('files new questions under it', async () => {
+    configureSupabaseMock({ results: ownedSection(TEACHER_ID) });
+    const res = await call({ title: 'Quiz', course_id: COURSE, section_id: 'sec-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.insert')[0].payload[0].section_id).toBe('sec-1');
+  });
+
+  it('gives a banked question its section without touching its unit', async () => {
+    // A question can easily know where it sits and not what it asks —
+    // filling both or neither would leave half the bank unfilterable the
+    // day a teacher adds sections.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      ...ownedSection(TEACHER_ID),
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-9', section_id: null }], error: null },
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: [Q()],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.update')[0].payload).toEqual({ section_id: 'sec-1' });
+  });
+
+  it('leaves a question that already has a section alone', async () => {
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      ...ownedSection(TEACHER_ID),
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: 'sec-9' }], error: null },
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: [Q()],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
+  });
+
+  it('updates rows wanting the same patch together', async () => {
+    // A fifty-question paper must not become fifty round trips.
+    const rows = [Q(), { ...Q(), question_text: 'Second?' }, { ...Q(), question_text: 'Third?' }];
+    const banked = rows.map((q, i) => ({
+      id: `bank-${i}`,
+      text_key: createHash('md5').update(q.question_text).digest('hex'),
+      module_id: null, section_id: null,
+    }));
+    configureSupabaseMock({ results: {
+      ...ownedSection(TEACHER_ID),
+      'question_bank.select': { data: banked, error: null },
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: rows,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const updates = getSupabaseCalls('question_bank.update');
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toEqual({ module_id: 'unit-1', lesson_id: null, section_id: 'sec-1' });
+  });
+});
+
 describe('the unit and the lesson', () => {
   const inUnit = (moduleId) => ({
     'lessons.select': { data: { id: 'lesson-1', teacher_id: TEACHER_ID, module_id: moduleId }, error: null },

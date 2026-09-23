@@ -111,6 +111,28 @@
       </div>
     </div>
 
+    <!-- ── TEST SECTIONS (teacher only) ─────────────────────── -->
+    <div class="card mb24" id="sections-card" style="display:none">
+      <div class="card-header"><span class="card-title">Test sections</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="sec-alert" style="display:none;margin-bottom:16px"></div>
+        <p class="small muted mb16">
+          What a test asks, as opposed to where it sits. A unit and a lesson say which part of the
+          course a paper belongs to; a section tells two papers on the same lesson apart —
+          <strong>Vocabulary</strong> and <strong>Grammar</strong>, say. These are your own words;
+          nothing is filled in for you.
+        </p>
+
+        <div id="sec-list"><div class="skel" style="height:40px"></div></div>
+
+        <div class="row" style="margin-top:14px;flex-wrap:nowrap;max-width:420px">
+          <input type="text" class="form-input" id="sec-new" placeholder="e.g. Vocabulary" maxlength="60"
+                 aria-label="New section name">
+          <button class="btn btn-primary btn-sm" id="sec-add" onclick="addSection()" style="white-space:nowrap">Add</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header"><span class="card-title">Session</span></div>
       <div class="card-body">
@@ -147,6 +169,8 @@ let me = null;
   document.getElementById('me-email').value = me.email || '';
 
   if (me.role === 'teacher' && me.teacher) {
+    document.getElementById('sections-card').style.display = 'block';
+    loadSections();
     document.getElementById('space-card').style.display = 'block';
     document.getElementById('sp-name').value = me.teacher.display_name || '';
     document.getElementById('sp-subject').value = me.teacher.subject || '';
@@ -229,6 +253,89 @@ async function saveSpace() {
   say('sp-alert', '');
   showToast('Space saved.', 'success');
   setTimeout(() => location.reload(), 700);
+}
+
+// ── Test sections ─────────────────────────────────────────────────
+let sections = [];
+
+async function loadSections() {
+  const { data, error } = await sb.from('test_sections')
+    .select('id, name, order_index, practice_tests(id), question_bank(id)')
+    .eq('teacher_id', me.teacher_id).order('order_index').order('name');
+
+  if (error) { document.getElementById('sec-list').innerHTML = ''; say('sec-alert', friendlyError(error.message)); return; }
+  sections = data || [];
+  renderSections();
+}
+
+function renderSections() {
+  const host = document.getElementById('sec-list');
+  if (!sections.length) {
+    host.innerHTML = '<p class="small muted" style="padding:10px 0">No sections yet. Add the ones you set papers on.</p>';
+    return;
+  }
+
+  // The counts are what makes deleting one a decision rather than a
+  // guess: a section used by thirty questions is not the same as one
+  // added by mistake five minutes ago.
+  host.innerHTML = sections.map(s => {
+    const tests = (s.practice_tests || []).length;
+    const questions = (s.question_bank || []).length;
+    const used = [tests ? `${tests} test${tests === 1 ? '' : 's'}` : '',
+                  questions ? `${questions} question${questions === 1 ? '' : 's'}` : '']
+                 .filter(Boolean).join(' · ');
+    return `<div class="spread" style="padding:9px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-weight:600">${escHtml(s.name)}</div>
+        ${used ? `<div class="small muted">${escHtml(used)}</div>` : '<div class="small muted">Not used yet</div>'}
+      </div>
+      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteSection('${s.id}')">Remove</button>
+    </div>`;
+  }).join('');
+}
+
+async function addSection() {
+  const input = document.getElementById('sec-new');
+  const name = input.value.trim().replace(/\s+/g, ' ');
+  if (!name) { say('sec-alert', 'Type a section name first.'); return; }
+  if (sections.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    say('sec-alert', `You already have a section called ${name}.`);
+    return;
+  }
+
+  const btn = document.getElementById('sec-add');
+  btn.disabled = true;
+  const { error } = await sb.from('test_sections').insert({
+    teacher_id: me.teacher_id,
+    name,
+    order_index: sections.length,
+  });
+  btn.disabled = false;
+
+  if (error) { say('sec-alert', friendlyError(error.message)); return; }
+  input.value = '';
+  say('sec-alert', '');
+  await loadSections();
+}
+
+async function deleteSection(id) {
+  const s = sections.find(x => x.id === id);
+  if (!s) return;
+
+  // Deleting a section nulls it on the rows that point at it rather than
+  // taking them with it, so the warning says so plainly — a teacher
+  // removing a label should not fear losing a term's questions.
+  const tests = (s.practice_tests || []).length;
+  const questions = (s.question_bank || []).length;
+  const used = tests || questions;
+  if (!confirm(used
+    ? `Remove "${s.name}"? ${tests} test(s) and ${questions} question(s) lose this label. Nothing else about them changes, and no questions are deleted.`
+    : `Remove "${s.name}"?`)) return;
+
+  const { error } = await sb.from('test_sections').delete().eq('id', id);
+  if (error) { say('sec-alert', friendlyError(error.message)); return; }
+  showToast('Section removed.', 'success');
+  await loadSections();
 }
 
 function say(id, msg) {

@@ -23,6 +23,7 @@ export default handler(async (req, res) => {
   await assertTenant('courses', body.course_id, teacherId);
   if (body.module_id) await assertTenant('modules', body.module_id, teacherId);
   if (body.lesson_id) await assertLessonInModule(body.lesson_id, body.module_id, teacherId);
+  if (body.section_id) await assertTenant('test_sections', body.section_id, teacherId);
 
   const openAt  = parseWhen(body.open_at, 'open');
   const closeAt = parseWhen(body.close_at, 'close');
@@ -35,6 +36,7 @@ export default handler(async (req, res) => {
     course_id: body.course_id,
     module_id: body.module_id || null,
     lesson_id: body.lesson_id || null,
+    section_id: body.section_id || null,
     title,
     description: cleanText(body.description, { max: 1000 }),
     time_limit_min: positiveIntOrNull(body.time_limit_min, 'time limit'),
@@ -87,6 +89,7 @@ export default handler(async (req, res) => {
     course_id: body.course_id,
     module_id: body.module_id || null,
     lesson_id: body.lesson_id || null,
+    section_id: body.section_id || null,
   });
 
   await logActivity(teacherId, profile, body.test_id ? 'test_updated' : 'test_created',
@@ -124,7 +127,7 @@ async function fileIntoBank(teacherId, questions, tags) {
     const keys = [...wanted.keys()];
     for (let i = 0; i < keys.length; i += BANK_LOOKUP_CHUNK) {
       const { data, error } = await admin
-        .from('question_bank').select('id, text_key, module_id')
+        .from('question_bank').select('id, text_key, module_id, section_id')
         .eq('teacher_id', teacherId).in('text_key', keys.slice(i, i + BANK_LOOKUP_CHUNK));
       if (error) throw new Error(error.message);
       existing.push(...(data || []));
@@ -139,6 +142,7 @@ async function fileIntoBank(teacherId, questions, tags) {
         course_id: tags.course_id,
         module_id: tags.module_id,
         lesson_id: tags.lesson_id,
+        section_id: tags.section_id,
         question_text: q.question_text,
         options: q.options,
         explanation: q.explanation,
@@ -148,16 +152,37 @@ async function fileIntoBank(teacherId, questions, tags) {
       if (error) throw new Error(error.message);
     }
 
-    // A question already filed keeps the unit it was filed under: the
-    // same question can be right for two lessons, and the last test to
-    // use it does not get to overwrite that. One that was never placed
-    // adopts this test's, which is what makes the bank's unit filter
-    // worth anything on a bank filled before any of this existed.
-    const adopt = tags.module_id ? existing.filter(r => !r.module_id).map(r => r.id) : [];
-    for (let i = 0; i < adopt.length; i += BANK_LOOKUP_CHUNK) {
-      await admin.from('question_bank')
-        .update({ module_id: tags.module_id, lesson_id: tags.lesson_id })
-        .in('id', adopt.slice(i, i + BANK_LOOKUP_CHUNK));
+    // A question already filed keeps the labels it has: the same question
+    // can be right for two lessons, and the last test to use it does not
+    // get to overwrite where it was filed. A blank is a different matter —
+    // one that was never placed adopts this test's, which is what makes
+    // the filters worth anything on a bank filled before any of this
+    // existed.
+    //
+    // Each label is decided on its own, because a question can easily
+    // know its unit and not its section: filling both or neither would
+    // leave half the bank unfilterable the day a teacher adds sections.
+    const groups = new Map();
+    for (const row of existing) {
+      const patch = {};
+      if (tags.module_id && !row.module_id) {
+        patch.module_id = tags.module_id;
+        patch.lesson_id = tags.lesson_id;
+      }
+      if (tags.section_id && !row.section_id) patch.section_id = tags.section_id;
+      if (!Object.keys(patch).length) continue;
+
+      // Rows wanting the same patch are updated together rather than one
+      // request each: a fifty-question paper is one or two round trips.
+      const key = JSON.stringify(patch);
+      if (!groups.has(key)) groups.set(key, { patch, ids: [] });
+      groups.get(key).ids.push(row.id);
+    }
+
+    for (const { patch, ids } of groups.values()) {
+      for (let i = 0; i < ids.length; i += BANK_LOOKUP_CHUNK) {
+        await admin.from('question_bank').update(patch).in('id', ids.slice(i, i + BANK_LOOKUP_CHUNK));
+      }
     }
 
     return { filed: fresh.length };

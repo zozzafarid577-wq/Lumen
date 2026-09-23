@@ -45,6 +45,7 @@
           <select class="form-select" id="course-filter" style="max-width:165px" aria-label="Filter by course"><option value="">All courses</option></select>
           <select class="form-select" id="unit-filter" style="max-width:155px" aria-label="Filter by unit" disabled><option value="">All units</option></select>
           <select class="form-select" id="lesson-filter" style="max-width:155px" aria-label="Filter by lesson" disabled><option value="">All lessons</option></select>
+          <select class="form-select" id="section-filter" style="max-width:150px" aria-label="Filter by section"><option value="">All sections</option></select>
           <select class="form-select" id="diff-filter" style="max-width:150px" aria-label="Filter by difficulty">
             <option value="">Any difficulty</option>
             <option value="easy">Easy</option>
@@ -103,6 +104,10 @@
           <label class="form-label" for="qm-lesson">Lesson</label>
           <select class="form-select" id="qm-lesson" disabled><option value="">Not tied to a lesson</option></select>
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="qm-section">Section</label>
+        <select class="form-select" id="qm-section"><option value="">No section</option></select>
       </div>
       <div class="form-group">
         <label class="form-label" for="qm-topic">Topic</label>
@@ -169,6 +174,10 @@ Answer: B"></textarea>
           <select class="form-select" id="im-lesson" disabled><option value="">Not tied to a lesson</option></select>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label" for="im-section">Section</label>
+        <select class="form-select" id="im-section"><option value="">No section</option></select>
+      </div>
       <p class="form-hint" style="margin-bottom:0">Applied to every question in this batch. They are what the unit and lesson filters above search on.</p>
       <div id="im-preview"></div>
     </div>
@@ -198,10 +207,10 @@ let editingQ = null;
   if (!me) return;
   renderShell('teacher', me, { title: 'Question bank' });
 
-  await loadCourses();
+  await Promise.all([loadCourses(), loadSections()]);
   await loadBank();
 
-  ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter'].forEach(id =>
+  ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter', 'section-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
 
   // Each of the three course pickers drives its own pair of unit and
@@ -285,9 +294,20 @@ async function loadCourses() {
   document.getElementById('im-course').innerHTML = '<option value="">Not tied to a course</option>' + opts;
 }
 
+// The teacher's own list, so the three pickers and the filter all offer
+// exactly what they wrote under Settings and nothing of ours.
+async function loadSections() {
+  const { data } = await sb.from('test_sections').select('id, name')
+    .eq('teacher_id', me.teacher_id).order('order_index').order('name');
+  const opts = (data || []).map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+  document.getElementById('section-filter').innerHTML = '<option value="">All sections</option>' + opts;
+  document.getElementById('qm-section').innerHTML = '<option value="">No section</option>' + opts;
+  document.getElementById('im-section').innerHTML = '<option value="">No section</option>' + opts;
+}
+
 async function loadBank() {
   const { data, error } = await sb.from('question_bank')
-    .select('*, courses(title), modules(title), lessons(title)')
+    .select('*, courses(title), modules(title), lessons(title), test_sections(name)')
     .eq('teacher_id', me.teacher_id)
     .order('created_at', { ascending: false }).limit(500);
   if (error) { document.getElementById('list').innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
@@ -300,12 +320,14 @@ function render() {
   const courseId = document.getElementById('course-filter').value;
   const unitId = document.getElementById('unit-filter').value;
   const lessonId = document.getElementById('lesson-filter').value;
+  const sectionId = document.getElementById('section-filter').value;
   const diff = document.getElementById('diff-filter').value;
 
   const list = bank.filter(b =>
     (!courseId || b.course_id === courseId) &&
     (!unitId || b.module_id === unitId) &&
     (!lessonId || b.lesson_id === lessonId) &&
+    (!sectionId || b.section_id === sectionId) &&
     (!diff || b.difficulty === diff) &&
     (!q || `${b.question_text} ${b.topic || ''}`.toLowerCase().includes(q)));
 
@@ -335,6 +357,7 @@ function render() {
       ${b.explanation ? `<p class="small muted" style="margin-top:10px">${escHtml(b.explanation)}</p>` : ''}
       <div class="row" style="margin-top:10px">
         <span class="badge b-brand">${escHtml(b.difficulty)}</span>
+        ${b.test_sections?.name ? `<span class="badge b-green">${escHtml(b.test_sections.name)}</span>` : ''}
         ${b.topic ? `<span class="badge">${escHtml(b.topic)}</span>` : ''}
         ${b.courses?.title ? `<span class="badge b-gray">${escHtml(b.courses.title)}</span>` : ''}
         ${b.modules?.title ? `<span class="badge b-gray">${escHtml(b.modules.title)}</span>` : ''}
@@ -352,6 +375,7 @@ async function editQuestion(id) {
   document.getElementById('qm-topic').value = b?.topic || '';
   document.getElementById('qm-exp').value = b?.explanation || '';
   document.getElementById('qm-diff').value = b?.difficulty || 'medium';
+  document.getElementById('qm-section').value = b?.section_id || '';
   await setCascade('qm-course', 'qm-unit', 'qm-lesson', b, 'Not tied to a unit', 'Not tied to a lesson');
   renderOptions(b?.options || [{ text: '', correct: true }, { text: '', correct: false }]);
   say('qm-alert', '');
@@ -396,6 +420,7 @@ async function saveQuestion() {
     course_id: document.getElementById('qm-course').value || null,
     module_id: document.getElementById('qm-unit').value || null,
     lesson_id: document.getElementById('qm-lesson').value || null,
+    section_id: document.getElementById('qm-section').value || null,
     topic: document.getElementById('qm-topic').value.trim() || null,
     question_text: text,
     options,
@@ -429,6 +454,7 @@ async function openImport() {
   document.getElementById('im-text').value = '';
   document.getElementById('im-topic').value = '';
   await setCascade('im-course', 'im-unit', 'im-lesson', null, 'Not tied to a unit', 'Not tied to a lesson');
+  document.getElementById('im-section').value = '';
   document.getElementById('im-preview').innerHTML = '';
   document.getElementById('im-save').disabled = true;
   say('im-alert', '');
@@ -478,6 +504,7 @@ async function runImport() {
       course_id: document.getElementById('im-course').value || null,
       module_id: document.getElementById('im-unit').value || null,
       lesson_id: document.getElementById('im-lesson').value || null,
+      section_id: document.getElementById('im-section').value || null,
       topic: document.getElementById('im-topic').value,
     });
     closeModal('import-modal');

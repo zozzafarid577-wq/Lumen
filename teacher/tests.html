@@ -72,9 +72,17 @@
     <div class="modal-body">
       <div class="alert alert-error" id="b-alert" style="display:none;margin-bottom:16px"></div>
 
-      <div class="form-group">
-        <label class="form-label" for="b-name">Title *</label>
-        <input type="text" class="form-input" id="b-name" placeholder="Unit 1 quiz — cell division">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="b-name">Title *</label>
+          <input type="text" class="form-input" id="b-name" placeholder="Unit 1 quiz — cell division">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-section">Section</label>
+          <select class="form-select" id="b-section"><option value="">No section</option></select>
+          <p class="form-hint">What this paper asks — set your own under
+             <a href="/teacher/settings.html" style="color:var(--primary);font-weight:600">Settings</a>.</p>
+        </div>
       </div>
 
       <div class="form-row form-row-3">
@@ -180,7 +188,7 @@ Explanation: A–T and G–C are the two pairs."></textarea>
 <script src="/js/shell.js"></script>
 <script>
 let me = null;
-let courses = [], units = [], lessons = [], bank = [], tests = [];
+let courses = [], units = [], lessons = [], sections = [], bank = [], tests = [];
 let chosen = [];       // questions on the test being built, in order
 let editingTest = null;
 
@@ -190,7 +198,7 @@ let editingTest = null;
   renderShell('teacher', me, { title: 'Tests' });
 
   document.getElementById('rows').innerHTML = skeletonRows(6, 4);
-  await Promise.all([loadCourses(), loadBank()]);
+  await Promise.all([loadCourses(), loadSections(), loadBank()]);
   await loadTests();
 
   document.getElementById('b-search').addEventListener('input', renderPicker);
@@ -206,6 +214,14 @@ async function loadCourses() {
     : '<option value="">No courses yet</option>';
 }
 
+async function loadSections() {
+  const { data } = await sb.from('test_sections').select('id, name')
+    .eq('teacher_id', me.teacher_id).order('order_index').order('name');
+  sections = data || [];
+  document.getElementById('b-section').innerHTML = '<option value="">No section</option>'
+    + sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+}
+
 async function loadBank() {
   const { data } = await sb.from('question_bank').select('id, question_text, options, explanation, topic, course_id')
     .eq('teacher_id', me.teacher_id).eq('is_published', true)
@@ -215,7 +231,7 @@ async function loadBank() {
 
 async function loadTests() {
   const { data, error } = await sb.from('practice_tests')
-    .select('*, courses(title), test_questions(id), test_attempts(id)')
+    .select('*, courses(title), test_sections(name), test_questions(id), test_attempts(id)')
     .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
 
   const tbody = document.getElementById('rows');
@@ -232,7 +248,8 @@ async function loadTests() {
     const w = testWindow(t);
     return `<tr>
       <td>
-        <div style="font-weight:600">${escHtml(t.title)}</div>
+        <div style="font-weight:600">${escHtml(t.title)}
+          ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
         <div class="small muted">${t.time_limit_min ? t.time_limit_min + ' min · ' : ''}pass at ${t.passing_score_pct}%</div>
       </td>
       <td class="small muted">${escHtml(t.courses?.title || '—')}</td>
@@ -258,6 +275,7 @@ async function openBuilder(id) {
 
   document.getElementById('b-title').textContent = t ? 'Edit test' : 'New test';
   document.getElementById('b-name').value = t?.title || '';
+  document.getElementById('b-section').value = t?.section_id || '';
   document.getElementById('b-course').value = t?.course_id || courses[0].id;
   document.getElementById('b-time').value = t?.time_limit_min || '';
   document.getElementById('b-pass').value = t?.passing_score_pct ?? 60;
@@ -444,6 +462,7 @@ async function saveTest() {
       course_id: document.getElementById('b-course').value,
       module_id: document.getElementById('b-unit').value || null,
       lesson_id: document.getElementById('b-lesson').value || null,
+      section_id: document.getElementById('b-section').value || null,
       title: document.getElementById('b-name').value,
       time_limit_min: document.getElementById('b-time').value || null,
       passing_score_pct: document.getElementById('b-pass').value,

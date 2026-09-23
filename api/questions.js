@@ -49,6 +49,8 @@ export default handler(async (req, res) => {
     if (lesson.module_id !== body.module_id) throw new HttpError(400, 'That lesson is not in the unit you chose.');
   }
 
+  if (body.section_id) await assertTenant('test_sections', body.section_id, teacherId);
+
   const topic = cleanText(body.topic, { max: 120 });
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
 
@@ -58,6 +60,7 @@ export default handler(async (req, res) => {
       course_id: body.course_id || null,
       module_id: body.module_id || null,
       lesson_id: body.lesson_id || null,
+      section_id: body.section_id || null,
       topic,
       question_text: q.question_text,
       options: q.options,
