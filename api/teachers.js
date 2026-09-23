@@ -1,7 +1,7 @@
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, logActivity } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanSlug, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
-import { sendEmail, teacherWelcome, loginUrlFor } from './_lib/email.js';
+import { sendEmail, teacherWelcome, signInEmailChanged, loginUrlFor } from './_lib/email.js';
 
 // The Lumen console: opening a teacher's space, putting them on a plan,
 // and raising the invoices that go with it.
@@ -16,6 +16,7 @@ export default handler(async (req, res) => {
   const body = req.body || {};
   switch (body.action || 'create') {
     case 'create':        return createSpace(res, profile, body, req);
+    case 'update':        return updateSpace(res, profile, body, req);
     case 'set_plan':      return setPlan(res, profile, body);
     case 'set_active':    return setActive(res, profile, body);
     case 'add_invoice':   return addInvoice(res, profile, body);
@@ -116,6 +117,166 @@ async function createSpace(res, actor, body, req) {
     teacher_id: teacher.id, slug, email, password,
     email_sent: mail.sent, email_error: mail.error || null,
   });
+}
+
+// ── Correct a space that is already open ──────────────────────────
+// A teacher's settings page lets them fix their own name, their space's
+// display name and most of the rest. Two things it cannot touch are the
+// address they sign in with and the slug their space lives at — it tells
+// them to contact Lumen about the first, and this is where Lumen does it.
+//
+// Every field is optional: a key left out of the body is left alone, so
+// the console can send only what its form holds without wiping the
+// columns it does not show.
+async function updateSpace(res, actor, body, req) {
+  const teacher = await getTeacher(body.teacher_id);
+  const person  = await getTeacherProfile(teacher.id);
+
+  const changed = [];
+  const spacePatch = {};
+  const personPatch = {};
+
+  if (body.display_name !== undefined) {
+    const displayName = cleanName(body.display_name, 'Space name');
+    if (displayName !== teacher.display_name) {
+      spacePatch.display_name = displayName;
+      changed.push(`name → ${displayName}`);
+    }
+  }
+
+  if (body.subject !== undefined) {
+    const subject = cleanText(body.subject, { max: 80 });
+    if (subject !== teacher.subject) {
+      spacePatch.subject = subject;
+      changed.push(`subject → ${subject || '—'}`);
+    }
+  }
+
+  // The slug is in URLs, in the sign-in hint students are given, and it
+  // is the word typed back to delete a space. Changing it is allowed —
+  // a space opened under a misspelling is stuck with it otherwise — but
+  // it has to clear the same checks as a brand new one.
+  if (body.slug !== undefined) {
+    const slug = cleanSlug(body.slug);
+    if (slug !== teacher.slug) {
+      const { data: taken } = await admin.from('teachers').select('id').eq('slug', slug).maybeSingle();
+      if (taken && taken.id !== teacher.id) throw new HttpError(409, 'That space name is already taken.');
+      spacePatch.slug = slug;
+      changed.push(`slug ${teacher.slug} → ${slug}`);
+    }
+  }
+
+  if (body.full_name !== undefined) {
+    const fullName = cleanName(body.full_name, 'Teacher name');
+    requirePerson(person, 'nobody to rename');
+    if (fullName !== person.full_name) {
+      personPatch.full_name = fullName;
+      changed.push(`teacher → ${fullName}`);
+    }
+  }
+
+  if (body.phone !== undefined) {
+    const phone = cleanText(body.phone, { max: 40 });
+    if (person && phone !== person.phone) personPatch.phone = phone;
+    if (phone !== teacher.contact_phone) spacePatch.contact_phone = phone;
+    if (personPatch.phone !== undefined || spacePatch.contact_phone !== undefined) {
+      changed.push(`phone → ${phone || '—'}`);
+    }
+  }
+
+  // The address is in three places: auth.users is what they sign in
+  // with, profiles.email is what every portal list reads, and
+  // teachers.contact_email is what Lumen writes to. All three move
+  // together or the teacher ends up with an account that answers to one
+  // address and is addressed at another.
+  let emailChange = null;
+  if (body.email !== undefined) {
+    const email = cleanEmail(body.email);
+    const current = person?.email || teacher.contact_email || null;
+    if (email !== current) {
+      requirePerson(person, 'no sign-in email to change');
+      const existing = await findUserByEmail(admin, email);
+      if (existing && existing.id !== person.id) {
+        throw new HttpError(409, 'An account already exists for that email address.');
+      }
+      emailChange = { from: current, to: email };
+      personPatch.email = email;
+      spacePatch.contact_email = email;
+      changed.push(`email ${current || '—'} → ${email}`);
+    }
+  }
+
+  if (!changed.length) return res.status(200).json({ ok: true, changed: [] });
+
+  // Written riskiest-first, so a failure leaves as little behind as it
+  // can: the sign-in is the one write that can be refused for a reason
+  // no check here can see.
+  if (emailChange) {
+    const { error } = await admin.auth.admin.updateUserById(person.id, {
+      email: emailChange.to,
+      email_confirm: true,
+    });
+    if (error) throw new HttpError(400, error.message || 'Could not change that sign-in email.');
+  }
+
+  if (Object.keys(personPatch).length) {
+    const { error } = await admin.from('profiles').update(personPatch).eq('id', person.id);
+    if (error) {
+      // A sign-in that has moved on without the profile is the worst of
+      // the three states — the teacher's own portal would still show the
+      // old address — so put it back and report the whole thing failed.
+      if (emailChange) {
+        try {
+          await admin.auth.admin.updateUserById(person.id, { email: emailChange.from, email_confirm: true });
+        } catch (_) { /* reported below either way */ }
+      }
+      throw new HttpError(500, 'Could not update that teacher’s account. Nothing was changed.');
+    }
+  }
+
+  if (Object.keys(spacePatch).length) {
+    const { error } = await admin.from('teachers').update(spacePatch).eq('id', teacher.id);
+    // Re-running finishes the job: by now the new email is already the
+    // current one, so a second attempt simply skips it and writes the
+    // space row.
+    if (error) throw new HttpError(500, 'The teacher’s account was updated but the space details were not. Please try again.');
+  }
+
+  await logActivity(teacher.id, actor, 'space_updated', changed.join(' · '));
+
+  // Only a changed sign-in email is worth a message. Renaming a space is
+  // something the teacher can see for themselves next time they look.
+  let mail = { sent: false };
+  if (emailChange) {
+    mail = await sendEmail({
+      to: emailChange.to,
+      toName: personPatch.full_name || person.full_name,
+      ...signInEmailChanged({
+        name: personPatch.full_name || person.full_name,
+        oldEmail: emailChange.from,
+        newEmail: emailChange.to,
+        spaceName: spacePatch.display_name || teacher.display_name,
+        loginUrl: loginUrlFor(req),
+      }),
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    changed,
+    slug: spacePatch.slug || teacher.slug,
+    email_sent: mail.sent,
+    email_error: mail.error || null,
+  });
+}
+
+// Most of a space can be corrected with nobody signed in to it — a space
+// whose teacher account failed half-way through being opened still has a
+// name and a slug worth fixing. The fields that live on the person do
+// not, and saying so beats a 500 from an update on `undefined`.
+function requirePerson(person, what) {
+  if (!person) throw new HttpError(409, `This space has no teacher account, so there is ${what}.`);
+  return person;
 }
 
 // ── Move a teacher onto a plan ────────────────────────────────────
@@ -298,6 +459,17 @@ async function getTeacher(id) {
   const { data, error } = await admin.from('teachers').select('*').eq('id', id).single();
   if (error || !data) throw new HttpError(404, 'That space no longer exists.');
   return data;
+}
+
+// The one account in a space that owns it. Assistants and students share
+// the tenant but are not it, so the role filter is what makes this the
+// teacher rather than whoever happens to come back first.
+async function getTeacherProfile(teacherId) {
+  const { data, error } = await admin
+    .from('profiles').select('id, full_name, email, phone, role, teacher_id')
+    .eq('teacher_id', teacherId).eq('role', 'teacher').maybeSingle();
+  if (error) throw new HttpError(500, 'Could not load that teacher’s account.');
+  return data || null;
 }
 
 async function getPlan(code) {

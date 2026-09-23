@@ -150,6 +150,22 @@ export function teacherWelcome({ name, email, password, spaceName, loginUrl }) {
   };
 }
 
+// Sent when Lumen changes the address a teacher signs in with. It goes
+// to the new address, which is the one they now have to use — and which
+// arriving at all proves the new address was typed correctly.
+export function signInEmailChanged({ name, oldEmail, newEmail, spaceName, loginUrl }) {
+  return {
+    subject: 'Your Lumen sign-in email has changed',
+    html: layout({
+      heading: 'A new sign-in email',
+      intro: `Lumen has changed the email address on your${spaceName ? ` <strong>${esc(spaceName)}</strong>` : ''} account${name ? `, ${esc(name.split(' ')[0])}` : ''}. Sign in with the new one from now on — your password has not changed.`,
+      rows: [['Was', oldEmail], ['Now', newEmail]],
+      note: 'If you did not ask for this, contact Lumen straight away.',
+      loginUrl,
+    }),
+  };
+}
+
 // Where the sign-in page lives.
 //
 // PUBLIC_URL pins it. Leaving it unset is a valid choice, not an

@@ -166,7 +166,7 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
-| `POST /api/teachers`  | owner                  | Open and delete spaces, set plans, raise and settle invoices |
+| `POST /api/teachers`  | owner                  | Open, edit and delete spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.
 
@@ -176,6 +176,29 @@ first — which is the whole reason a teacher cannot open their own space.
 Anything that needs the service-role key lives here: creating auth users,
 setting passwords, deleting accounts, and writing rows that must land
 together. Everything else goes straight from the browser through RLS.
+
+## Changing a teacher's sign-in email
+
+A teacher can fix most of their own details, but not the address they
+sign in with — their settings page tells them to contact Lumen, and the
+console's **Edit** on a space is where Lumen does it.
+
+The address lives in three places that have to move together: `auth.users`
+is what they sign in with, `profiles.email` is what every portal list
+reads, and `teachers.contact_email` is what Lumen writes to. The sign-in
+is changed first because it is the one write that can be refused for a
+reason no check here can see; if the profile will not follow it, the
+sign-in is put back and nothing else is touched.
+
+The password is never reissued — a teacher whose address was corrected
+should not be locked out of a space they were already using. The new
+address is written to, which also proves it was typed correctly.
+
+The slug can be changed here too. It is the one field with consequences
+outside the database: it names the space in links and in the sign-in hint
+its students are given, and it is the word typed back to delete a space.
+Links anyone saved to the old one stop working, so the console warns
+before saving.
 
 ## Deleting a teacher space
 

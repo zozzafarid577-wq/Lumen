@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { emailStatus, sendEmail, studentWelcome, passwordReset, teacherWelcome, loginUrlFor } from '../../api/_lib/email.js';
+import { emailStatus, sendEmail, studentWelcome, passwordReset, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
 
 const ORIGINAL = { ...process.env };
 
@@ -107,6 +107,23 @@ describe('templates', () => {
     expect(studentWelcome(args).subject).toContain('Advanced Biology');
     // With no space name it still has to read as a sentence.
     expect(studentWelcome({ ...args, spaceName: null }).subject).toContain('Lumen');
+  });
+
+  it('show both addresses when the sign-in email changes', () => {
+    const { subject, html } = signInEmailChanged({
+      name: 'Sara Ahmed', oldEmail: 'sara@old.example', newEmail: 'sara@new.example',
+      spaceName: 'Advanced Biology', loginUrl: 'https://lumen.test/login.html',
+    });
+
+    expect(subject).toMatch(/sign-in email/i);
+    // The old one is what makes the message make sense to someone who
+    // did not ask for the change.
+    expect(html).toContain('sara@old.example');
+    expect(html).toContain('sara@new.example');
+    expect(html).toContain('https://lumen.test/login.html');
+    // Nothing in this flow touches the password, and saying so stops the
+    // teacher hunting for one that was never sent.
+    expect(html).toMatch(/password has not changed/i);
   });
 });
 

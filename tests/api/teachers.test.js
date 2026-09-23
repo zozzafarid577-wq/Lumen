@@ -111,6 +111,175 @@ describe('opening a teacher space', () => {
   });
 });
 
+describe('editing a space that is already open', () => {
+  const SPACE = {
+    id: TEACHER_ID, slug: 'advanced-biology', display_name: 'Advanced Biology',
+    subject: 'Biology', contact_email: 'teacher@example.com', contact_phone: '0100 000 0000',
+  };
+  const PERSON = {
+    id: 'teacher-uid', teacher_id: TEACHER_ID, role: 'teacher',
+    full_name: 'A Teacher', email: 'teacher@example.com', phone: '0100 000 0000',
+  };
+
+  // `profiles` is read twice here: authenticate() looks the caller up by
+  // id, and the edit finds the one teacher in the space by role.
+  function profileResolver(person = PERSON) {
+    return (call) => {
+      if (call.filters.id) return { data: PROFILES[call.filters.id] || null, error: null };
+      if (call.filters.role === 'teacher') return { data: person, error: null };
+      return { data: null, error: null };
+    };
+  }
+
+  beforeEach(() => {
+    configureSupabaseMock({ results: {
+      'teachers.select': (call) => call.filters.slug ? { data: null, error: null } : { data: SPACE, error: null },
+      'profiles.select': profileResolver(),
+    } });
+  });
+
+  it('moves the sign-in email, the profile and the contact address together', async () => {
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, email: 'new@example.com' });
+
+    expect(res.statusCode).toBe(200);
+    // An account that answers to one address while Lumen writes to
+    // another is the state this whole branch exists to avoid.
+    expect(getSupabaseCalls('auth.admin.updateUserById')[0].payload)
+      .toMatchObject({ id: 'teacher-uid', email: 'new@example.com', email_confirm: true });
+    expect(getSupabaseCalls('profiles.update')[0].payload).toEqual({ email: 'new@example.com' });
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ contact_email: 'new@example.com' });
+  });
+
+  it('refuses an address another account already holds', async () => {
+    configureSupabaseMock({ results: {
+      'auth.admin.listUsers': { data: { users: [{ id: 'someone-else', email: 'taken@example.com' }] }, error: null },
+    } });
+
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, email: 'taken@example.com' });
+
+    expect(res.statusCode).toBe(409);
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+  });
+
+  it('lets a teacher keep the address they already have', async () => {
+    // Re-submitting the form unchanged must not trip the "already taken"
+    // check on the teacher's own account.
+    configureSupabaseMock({ results: {
+      'auth.admin.listUsers': { data: { users: [{ id: 'teacher-uid', email: 'teacher@example.com' }] }, error: null },
+    } });
+
+    const res = await call({
+      action: 'update', teacher_id: TEACHER_ID,
+      email: 'teacher@example.com', full_name: 'A Teacher', display_name: 'Advanced Biology',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.changed).toEqual([]);
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+    expect(getSupabaseCalls('teachers.update')).toHaveLength(0);
+    expect(getSupabaseCalls('profiles.update')).toHaveLength(0);
+  });
+
+  it('puts the sign-in back when the profile will not follow it', async () => {
+    configureSupabaseMock({ results: { 'profiles.update': { data: null, error: { message: 'boom' } } } });
+
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, email: 'new@example.com' });
+
+    expect(res.statusCode).toBe(500);
+    const emails = getSupabaseCalls('auth.admin.updateUserById').map(c => c.payload.email);
+    expect(emails).toEqual(['new@example.com', 'teacher@example.com']);
+    expect(getSupabaseCalls('teachers.update')).toHaveLength(0);
+  });
+
+  it('renames the space and its slug', async () => {
+    const res = await call({
+      action: 'update', teacher_id: TEACHER_ID, display_name: 'Advanced Chemistry', slug: 'advanced-chemistry',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.slug).toBe('advanced-chemistry');
+    expect(getSupabaseCalls('teachers.update')[0].payload)
+      .toEqual({ display_name: 'Advanced Chemistry', slug: 'advanced-chemistry' });
+  });
+
+  it('refuses a slug another space already holds', async () => {
+    configureSupabaseMock({ results: {
+      'teachers.select': (c) => c.filters.slug ? { data: { id: 'teacher-2' }, error: null } : { data: SPACE, error: null },
+    } });
+
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, slug: 'someone-else' });
+
+    expect(res.statusCode).toBe(409);
+    expect(getSupabaseCalls('teachers.update')).toHaveLength(0);
+  });
+
+  it('lets a space keep the slug it already has', async () => {
+    // The uniqueness check would otherwise find this very space and
+    // refuse to save a form that only changed the subject.
+    configureSupabaseMock({ results: {
+      'teachers.select': (c) => c.filters.slug ? { data: { id: TEACHER_ID }, error: null } : { data: SPACE, error: null },
+    } });
+
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, slug: 'advanced-biology', subject: 'Chemistry' });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ subject: 'Chemistry' });
+  });
+
+  it('refuses a slug the site itself uses', async () => {
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, slug: 'login' });
+    expect(res.statusCode).toBe(400);
+    expect(getSupabaseCalls('teachers.update')).toHaveLength(0);
+  });
+
+  it('leaves out what the request did not mention', async () => {
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, subject: 'Chemistry' });
+
+    expect(res.statusCode).toBe(200);
+    // A console form that shows six fields must not be able to blank the
+    // four columns it does not show.
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ subject: 'Chemistry' });
+    expect(getSupabaseCalls('profiles.update')).toHaveLength(0);
+  });
+
+  it('puts the phone on both the person and the space', async () => {
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, phone: '0111 111 1111' });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('profiles.update')[0].payload).toEqual({ phone: '0111 111 1111' });
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ contact_phone: '0111 111 1111' });
+  });
+
+  it('records what changed', async () => {
+    await call({ action: 'update', teacher_id: TEACHER_ID, email: 'new@example.com', slug: 'new-slug' });
+
+    const [log] = getSupabaseCalls('activity_log.insert');
+    expect(log.payload.event_type).toBe('space_updated');
+    expect(log.payload.detail).toMatch(/new@example\.com/);
+    expect(log.payload.detail).toMatch(/advanced-biology → new-slug/);
+  });
+
+  it('still fixes a space whose teacher account was never created', async () => {
+    configureSupabaseMock({ results: { 'profiles.select': profileResolver(null) } });
+
+    const named = await call({ action: 'update', teacher_id: TEACHER_ID, email: 'new@example.com' });
+    expect(named.statusCode).toBe(409);
+
+    const renamed = await call({ action: 'update', teacher_id: TEACHER_ID, display_name: 'Advanced Chemistry' });
+    expect(renamed.statusCode).toBe(200);
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ display_name: 'Advanced Chemistry' });
+  });
+
+  it('turns away a teacher editing their own space', async () => {
+    asUser(TEACHER_USER);
+    // The sign-in email and the slug are exactly the two things a
+    // teacher's own settings page does not let them touch.
+    const res = await call({ action: 'update', teacher_id: TEACHER_ID, email: 'new@example.com' });
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+  });
+});
+
 describe('changing a subscription', () => {
   it('copies the plan’s limit and fee onto the subscription', async () => {
     const res = await call({ action: 'set_plan', teacher_id: TEACHER_ID, plan_code: 'full-60' });

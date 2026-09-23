@@ -115,6 +115,67 @@
   </div>
 </div>
 
+<!-- ── EDIT A SPACE ───────────────────────────────────────────── -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-head">
+      <span class="modal-title" id="em-title">Edit space</span>
+      <button class="modal-close" onclick="closeModal('edit-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="em-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="em-name">Teacher's name *</label>
+          <input type="text" class="form-input" id="em-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="em-email">Sign-in email *</label>
+          <input type="email" class="form-input" id="em-email">
+        </div>
+      </div>
+      <p class="form-hint" style="margin:-8px 0 18px">Changing the email changes what the teacher signs in with. Their
+         password stays the same, and we write to the new address to tell them.</p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="em-space">Space name *</label>
+          <input type="text" class="form-input" id="em-space">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="em-subject">Subject</label>
+          <input type="text" class="form-input" id="em-subject">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="em-phone">Phone</label>
+          <input type="tel" class="form-input" id="em-phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="em-slug">Slug *</label>
+          <input type="text" class="form-input" id="em-slug" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="alert alert-info" id="em-slug-warning" style="display:none;margin-bottom:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>The slug is how this space is named in links and in the sign-in hint its students are
+             given — and it is the word typed back to delete it. Any link anyone saved to
+             <strong id="em-slug-old">the old one</strong> will stop working.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" id="em-save" onclick="saveEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── PLAN ───────────────────────────────────────────────────── -->
 <div class="modal-backdrop" id="plan-modal">
   <div class="modal">
@@ -234,10 +295,14 @@ async function loadPlans() {
 }
 
 async function load() {
-  const [{ data: teachers, error }, { data: subs }, { data: students }] = await Promise.all([
+  // The teacher's own account is a separate row from their space, and the
+  // edit form needs both — the name and sign-in email live on the profile,
+  // everything else on the space.
+  const [{ data: teachers, error }, { data: subs }, { data: students }, { data: people }] = await Promise.all([
     sb.from('teachers').select('*').order('created_at', { ascending: false }),
     sb.from('subscriptions').select('*, plans(name)'),
     sb.from('profiles').select('teacher_id').eq('role', 'student').eq('is_active', true),
+    sb.from('profiles').select('id, teacher_id, full_name, email, phone').eq('role', 'teacher'),
   ]);
 
   if (error) { document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(error.message)); return; }
@@ -245,10 +310,12 @@ async function load() {
   const counts = new Map();
   (students || []).forEach(s => counts.set(s.teacher_id, (counts.get(s.teacher_id) || 0) + 1));
   const subByTeacher = new Map((subs || []).map(s => [s.teacher_id, s]));
+  const personByTeacher = new Map((people || []).map(p => [p.teacher_id, p]));
 
   spaces = (teachers || []).map(t => ({
     ...t,
     sub: subByTeacher.get(t.id) || null,
+    person: personByTeacher.get(t.id) || null,
     students: counts.get(t.id) || 0,
   }));
   render();
@@ -257,7 +324,8 @@ async function load() {
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const list = spaces.filter(t =>
-    !q || `${t.display_name} ${t.slug} ${t.contact_email || ''}`.toLowerCase().includes(q));
+    !q || `${t.display_name} ${t.slug} ${t.contact_email || ''} ${t.person?.full_name || ''} ${t.person?.email || ''}`
+      .toLowerCase().includes(q));
 
   document.getElementById('count').textContent = `${list.length} of ${spaces.length} space${spaces.length === 1 ? '' : 's'}`;
 
@@ -270,7 +338,7 @@ function render() {
     return `<tr>
       <td>
         <div style="font-weight:600">${escHtml(t.display_name)}</div>
-        <div class="small muted">/${escHtml(t.slug)} · ${escHtml(t.contact_email || '')}</div>
+        <div class="small muted">/${escHtml(t.slug)} · ${escHtml(t.person?.email || t.contact_email || '')}</div>
       </td>
       <td class="small">${escHtml(s?.plans?.name || '—')}</td>
       <td class="num ${over ? '' : 'muted'}" style="${over ? 'color:var(--danger);font-weight:700' : ''}">
@@ -282,6 +350,7 @@ function render() {
         ${t.is_active ? '' : '<span class="badge b-gray">paused</span>'}
       </td>
       <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" onclick="openEdit('${t.id}')">Edit</button>
         <button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>
         <button class="btn btn-ghost btn-xs" onclick="togglePause('${t.id}')">${t.is_active ? 'Pause' : 'Reopen'}</button>
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${t.id}')">Delete</button>
@@ -348,6 +417,83 @@ function copyCreds() {
   navigator.clipboard.writeText(text)
     .then(() => showToast('Copied.', 'success'))
     .catch(() => showToast('Your browser would not let us copy. Select the details and copy them by hand.', 'error'));
+}
+
+// ── Edit a space ──────────────────────────────────────────────────
+let editing = null;
+
+function openEdit(id) {
+  const t = spaces.find(x => x.id === id);
+  if (!t) return;
+  editing = t;
+
+  document.getElementById('em-title').textContent = t.display_name;
+  document.getElementById('em-name').value    = t.person?.full_name || '';
+  document.getElementById('em-email').value   = t.person?.email || t.contact_email || '';
+  document.getElementById('em-space').value   = t.display_name || '';
+  document.getElementById('em-subject').value = t.subject || '';
+  document.getElementById('em-phone').value   = t.person?.phone || t.contact_phone || '';
+  document.getElementById('em-slug').value    = t.slug || '';
+  document.getElementById('em-slug-old').textContent = '/' + t.slug;
+
+  // A space whose teacher account never got created can still have its
+  // name and slug corrected — there is just nobody to rename.
+  const hasPerson = !!t.person;
+  document.getElementById('em-name').disabled = !hasPerson;
+  document.getElementById('em-email').disabled = !hasPerson;
+
+  document.getElementById('em-slug-warning').style.display = 'none';
+  say('em-alert', hasPerson ? '' : 'No teacher account is attached to this space, so its name and sign-in email cannot be changed here.');
+  openModal('edit-modal');
+}
+
+// The slug warning only earns its space once they have actually changed
+// it — shown up front it is just noise on every edit.
+document.getElementById('em-slug').addEventListener('input', () => {
+  const changed = !!editing && document.getElementById('em-slug').value.trim() !== editing.slug;
+  document.getElementById('em-slug-warning').style.display = changed ? 'flex' : 'none';
+});
+
+async function saveEdit() {
+  if (!editing) return;
+  const btn = document.getElementById('em-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  say('em-alert', '');
+
+  const patch = {
+    action: 'update',
+    teacher_id: editing.id,
+    display_name: document.getElementById('em-space').value,
+    subject: document.getElementById('em-subject').value,
+    phone: document.getElementById('em-phone').value,
+    slug: document.getElementById('em-slug').value,
+  };
+  // Sending these for a space with no teacher account would only earn a
+  // 409 naming a field the form has greyed out.
+  if (editing.person) {
+    patch.full_name = document.getElementById('em-name').value;
+    patch.email = document.getElementById('em-email').value;
+  }
+
+  try {
+    const out = await apiPost('/api/teachers', patch);
+    closeModal('edit-modal');
+    if (!out.changed.length) {
+      showToast('Nothing to change.', 'info');
+    } else if (out.email_sent === false && out.email_error) {
+      showToast(`Saved, but we could not write to the new address: ${out.email_error}`, 'error');
+    } else {
+      showToast('Space updated.', 'success');
+    }
+    editing = null;
+    await load();
+  } catch (err) {
+    say('em-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save changes';
+  }
 }
 
 // ── Subscription ──────────────────────────────────────────────────
