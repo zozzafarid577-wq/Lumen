@@ -158,7 +158,7 @@ function isMulti(q) { return rightAnswers(q).length > 1; }
 
 // A student who put one answer to a two-answer question has answered it,
 // so `answers` holds an array for those and a plain number for the rest.
-// Attempts sat before today are all plain numbers and still read back.
+// Attempts done before today are all plain numbers and still read back.
 function chosenFor(qid) {
   const given = answers[qid];
   if (given == null) return [];

@@ -55,7 +55,7 @@
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Test</th><th>Course</th><th>Questions</th><th>Window</th><th>Sat</th><th></th></tr></thead>
+          <thead><tr><th>Test</th><th>Course</th><th>Questions</th><th>Window</th><th>Done</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -300,7 +300,7 @@ async function openBuilder(id) {
 
   // An existing test carries its own copies of the questions, not
   // pointers into the bank — editing the bank afterwards must not change
-  // a test students have already sat.
+  // a test students have already done.
   if (t) {
     const { data } = await sb.from('test_questions')
       .select('question_text, options, explanation, points, order_index')
@@ -440,12 +440,12 @@ function openEditText() {
   document.getElementById('paste-note').textContent = '';
   say('paste-alert', '');
 
-  // Changing a question on a test that has already been sat changes what
+  // Changing a question on a test that is already done changes what
   // those answers were marked against. Worth saying out loud.
   const sat = (editingTest?.test_attempts || []).length;
   const warn = document.getElementById('edit-warning');
   warn.textContent = sat
-    ? `${sat} student${sat === 1 ? ' has' : 's have'} already sat this test. Their marks were worked out against the questions as they are now — editing them will not re-mark those attempts.`
+    ? `${sat} student${sat === 1 ? ' has' : 's have'} already done this test. Their marks were worked out against the questions as they are now — editing them will not re-mark those attempts.`
     : '';
   warn.style.display = sat ? 'flex' : 'none';
 

@@ -58,7 +58,7 @@
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
         <div class="stat-n" id="s-attempts">—</div>
-        <div class="stat-l">Tests sat</div>
+        <div class="stat-l">Tests done</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -250,7 +250,7 @@ async function loadRecentAttempts() {
     .order('completed_at', { ascending: false }).limit(6);
 
   const tbody = document.getElementById('attempts-tbody');
-  if (!data?.length) { tbody.innerHTML = emptyRow(4, 'No tests have been sat yet.'); return; }
+  if (!data?.length) { tbody.innerHTML = emptyRow(4, 'No tests have been done yet.'); return; }
 
   tbody.innerHTML = data.map(a => `<tr>
       <td style="font-weight:600">${escHtml(a.profiles?.full_name ?? '—')}</td>

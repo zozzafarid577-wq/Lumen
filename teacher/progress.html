@@ -69,7 +69,7 @@
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
         <div class="stat-n" id="s-risk">—</div>
         <div class="stat-l">Need attention</div>
-        <div class="stat-hint">Under 50%, or nothing sat</div>
+        <div class="stat-hint">Under 50%, or nothing done</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
@@ -94,7 +94,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th class="num">Tests sat</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th><th></th></tr>
+            <tr><th>Student</th><th class="num">Tests done</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th><th></th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -207,7 +207,7 @@ function render() {
     .filter(s => !q || `${s.full_name} ${s.email || ''}`.toLowerCase().includes(q))
     .sort((a, b) => {
       if (sort === 'name') return a.full_name.localeCompare(b.full_name);
-      // A student who has sat nothing is the one most worth looking at,
+      // A student who has done nothing is the one most worth looking at,
       // so they sort above a low mark rather than below everyone.
       const av = a.avg == null ? -1 : a.avg;
       const bv = b.avg == null ? -1 : b.avg;
@@ -278,7 +278,7 @@ function testDetail(s, courseIds) {
       return `<div class="mini-row">
         <div class="mini-name"><div>${escHtml(t.title)}</div>
           <div class="mini-sub">pass at ${t.passing_score_pct}%</div></div>
-        <span class="badge b-gray">Not sat</span>
+        <span class="badge b-gray">Not done</span>
       </div>`;
     }
     const best = tries.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a));

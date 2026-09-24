@@ -200,8 +200,8 @@ function rememberUnit(id, open) {
   const { data: done } = await sb.from('lesson_completions').select('lesson_id').eq('student_id', me.id);
   doneIds = new Set((done || []).map(d => d.lesson_id));
 
-  // Their own marks, so a test already sat shows what they got rather
-  // than inviting them to sit it again as if it were new.
+  // Their own marks, so a test already done shows what they got rather
+  // than inviting them to do it again as if it were new.
   const { data: attempts } = await sb.from('test_attempts')
     .select('test_id, percentage, passed, completed_at')
     .eq('student_id', me.id).not('completed_at', 'is', null);
@@ -283,7 +283,7 @@ async function load() {
     } catch (_) { practiceByUnit = {}; }
   }
 
-  // What the banner counts as waiting: open right now, and not yet sat.
+  // What the banner counts as waiting: open right now, and not yet done.
   const now = new Date();
   const toSit = (tests || []).filter(t =>
     placed.has(t.id) && testWindow(t, now).open && !bestByTest.has(t.id)).length;
@@ -308,7 +308,7 @@ function drawCourseCard(c, units, openTests) {
     c.group ? chip(ICONS.clock, groupLabel(c.group)) : '',
     chip(ICONS.book, `${open.length} unit${open.length === 1 ? '' : 's'} open`),
     all.length ? chip(ICONS.tick, `${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done`) : '',
-    openTests ? chip(ICONS.paper, `${openTests} test${openTests === 1 ? '' : 's'} to sit`) : '',
+    openTests ? chip(ICONS.paper, `${openTests} test${openTests === 1 ? '' : 's'} to do`) : '',
     c.exam_date ? chip(ICONS.calendar, 'Exam ' + fmtDate(c.exam_date)) : '',
   ].filter(Boolean).join('');
 
@@ -438,7 +438,7 @@ function testRow(t, under) {
   const bits = [t.time_limit_min ? t.time_limit_min + ' min' : null, `pass at ${t.passing_score_pct}%`]
     .filter(Boolean).join(' · ');
 
-  // Three states, and only one of them is a button: sit it, sit it again
+  // Three states, and only one of them is a button: do it, do it again
   // for a better mark, or wait. A test whose window has closed is left
   // showing the mark, with nothing to click.
   const action = w.open
