@@ -46,7 +46,7 @@ describe('saving a test', () => {
     expect(res.statusCode).toBe(200);
     // Both copies go on the test; the bank gets one, because they are
     // the same question twice.
-    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2, banked: 1, bank_error: null });
+    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2, banked: 1, corrected: 0, bank_error: null });
 
     const [inserted] = getSupabaseCalls('test_questions.insert');
     expect(inserted.payload).toHaveLength(2);
@@ -304,6 +304,66 @@ describe('filing the questions into the bank', () => {
     expect(res.statusCode).toBe(200);
     const [filed] = getSupabaseCalls('question_bank.insert');
     expect(filed.payload[0].practice_ok).toBe(false);
+  });
+
+  it('sends a corrected answer back to the bank', async () => {
+    // The whole point of editing a test's questions: fixing which option
+    // is right on the paper has to reach the bank, or the next test built
+    // from that question is wrong all over again.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{
+        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        // The bank has the WRONG option marked.
+        options: [{ text: 'Ribosome', correct: true }, { text: 'Mitochondrion', correct: false }],
+        explanation: null,
+      }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.corrected).toBe(1);
+    expect(res.body.banked).toBe(0);
+
+    const update = getSupabaseCalls('question_bank.update').find(c => c.payload.options);
+    expect(update.filters.id).toBe('bank-1');
+    expect(update.payload.options).toEqual(Q().options);
+  });
+
+  it('leaves the bank alone when the answer already matches', async () => {
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{
+        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        options: Q().options, explanation: null,
+      }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.body.corrected).toBe(0);
+    expect(getSupabaseCalls('question_bank.update').filter(c => c.payload.options)).toHaveLength(0);
+  });
+
+  it('files a reworded question as new rather than overwriting the original', async () => {
+    // The text is what identifies a bank row. Rewording makes a
+    // different question; the one it came from is left as it was.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{
+        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        options: Q().options, explanation: null,
+      }], error: null },
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
+      questions: [{ ...Q(), question_text: 'Which organelle produces ATP?' }],
+    });
+
+    expect(res.body.banked).toBe(1);
+    expect(res.body.corrected).toBe(0);
   });
 
   it('skips a question the bank already holds', async () => {

@@ -19,6 +19,9 @@
   .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
   .paste-box { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
   .paste-box textarea { min-height: 150px; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
+  /* Editing is reading down a long list, not typing a few lines, so the
+     box opens tall enough to see a question and its options at once. */
+  .paste-box.editing textarea { min-height: 360px; }
   .paste-eg { margin: 10px 0 0; padding: 11px 13px; background: var(--card); border: 1px solid var(--border); border-radius: 9px;
               font-family: ui-monospace, Menlo, monospace; font-size: .72rem; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; }
   @media (max-width: 720px) { .picker, .form-row-3 { grid-template-columns: 1fr; } }
@@ -133,6 +136,7 @@
 
       <div class="section-head" style="margin:22px 0 12px"><div><h2 style="font-size:.9rem">Questions</h2><div class="sub" id="b-qcount">Nothing chosen yet</div></div>
         <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn btn-outline btn-sm" id="edit-toggle" onclick="openEditText()">Edit as text</button>
           <button type="button" class="btn btn-outline btn-sm" id="paste-toggle" onclick="togglePaste()">Paste questions</button>
           <input type="search" class="form-input" id="b-search" placeholder="Search the bank…" style="max-width:200px" aria-label="Search the bank">
         </div>
@@ -140,7 +144,8 @@
 
       <div class="paste-box" id="paste-box" style="display:none">
         <div class="alert alert-error" id="paste-alert" style="display:none;margin-bottom:12px"></div>
-        <label class="form-label" for="paste-text">Type or paste as many questions as you like — one blank line between them</label>
+        <div class="alert alert-warning" id="edit-warning" style="display:none;margin-bottom:12px"></div>
+        <label class="form-label" for="paste-text" id="paste-label">Type or paste as many questions as you like — one blank line between them</label>
         <textarea class="form-textarea" id="paste-text" spellcheck="false" placeholder="What is the powerhouse of the cell?
 - Nucleus
 - Mitochondrion *
@@ -397,13 +402,71 @@ function removeQuestion(i) { chosen.splice(i, 1); renderPicker(); }
 // teacher with fifty questions in a Word file had to fill the bank first
 // and build the test second. They go on the test here and into the bank
 // when it saves, so the order stops mattering.
+// The box has two jobs: taking new questions, and editing the ones
+// already on the test. Same textarea, same format, same parser — a
+// teacher who can paste questions can already edit them.
+let pasteMode = 'add';   // 'add' | 'edit'
+
 function togglePaste(show) {
   const box = document.getElementById('paste-box');
   const open = show === undefined ? box.style.display === 'none' : show;
+  pasteMode = 'add';
+  box.classList.remove('editing');
   box.style.display = open ? 'block' : 'none';
   document.getElementById('paste-toggle').textContent = open ? 'Hide the paste box' : 'Paste questions';
+  document.getElementById('paste-label').textContent =
+    'Type or paste as many questions as you like — one blank line between them';
+  document.getElementById('paste-add').textContent = 'Add to test';
+  document.getElementById('edit-warning').style.display = 'none';
   if (open) document.getElementById('paste-text').focus();
   else { say('paste-alert', ''); document.getElementById('paste-note').textContent = ''; }
+}
+
+// ── Editing the test's questions as text ──────────────────────────
+// Correcting which option is starred on forty questions is one pass
+// down a textarea; the same job through forty little forms is why it
+// does not get done.
+function openEditText() {
+  if (!chosen.length) { showToast('There are no questions on this test yet.', 'error'); return; }
+
+  pasteMode = 'edit';
+  document.getElementById('paste-box').style.display = 'block';
+  document.getElementById('paste-box').classList.add('editing');
+  document.getElementById('paste-toggle').textContent = 'Paste questions';
+  document.getElementById('paste-label').textContent =
+    'Every question on this test. Move the * to the right option, fix the wording, delete a whole block to drop it.';
+  document.getElementById('paste-add').textContent = 'Apply changes';
+  document.getElementById('paste-text').value = toPasteText(chosen);
+  document.getElementById('paste-note').textContent = '';
+  say('paste-alert', '');
+
+  // Changing a question on a test that has already been sat changes what
+  // those answers were marked against. Worth saying out loud.
+  const sat = (editingTest?.test_attempts || []).length;
+  const warn = document.getElementById('edit-warning');
+  warn.textContent = sat
+    ? `${sat} student${sat === 1 ? ' has' : 's have'} already sat this test. Their marks were worked out against the questions as they are now — editing them will not re-mark those attempts.`
+    : '';
+  warn.style.display = sat ? 'flex' : 'none';
+
+  // Focusing a filled textarea drops the caret at the very end, which
+  // scrolls a teacher straight past the first question they came to fix.
+  const area = document.getElementById('paste-text');
+  area.focus();
+  area.setSelectionRange(0, 0);
+  area.scrollTop = 0;
+}
+
+// The same shape the paste box accepts, so what comes out can go back in.
+function toPasteText(list) {
+  const letters = 'ABCDEFGH';
+  return list.map((q, i) => {
+    const opts = (q.options || [])
+      .map((o, j) => `${o.correct ? '*' : ''}${letters[j] || '?'}) ${o.text}`)
+      .join('\n');
+    return `${i + 1}. ${q.question_text}\n${opts}`
+      + (q.explanation ? `\nExplanation: ${q.explanation}` : '');
+  }).join('\n\n');
 }
 
 async function addPasted() {
@@ -411,6 +474,7 @@ async function addPasted() {
   if (!text.trim()) { say('paste-alert', 'Type or paste some questions first.'); return; }
 
   const btn = document.getElementById('paste-add');
+  const wasEditing = pasteMode === 'edit';
   btn.disabled = true;
   btn.textContent = 'Reading…';
   say('paste-alert', '');
@@ -420,6 +484,27 @@ async function addPasted() {
     // so what is understood here and what would be understood there can
     // never drift apart.
     const { questions, problems } = await apiPost('/api/questions', { action: 'parse', text });
+
+    // Editing replaces the list rather than adding to it: the textarea
+    // IS the test at that point, so a block deleted there is a question
+    // taken off. A block that could not be read would silently vanish,
+    // so nothing is applied until every one of them parses.
+    if (wasEditing) {
+      if (problems.length) {
+        say('paste-alert', `Nothing changed — ${problems.length} question${problems.length === 1 ? '' : 's'} could not be read: `
+          + `${problems.slice(0, 3).join('; ')}${problems.length > 3 ? '…' : ''}`);
+        return;
+      }
+      if (!questions.length) { say('paste-alert', 'No questions could be read from that.'); return; }
+
+      const before = chosen.length;
+      chosen = questions.map((q, i) => ({ ...q, id: 'edited-' + i, points: 1 }));
+      renderPicker();
+      togglePaste(false);
+      showToast(`${chosen.length} question${chosen.length === 1 ? '' : 's'} on this test`
+        + `${before !== chosen.length ? ` (was ${before})` : ''}. Save the test to keep the changes.`, 'success');
+      return;
+    }
 
     // A question already on the test is not added twice. Pasting the
     // same block again after fixing one line is an ordinary thing to do.
@@ -444,7 +529,7 @@ async function addPasted() {
     say('paste-alert', err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Add to test';
+    btn.textContent = wasEditing ? 'Apply changes' : 'Add to test';
   }
 }
 
@@ -478,8 +563,15 @@ async function saveTest() {
       })),
     });
     closeModal('builder');
+    // What happened to the bank is said plainly, because a correction
+    // that quietly reached twelve other rows is something a teacher
+    // should hear about rather than discover.
+    const bits = [];
+    if (out.banked) bits.push(`${out.banked} new question${out.banked === 1 ? '' : 's'} added to your bank`);
+    if (out.corrected) bits.push(`${out.corrected} bank question${out.corrected === 1 ? '' : 's'} corrected`);
+
     if (out.bank_error) showToast(`Test saved. ${out.bank_error}`, 'error');
-    else if (out.banked) showToast(`Test saved · ${out.banked} new question${out.banked === 1 ? '' : 's'} added to your bank.`, 'success');
+    else if (bits.length) showToast(`Test saved · ${bits.join(' · ')}.`, 'success');
     else showToast('Test saved.', 'success');
     await Promise.all([loadTests(), loadBank()]);
   } catch (err) {

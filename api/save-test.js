@@ -99,6 +99,7 @@ export default handler(async (req, res) => {
     test_id: testId,
     question_count: questions.length,
     banked: banked.filed,
+    corrected: banked.corrected || 0,
     bank_error: banked.error || null,
   });
 });
@@ -127,7 +128,7 @@ async function fileIntoBank(teacherId, questions, tags) {
     const keys = [...wanted.keys()];
     for (let i = 0; i < keys.length; i += BANK_LOOKUP_CHUNK) {
       const { data, error } = await admin
-        .from('question_bank').select('id, text_key, module_id, section_id')
+        .from('question_bank').select('id, text_key, module_id, section_id, options, explanation')
         .eq('teacher_id', teacherId).in('text_key', keys.slice(i, i + BANK_LOOKUP_CHUNK));
       if (error) throw new Error(error.message);
       existing.push(...(data || []));
@@ -191,11 +192,49 @@ async function fileIntoBank(teacherId, questions, tags) {
       }
     }
 
-    return { filed: fresh.length };
+    // A correction made on the test goes back to the bank. Fixing which
+    // option is right on the paper and leaving the bank wrong means the
+    // next test built from it is wrong again — so the answer travels,
+    // and the teacher is told how many rows it reached.
+    //
+    // Only the answers and the explanation. The question TEXT is what
+    // identifies the row: rewording it makes a different question, which
+    // is filed as new above and leaves the original alone.
+    let corrected = 0;
+    for (const row of existing) {
+      const q = wanted.get(row.text_key);
+      // No options to compare against is not the same as options that
+      // differ: a row we cannot read is left exactly as it is rather
+      // than being overwritten with this test's answer.
+      if (!q || !Array.isArray(row.options)) continue;
+      const patch = {};
+      if (!sameOptions(row.options, q.options)) patch.options = q.options;
+      if ((q.explanation || null) !== (row.explanation || null) && q.explanation) {
+        patch.explanation = q.explanation;
+      }
+      if (!Object.keys(patch).length) continue;
+      const { error } = await admin.from('question_bank').update(patch).eq('id', row.id);
+      if (!error) corrected++;
+    }
+
+    return { filed: fresh.length, corrected };
   } catch (err) {
     console.error('Filing questions into the bank failed:', err);
-    return { filed: 0, error: 'Those questions were not added to your question bank.' };
+    return { filed: 0, corrected: 0, error: 'Those questions were not added to your question bank.' };
   }
+}
+
+// Same options, in the same order, with the same ones marked correct.
+// Compared field by field rather than by JSON.stringify: what comes back
+// from Postgres carries whatever keys were written, and a key order that
+// differs is not a difference in the question.
+function sameOptions(a, b) {
+  const left = Array.isArray(a) ? a : [];
+  const right = Array.isArray(b) ? b : [];
+  if (left.length !== right.length) return false;
+  return left.every((o, i) =>
+    String(o?.text ?? '') === String(right[i]?.text ?? '') &&
+    !!o?.correct === !!right[i]?.correct);
 }
 
 // A lesson names its unit, so a test tagged with both has to agree with
