@@ -313,7 +313,7 @@ async function loadCourses() {
 // The teacher's own list, so the three pickers and the filter all offer
 // exactly what they wrote under Settings and nothing of ours.
 async function loadSections() {
-  const { data } = await sb.from('test_sections').select('id, name')
+  const { data } = await sb.from('test_sections').select('id, name, color')
     .eq('teacher_id', me.teacher_id).order('order_index').order('name');
   const opts = (data || []).map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
   document.getElementById('section-filter').innerHTML = '<option value="">All sections</option>' + opts;
@@ -323,7 +323,7 @@ async function loadSections() {
 
 async function loadBank() {
   const { data, error } = await sb.from('question_bank')
-    .select('*, courses(title), modules(title), lessons(title), test_sections(name)')
+    .select('*, courses(title), modules(title), lessons(title), test_sections(name, color)')
     .eq('teacher_id', me.teacher_id)
     .order('created_at', { ascending: false }).limit(500);
   if (error) { document.getElementById('list').innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
@@ -380,7 +380,7 @@ function render() {
         ${b.practice_ok === false ? '<span class="badge b-yellow">Tests only</span>' : ''}
         ${(b.options || []).filter(o => o.correct).length > 1
           ? `<span class="badge b-yellow">${(b.options || []).filter(o => o.correct).length} answers</span>` : ''}
-        ${b.test_sections?.name ? `<span class="badge b-green">${escHtml(b.test_sections.name)}</span>` : ''}
+        ${sectionBadge(b.test_sections)}
         ${b.topic ? `<span class="badge">${escHtml(b.topic)}</span>` : ''}
         ${b.courses?.title ? `<span class="badge b-gray">${escHtml(b.courses.title)}</span>` : ''}
         ${b.modules?.title ? `<span class="badge b-gray">${escHtml(b.modules.title)}</span>` : ''}

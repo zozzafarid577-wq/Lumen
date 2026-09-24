@@ -535,6 +535,11 @@ CREATE TABLE IF NOT EXISTS public.test_sections (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
+  -- Drawn into a style attribute, so it is checked here: anything that
+  -- is not a plain hex colour has no business being there. Four papers
+  -- on one unit are told apart by these labels, and labels that are all
+  -- the same purple tell nothing apart.
+  color       TEXT NOT NULL DEFAULT '#A2509F' CHECK (color ~* '^#[0-9a-f]{6}$'),
   order_index INTEGER NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -637,6 +642,9 @@ CREATE TABLE IF NOT EXISTS public.practice_tests (
   open_at           TIMESTAMPTZ,
   close_at          TIMESTAMPTZ,
   is_active         BOOLEAN NOT NULL DEFAULT true,
+  -- The order the teacher dragged them into. Ties fall back to the
+  -- order they were built in.
+  order_index       INTEGER NOT NULL DEFAULT 0,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -924,6 +932,7 @@ GRANT EXECUTE ON FUNCTION public.my_student_allowance() TO authenticated;
 CREATE INDEX IF NOT EXISTS idx_profiles_tenant       ON public.profiles(teacher_id, role);
 CREATE INDEX IF NOT EXISTS idx_courses_tenant        ON public.courses(teacher_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_courses_order         ON public.courses(teacher_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_tests_order           ON public.practice_tests(course_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_modules_course_order  ON public.modules(course_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_lessons_module_order  ON public.lessons(module_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_materials_lesson      ON public.lesson_materials(lesson_id);

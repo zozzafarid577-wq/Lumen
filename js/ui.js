@@ -169,6 +169,49 @@ const SERVICE_DOWN_MESSAGE =
 const CONNECTION_FAILED_MESSAGE =
   'We could not reach Lumen. Please check your internet connection and try again. Your work is safe.';
 
+// ── Sections, and the colour a teacher gave them ──────────────────
+// A section is a label — Vocabulary, Grammar, Listening — and on a unit
+// with four papers the label is the only thing telling them apart. All
+// of them in the same brand purple told nothing apart, so each carries
+// its own colour.
+//
+// These eight are what a new section is offered first, in this order, so
+// a teacher who never opens the picker still ends up with sections that
+// differ from each other.
+const SECTION_COLORS = [
+  '#A2509F', '#2563EB', '#147A57', '#B4690E',
+  '#C62F45', '#6D28D9', '#0E7490', '#BE185D',
+];
+
+// Black or white, whichever can actually be read on that colour. The
+// teacher picks any hex they like; this is what keeps it legible in both
+// themes without asking them to think about contrast.
+function readableOn(hex) {
+  const c = String(hex || '').replace('#', '');
+  if (c.length !== 6) return '#ffffff';
+  const channel = (i) => {
+    const v = parseInt(c.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  return luminance > 0.45 ? '#1B1519' : '#ffffff';
+}
+
+function sectionColor(section) {
+  const c = section?.color;
+  return /^#[0-9a-f]{6}$/i.test(c || '') ? c : SECTION_COLORS[0];
+}
+
+// The one place a section is drawn, so the colour a teacher chose looks
+// the same on their course page, in their bank, and in the student's
+// portal.
+function sectionBadge(section, style = '') {
+  if (!section?.name) return '';
+  const color = sectionColor(section);
+  return `<span class="badge section-badge" style="background:${color};color:${readableOn(color)};${style}">`
+    + `${escHtml(section.name)}</span>`;
+}
+
 // ── Dragging a block into a new place ─────────────────────────────
 // A teacher orders their course by dragging, not by typing numbers into
 // a field. The drag starts on a handle rather than anywhere on the row,

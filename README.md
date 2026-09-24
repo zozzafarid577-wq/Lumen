@@ -156,8 +156,12 @@ Their dashboard opens on **their courses**, with the counts under them and
 The work itself is on one page: **My courses**. It holds the units their
 teacher has opened, and under each unit the lessons, the handouts on each
 lesson, and the papers set on them. Units start collapsed — a term's worth
-open at once is a page nobody can find anything in. Tests that belong to no
-unit fall to "On the whole course" at the foot of the page.
+open at once is a page nobody can find anything in.
+
+A test is shown **only where it was filed**. One with no unit, or one on a
+unit that has not been released, does not appear on the student's page at
+all — setting the Unit and Lesson fields in the test builder is what puts a
+paper in front of them.
 
 **Lumi**, the character in the corner, is on every student page and is
 mounted by `renderShell()`. What a student writes to it lands in

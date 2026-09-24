@@ -220,7 +220,7 @@ async function loadCourses() {
 }
 
 async function loadSections() {
-  const { data } = await sb.from('test_sections').select('id, name')
+  const { data } = await sb.from('test_sections').select('id, name, color')
     .eq('teacher_id', me.teacher_id).order('order_index').order('name');
   sections = data || [];
   document.getElementById('b-section').innerHTML = '<option value="">No section</option>'
@@ -236,7 +236,7 @@ async function loadBank() {
 
 async function loadTests() {
   const { data, error } = await sb.from('practice_tests')
-    .select('*, courses(title), test_sections(name), test_questions(id), test_attempts(id)')
+    .select('*, courses(title), test_sections(name, color), test_questions(id), test_attempts(id)')
     .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
 
   const tbody = document.getElementById('rows');
@@ -254,7 +254,7 @@ async function loadTests() {
     return `<tr>
       <td>
         <div style="font-weight:600">${escHtml(t.title)}
-          ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
+          ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
         <div class="small muted">${t.time_limit_min ? t.time_limit_min + ' min · ' : ''}pass at ${t.passing_score_pct}%</div>
       </td>
       <td class="small muted">${escHtml(t.courses?.title || '—')}</td>

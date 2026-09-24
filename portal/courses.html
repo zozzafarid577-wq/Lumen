@@ -93,7 +93,6 @@
   .unit-meta { flex: 1; min-width: 0; }
   .practise-btn { display: inline-flex; align-items: center; gap: 6px; }
   .practise-btn svg { width: 13px; height: 13px; }
-  .course-tests-card .card-header { background: var(--bg); }
 
   /* On a phone the title, the tally and the button cannot share a line
      without the title being squeezed into one word per row. The number
@@ -127,7 +126,6 @@
   <main class="content">
     <div id="course-card"></div>
     <div id="units"><div class="skel" style="height:120px;margin-bottom:16px"></div><div class="skel" style="height:120px"></div></div>
-    <div id="course-tests"></div>
   </main>
 </div>
 
@@ -234,8 +232,8 @@ async function load() {
     // A test's questions are locked until it opens, but the test itself
     // is worth seeing early: a student should know a paper is coming on
     // the lesson they are reading.
-    sb.from('practice_tests').select('*, test_sections(name)')
-      .eq('course_id', courseId).eq('is_active', true).order('created_at'),
+    sb.from('practice_tests').select('*, test_sections(name, color)')
+      .eq('course_id', courseId).eq('is_active', true).order('order_index').order('created_at'),
   ]);
 
   if (error) { host.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
@@ -264,10 +262,14 @@ async function load() {
     if (t.module_id && openUnits.some(u => u.id === t.module_id)) return file(byUnit, t.module_id, t);
   });
 
-  // Whatever found no home above — a course-wide paper, or one set on a
-  // unit that is not open yet. It is still a test this student may sit,
-  // so it is shown rather than dropped.
-  const loose = (tests || []).filter(t => !placed.has(t.id));
+  // A paper that belongs to no open unit is not shown at all. The course
+  // page is the units and what hangs off them; a catch-all card at the
+  // foot of it read as a second, unexplained list. Filing a test under a
+  // unit and lesson in the builder is what puts it in front of a student.
+  const homeless = (tests || []).filter(t => !placed.has(t.id)).length;
+  if (homeless) {
+    console.info(`${homeless} test(s) on this course are not filed under an open unit, so they are not shown.`);
+  }
 
   // Which units have bank questions behind them. The bank is closed to
   // students, so this is a count from the server, not a query — asked
@@ -283,11 +285,11 @@ async function load() {
 
   // What the banner counts as waiting: open right now, and not yet sat.
   const now = new Date();
-  const toSit = (tests || []).filter(t => testWindow(t, now).open && !bestByTest.has(t.id)).length;
+  const toSit = (tests || []).filter(t =>
+    placed.has(t.id) && testWindow(t, now).open && !bestByTest.has(t.id)).length;
 
   drawCourseCard(course, visible, toSit);
   drawUnits(host, visible, byUnit, byLesson);
-  drawLooseTests(loose);
 }
 
 // The hello. A student opening this page should be met by their own
@@ -416,21 +418,6 @@ function drawUnits(host, visible, byUnit, byLesson) {
   }).join('');
 }
 
-// Papers that belong to the course rather than to any one unit — and any
-// whose unit is still closed. Without this they would be invisible.
-function drawLooseTests(loose) {
-  const host = document.getElementById('course-tests');
-  if (!loose.length) { host.innerHTML = ''; return; }
-  host.innerHTML = `
-    <div class="card course-tests-card">
-      <div class="card-header">
-        <span class="card-title">On the whole course</span>
-        <span class="small muted">${loose.length} paper${loose.length === 1 ? '' : 's'}</span>
-      </div>
-      ${loose.map(t => testRow(t, false)).join('')}
-    </div>`;
-}
-
 const MAT_LABEL = { pdf: 'PDF', link: 'Link', sheet: 'Worksheet', recording: 'Recording' };
 
 function materialRow(m) {
@@ -462,7 +449,7 @@ function testRow(t, under) {
     <div class="lr-ic ic-test">${icon(ICONS.paper)}</div>
     <div style="flex:1;min-width:0">
       <div class="lr-title">${escHtml(t.title)}
-        ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
+        ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
       <div class="lr-sub">${escHtml(bits)}</div>
     </div>
     ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>` : ''}

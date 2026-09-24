@@ -439,6 +439,20 @@ html[data-theme="dark"] .on-dark { display: block; }
 .toast-info    { background: #7A3578; }
 @keyframes toast-in { from{transform:translateX(20px) scale(.95);opacity:0} to{transform:translateX(0) scale(1);opacity:1} }
 
+/* A section badge carries the teacher's own colour, written inline, so
+   it must not inherit the neutral badge background in either theme. */
+.section-badge { background: var(--primary); color: #fff; }
+html[data-theme="dark"] .section-badge { background: var(--primary); color: #fff; }
+/* The swatch beside a section in Settings. A native colour input so any
+   hex is reachable, cropped down to the square of colour itself. */
+.sec-swatch {
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--border);
+  border-radius: 9px; background: none; cursor: pointer; flex-shrink: 0;
+}
+.sec-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.sec-swatch::-webkit-color-swatch { border: none; border-radius: 7px; }
+.sec-swatch::-moz-color-swatch { border: none; border-radius: 7px; }
+
 /* ── DRAG HANDLES ────────────────────────────────────────────────
    The grip a block is picked up by. Only the handle starts a drag, so
    the buttons on the same row stay clickable — see makeSortable(). */
@@ -455,6 +469,9 @@ html[data-theme="dark"] .on-dark { display: block; }
 .course-pick .drag-handle, .unit-head .drag-handle, .lesson-row .drag-handle { opacity: 0; }
 .course-pick:hover .drag-handle, .unit:hover .unit-head .drag-handle,
 .lesson-row:hover .drag-handle, .drag-handle:focus-visible { opacity: 1; }
+/* A test row is already indented under its lesson; its grip sits in
+   that indent rather than pushing the row further right. */
+.test-row .drag-handle { margin-left: -26px; margin-right: -4px; }
 .dragging { opacity: .4; }
 
 /* ── A GREETING, NOT A BANNER ────────────────────────────────────

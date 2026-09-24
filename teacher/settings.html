@@ -260,7 +260,7 @@ let sections = [];
 
 async function loadSections() {
   const { data, error } = await sb.from('test_sections')
-    .select('id, name, order_index, practice_tests(id), question_bank(id)')
+    .select('id, name, color, order_index, practice_tests(id), question_bank(id)')
     .eq('teacher_id', me.teacher_id).order('order_index').order('name');
 
   if (error) { document.getElementById('sec-list').innerHTML = ''; say('sec-alert', friendlyError(error.message)); return; }
@@ -284,11 +284,19 @@ function renderSections() {
     const used = [tests ? `${tests} test${tests === 1 ? '' : 's'}` : '',
                   questions ? `${questions} question${questions === 1 ? '' : 's'}` : '']
                  .filter(Boolean).join(' · ');
-    return `<div class="spread" style="padding:9px 0;border-bottom:1px solid var(--border)">
-      <div>
-        <div style="font-weight:600">${escHtml(s.name)}</div>
-        ${used ? `<div class="small muted">${escHtml(used)}</div>` : '<div class="small muted">Not used yet</div>'}
+    // The swatch shows the colour AND changes it: a separate edit
+    // screen for one colour is a screen nobody opens.
+    return `<div class="spread" style="padding:9px 0;border-bottom:1px solid var(--border);gap:12px">
+      <div class="row" style="flex:1;min-width:0;flex-wrap:nowrap">
+        <input type="color" class="sec-swatch" value="${sectionColor(s)}"
+          title="Colour for ${escHtml(s.name)}" aria-label="Colour for ${escHtml(s.name)}"
+          onchange="setSectionColor('${s.id}', this.value)">
+        <div style="min-width:0">
+          <div style="font-weight:600">${escHtml(s.name)}</div>
+          ${used ? `<div class="small muted">${escHtml(used)}</div>` : '<div class="small muted">Not used yet</div>'}
+        </div>
       </div>
+      ${sectionBadge(s)}
       <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteSection('${s.id}')">Remove</button>
     </div>`;
   }).join('');
@@ -308,6 +316,10 @@ async function addSection() {
   const { error } = await sb.from('test_sections').insert({
     teacher_id: me.teacher_id,
     name,
+    // Walking the palette rather than always starting at purple: a
+    // teacher who never opens a colour picker still ends up with
+    // sections that can be told apart.
+    color: SECTION_COLORS[sections.length % SECTION_COLORS.length],
     order_index: sections.length,
   });
   btn.disabled = false;
@@ -316,6 +328,18 @@ async function addSection() {
   input.value = '';
   say('sec-alert', '');
   await loadSections();
+}
+
+async function setSectionColor(id, color) {
+  const { error } = await sb.from('test_sections').update({ color }).eq('id', id);
+  if (error) { say('sec-alert', friendlyError(error.message)); return; }
+
+  // Only the badge beside it needs redrawing, and reloading here would
+  // close the colour picker the teacher may still be dragging around.
+  const s = sections.find(x => x.id === id);
+  if (s) s.color = color;
+  renderSections();
+  showToast('Colour saved.', 'success');
 }
 
 async function deleteSection(id) {

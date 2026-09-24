@@ -325,12 +325,15 @@ async function saveOrder(table, ids, message) {
   // round trip here would redraw the list under the teacher's cursor.
   ids.forEach((id, i) => {
     const row = courses.find(c => c.id === id) || units.find(u => u.id === id)
-      || units.flatMap(u => u.lessons).find(l => l.id === id);
+      || units.flatMap(u => u.lessons).find(l => l.id === id)
+      || [...testsByLesson.values(), ...testsByUnit.values()].flat().find(t => t.id === id);
     if (row) row.order_index = i;
   });
   courses.sort((a, b) => a.order_index - b.order_index);
   units.sort((a, b) => a.order_index - b.order_index);
   units.forEach(u => u.lessons.sort((a, b) => a.order_index - b.order_index));
+  [...testsByLesson.values(), ...testsByUnit.values()]
+    .forEach(list => list.sort((a, b) => a.order_index - b.order_index));
 
   showToast(message, 'success');
 }
@@ -528,8 +531,8 @@ async function loadUnits() {
     // Where each paper was filed, shown next to the lesson it was filed
     // under. A teacher who has set four papers on a unit should be able
     // to see that here rather than opening each one in the builder.
-    sb.from('practice_tests').select('id, title, module_id, lesson_id, is_active, open_at, close_at, test_sections(name), test_questions(id)')
-      .eq('course_id', course.id).order('created_at'),
+    sb.from('practice_tests').select('id, title, module_id, lesson_id, is_active, open_at, close_at, test_sections(name, color), test_questions(id)')
+      .eq('course_id', course.id).order('order_index').order('created_at'),
   ]);
   if (error) { pane.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
 
@@ -587,6 +590,16 @@ async function loadUnits() {
     handleSelector: '.drag-handle[data-kind="lesson"]',
     onReorder: (ids) => saveOrder('lessons', ids, 'Lessons reordered.'),
   }));
+
+  // Papers are ordered within the lesson (or the unit) they were set on.
+  // Moving one across to a different lesson would have to rewrite its
+  // lesson_id, which is what the test builder's Unit and Lesson fields
+  // are for.
+  pane.querySelectorAll('.test-list').forEach(list => makeSortable(list, {
+    itemSelector: '.test-row',
+    handleSelector: '.drag-handle[data-kind="test"]',
+    onReorder: (ids) => saveOrder('practice_tests', ids, 'Tests reordered.'),
+  }));
 }
 
 function unitHtml(u) {
@@ -624,11 +637,12 @@ function unitHtml(u) {
             <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}','${l.id}')">Edit</button>
             <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteLesson('${l.id}')">Delete</button>
           </div>
-          ${(testsByLesson.get(l.id) || []).map(testRow).join('')}
+          <div class="test-list">${(testsByLesson.get(l.id) || []).map(testRow).join('')}</div>
         </div>`).join('')}
     </div>
     ${(testsByUnit.get(u.id) || []).length
-      ? `<div class="unit-tests">On the whole unit</div>${(testsByUnit.get(u.id) || []).map(testRow).join('')}`
+      ? `<div class="unit-tests">On the whole unit</div>
+         <div class="test-list">${(testsByUnit.get(u.id) || []).map(testRow).join('')}</div>`
       : ''}
   </div>`;
 }
@@ -647,11 +661,12 @@ function unitMeta(u) {
 function testRow(t) {
   const w = testWindow(t);
   const n = (t.test_questions || []).length;
-  return `<div class="lesson-row under">
+  return `<div class="lesson-row under test-row" data-id="${t.id}">
+    ${gripHtml('test')}
     <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
     <div class="ln">
       <div class="lr-title">${escHtml(t.title)}
-        ${t.test_sections?.name ? `<span class="badge b-brand" style="margin-left:6px">${escHtml(t.test_sections.name)}</span>` : ''}</div>
+        ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
       <div class="lr-sub">${n} question${n === 1 ? '' : 's'} · ${escHtml(w.label)}</div>
     </div>
     <a href="/teacher/tests.html" class="btn btn-ghost btn-xs">Open in Tests</a>
