@@ -2,7 +2,8 @@ import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, logActivity } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
-import { sendEmail, studentWelcome, passwordReset, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { createStudentAccount } from './_lib/students.js';
+import { sendEmail, passwordReset, signInEmailChanged, loginUrlFor } from './_lib/email.js';
 
 // Everything a teacher does to a student account. Creating an auth user,
 // setting a password and deleting an account all need the service-role
@@ -35,106 +36,23 @@ async function createStudent(res, actor, teacherId, body, req) {
   const parentPhone = cleanText(body.parent_phone, { max: 40 });
   const parentEmail = body.parent_email ? cleanEmail(body.parent_email) : null;
   const courseIds = Array.isArray(body.course_ids) ? body.course_ids.filter(Boolean) : [];
-
-  if (!courseIds.length) throw new HttpError(400, 'Choose at least one course to enrol them on.');
-
-  // The plan limit is checked here rather than in the browser, because
-  // the browser is where a teacher can least be expected to be honest
-  // with themselves about how many students they have.
-  await assertCanAddStudent(teacherId);
-
-  // Courses named in the request must be this teacher's own. Otherwise a
-  // teacher could enrol their student onto a competitor's course by id.
-  const { data: courses } = await admin
-    .from('courses').select('id').eq('teacher_id', teacherId).in('id', courseIds);
-  if ((courses?.length || 0) !== courseIds.length) {
-    throw new HttpError(400, 'One of those courses is not in your space.');
-  }
-
   // { course_id: group_id } for the courses where a group was chosen.
-  // Checked the same way the courses were: a group id from the request
-  // has to be this teacher's own AND belong to the course it is paired
-  // with, or an enrolment would name a class that meets for something
-  // else. The database enforces the pairing too — the foreign key is on
-  // (group_id, course_id) — but a 400 here says which one was wrong.
   const groupIds = (body.group_ids && typeof body.group_ids === 'object') ? body.group_ids : {};
-  const wanted = courseIds.map(cid => groupIds[cid]).filter(Boolean);
 
-  if (wanted.length) {
-    const { data: groups } = await admin
-      .from('groups').select('id, course_id').eq('teacher_id', teacherId).in('id', wanted);
-    const byId = new Map((groups || []).map(g => [g.id, g.course_id]));
-    for (const cid of courseIds) {
-      const gid = groupIds[cid];
-      if (!gid) continue;
-      if (!byId.has(gid)) throw new HttpError(400, 'One of those groups is not in your space.');
-      if (byId.get(gid) !== cid) throw new HttpError(400, 'One of those groups belongs to a different course.');
-    }
-  }
-
-  if (await findUserByEmail(admin, email)) {
-    throw new HttpError(409, 'An account already exists for that email address.');
-  }
-
-  const password = generatePassword();
-  const { data: created, error: uErr } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    app_metadata: { role: 'student', teacher_id: teacherId },
-    user_metadata: { full_name: fullName },
+  // The plan check, the tenant checks on the courses named, the account,
+  // the enrolments, the rollback and the welcome email all live in
+  // _lib/students.js, because approving a registration from a batch
+  // invite link has to do exactly the same things.
+  const made = await createStudentAccount({
+    teacherId, fullName, email, phone, parentPhone, parentEmail, courseIds, groupIds, req,
   });
-  if (uErr || !created?.user) throw new HttpError(400, uErr?.message || 'Could not create that account.');
-  const studentId = created.user.id;
-
-  try {
-    const { error: pErr } = await admin.from('profiles').insert({
-      id: studentId,
-      teacher_id: teacherId,
-      role: 'student',
-      full_name: fullName,
-      email,
-      phone,
-      parent_phone: parentPhone,
-      parent_email: parentEmail,
-      must_change_pw: true,
-    });
-    if (pErr) throw new HttpError(500, 'Could not save that student’s profile.');
-
-    const { error: eErr } = await admin.from('enrollments').insert(
-      courseIds.map(course_id => ({
-        teacher_id: teacherId, student_id: studentId, course_id,
-        group_id: groupIds[course_id] || null,
-      }))
-    );
-    if (eErr) throw new HttpError(500, 'The account was created but the enrolment failed. Please try again.');
-  } catch (err) {
-    // A student who can sign in but has no profile cannot be helped by
-    // anyone: the portal signs them straight back out. Undo it all.
-    try { await admin.auth.admin.deleteUser(studentId); } catch (_) {}
-    throw err;
-  }
 
   await logActivity(teacherId, actor, 'student_created', `${fullName} <${email}>`);
 
-  // Email is a convenience on top of the handover, never a replacement
-  // for it: the password comes back either way, and a mail provider
-  // having a bad afternoon must not undo a student who now exists.
-  // The student should see whose space this is, not "Lumen" — they were
-  // enrolled by a person, not by us.
-  const { data: space } = await admin
-    .from('teachers').select('display_name').eq('id', teacherId).single();
-
-  const mail = await sendEmail({
-    to: email, toName: fullName,
-    ...studentWelcome({
-      name: fullName, email, password,
-      spaceName: space?.display_name || null,
-      loginUrl: loginUrlFor(req),
-    }),
+  return res.status(200).json({
+    student_id: made.studentId, email: made.email, password: made.password,
+    email_sent: made.emailSent, email_error: made.emailError,
   });
-
-  return res.status(200).json({ student_id: studentId, email, password, email_sent: mail.sent, email_error: mail.error || null });
 }
 
 // ── Update ────────────────────────────────────────────────────────

@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/join/:token",
+      "destination": "/join.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/portal",

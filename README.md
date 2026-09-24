@@ -14,6 +14,7 @@ the day-to-day work Lumen carries and how many students the teacher has.
 | ---------------- | ----------------------------------------------------------------------- |
 | `index.html`, `pricing.html`, `features.html`, `contact.html` | The public site |
 | `login.html`, `forgot-password.html`, `reset-password.html` | Sign-in and password recovery |
+| `join.html`      | Where a batch invite link lands — the one page a student uses before they have an account |
 | `teacher/`       | The teacher portal — the management system                              |
 | `portal/`        | The student portal                                                      |
 | `admin/`         | The Lumen console — teacher spaces, billing, leads                      |
@@ -209,6 +210,58 @@ in one under **Students → Courses & groups**, which is also the only place
 an existing student's enrolments can be changed. Deleting a group sets its
 enrolments back to no group — students keep the course.
 
+## Batch invites — registering once
+
+Adding a class of thirty one form at a time means typing thirty names and
+thirty phone numbers the teacher does not have in front of them. Instead
+they make one link per batch under **Students → Invite a batch**, send it
+once to that class's WhatsApp group, and each student fills their own
+details in.
+
+A link is tied to **one course and one group**, so every student who uses
+it lands in the right class without being asked to pick. It stays usable
+until the teacher closes it, it expires, or it hits the limit they set.
+
+### Registering once
+
+The point of the link is that each person uses it once. Three things
+enforce that, in order of how much they are trusted:
+
+1. `api/join.js` checks, before writing, whether that email or that phone
+   number has already registered — and whether it already belongs to a
+   student the teacher added by hand. That is what produces a sentence
+   the student can act on.
+2. Two **unique indexes** in `supabase-migration-v11.sql` decide it. Two
+   taps on a slow connection are two requests that both got past the
+   check above before either had written a row; only an index settles
+   that race, and the loser is told the same thing a moment later.
+3. The page disables its own button, which stops nothing an attacker does
+   and everything an ordinary nervous student does.
+
+A phone number is matched on its **last 9 digits**, so `+20 101 234 5678`
+and `01012345678` are one person. `phoneKey()` in `api/_lib/util.js` and
+the generated `phone_key` column in the migration must agree about that;
+a test in `tests/api/util-lib.test.js` reads the SQL and checks they do.
+
+Both keys are **per teacher**. The same student may sit in two teachers'
+spaces — they are different schools — but only once in either.
+
+A matching **name** is not a block. Two real students called Mohamed Ali
+is ordinary, and refusing the second would turn a common name into a
+locked door, so the registration is flagged and the teacher decides.
+
+### Nothing exists until the teacher approves
+
+A registration is a filled-in form, not an account. Nobody can sign in
+from one, and **no place on the plan is used** until it is approved.
+Approving calls the same `createStudentAccount()` in `api/_lib/students.js`
+that **Add student** does — same plan check, same one-time password, same
+welcome email — so the two routes cannot drift apart.
+
+Turning one down also frees that email and number to register again,
+which is the repair for a student who mistyped their address: the partial
+unique indexes exclude rejected rows on purpose.
+
 ## Roles
 
 | Role        | Signs in at | Can do                                                      |
@@ -245,6 +298,8 @@ already have one: the teacher's payment is not the class's problem.
 | Endpoint              | Who may call it        | What it does                                   |
 | --------------------- | ---------------------- | ---------------------------------------------- |
 | `POST /api/students`  | teacher, assistant*    | Create, reset password, pause, delete          |
+| `POST /api/invites`   | teacher, assistant*    | Make and close batch invite links; approve or turn down what they bring in |
+| `POST /api/join`      | **anyone**             | Read what an invite link is for, and register once against it |
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
@@ -255,8 +310,16 @@ already have one: the teacher's payment is not the class's problem.
 
 \* with the matching permission.
 
-No endpoint here is public. Every one of them authenticates the caller
-first — which is the whole reason a teacher cannot open their own space.
+`api/join.js` is the one endpoint with no signed-in caller — a student
+registering does not have an account yet, which is the point of them
+being there. Everything else authenticates first, which is the whole
+reason a teacher cannot open their own space.
+
+Because that one is open, it reads **nothing** about where a
+registration goes from the request body: the tenant, the course and the
+group all come off the invite row its token resolves to. It creates no
+auth user and no profile, and it gives back only what the holder of the
+link already knows — the space name, the course, the class time.
 
 Anything that needs the service-role key lives here: creating auth users,
 setting passwords, deleting accounts, and writing rows that must land

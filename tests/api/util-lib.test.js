@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generatePassword, cleanEmail, cleanName, cleanSlug, cleanText } from '../../api/_lib/util.js';
+import { readFileSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  generatePassword, generateToken, phoneKey, cleanEmail, cleanName, cleanSlug, cleanText,
+} from '../../api/_lib/util.js';
 
 describe('generatePassword', () => {
   it('is long enough and mixed', () => {
@@ -30,6 +35,74 @@ describe('generatePassword', () => {
   it('does not repeat itself', () => {
     const seen = new Set(Array.from({ length: 500 }, () => generatePassword()));
     expect(seen.size).toBe(500);
+  });
+});
+
+describe('generateToken', () => {
+  it('is long enough to be unguessable', () => {
+    // Knowing a live token is all it takes to reach a registration form,
+    // so this is a credential, not an id.
+    expect(generateToken()).toHaveLength(10);
+    const seen = new Set(Array.from({ length: 2000 }, () => generateToken()));
+    expect(seen.size).toBe(2000);
+  });
+
+  it('survives being read aloud and typed back', () => {
+    // It goes into a WhatsApp message and onto a whiteboard. Same reason
+    // the password alphabet drops these: O/0 and l/1/I.
+    for (let i = 0; i < 300; i++) {
+      const t = generateToken();
+      expect(t).toMatch(/^[A-Za-z0-9]+$/);
+      expect(t).not.toMatch(/[O0oIl1]/);
+    }
+  });
+
+  it('is safe to put straight in a URL path', () => {
+    // It is interpolated into /join/<token> with no escaping, on the
+    // server and again in the browser.
+    for (let i = 0; i < 100; i++) {
+      const t = generateToken();
+      expect(encodeURIComponent(t)).toBe(t);
+    }
+  });
+});
+
+describe('phoneKey', () => {
+  it('reads one number written every way a person writes it', () => {
+    // This is the whole "you already registered" check for phone numbers.
+    const same = ['+20 101 234 5678', '00201012345678', '01012345678', '0101-234-5678', '(0101) 234 5678'];
+    const keys = new Set(same.map(phoneKey));
+    expect(keys.size, [...keys].join(' / ')).toBe(1);
+  });
+
+  it('keeps different numbers different', () => {
+    expect(phoneKey('01012345678')).not.toBe(phoneKey('01087654321'));
+  });
+
+  it('ignores something too short to be a phone number', () => {
+    // Otherwise "123" would collide with every number ending in 123.
+    for (const bad of ['', null, undefined, '123', '12-34', 'n/a']) {
+      expect(phoneKey(bad), String(bad)).toBeNull();
+    }
+  });
+
+  // The unique index in migration v11 is what actually enforces
+  // registering once; this function only exists so the student gets a
+  // sentence instead of a constraint violation. If the two ever disagree,
+  // the handler waves somebody through and the database then refuses
+  // them with a 500.
+  it('agrees with the generated column in the migration', () => {
+    const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+    const sql = readFileSync(join(ROOT, 'supabase-migration-v11.sql'), 'utf8');
+    const column = sql.slice(sql.indexOf('phone_key'), sql.indexOf('STORED,', sql.indexOf('phone_key')));
+
+    expect(column).toMatch(/LENGTH\(REGEXP_REPLACE\(COALESCE\(phone, ''\), '\[\^0-9\]', '', 'g'\)\) >= 7/);
+    expect(column).toMatch(/RIGHT\(REGEXP_REPLACE\(COALESCE\(phone, ''\), '\[\^0-9\]', '', 'g'\), 9\)/);
+
+    // And the same two numbers on this side.
+    expect(phoneKey('1234567')).toHaveLength(7);
+    expect(phoneKey('123456')).toBeNull();
+    expect(phoneKey('1234567890123')).toBe('567890123');
   });
 });
 

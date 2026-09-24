@@ -22,6 +22,10 @@
       <span class="page-title">Students</span>
     </div>
     <div class="topbar-right">
+      <button class="btn btn-outline btn-sm" onclick="openInvites()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Invite a batch
+      </button>
       <button class="btn btn-primary btn-sm" onclick="openNew()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add student
@@ -30,6 +34,31 @@
   </header>
 
   <main class="content">
+
+    <!-- ── WAITING FOR APPROVAL ───────────────────────────────────
+         Students who filled in a batch invite link. It sits above the
+         student list, and only appears when there is something in it:
+         a queue nobody is shown is a queue nobody empties. -->
+    <div class="card mb16" id="pending-card" style="display:none">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <span class="card-title">Waiting for you</span>
+          <p class="small muted" style="margin:3px 0 0">
+            Registered through an invite link. No account exists and no place on your plan is
+            used until you approve.
+          </p>
+        </div>
+        <span class="badge b-yellow" id="pending-count">0</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Student</th><th>Registered for</th><th>Contact</th><th>When</th><th></th></tr>
+          </thead>
+          <tbody id="pending-rows"></tbody>
+        </table>
+      </div>
+    </div>
 
     <div class="card mb16">
       <div class="card-header" style="flex-wrap:wrap;gap:12px">
@@ -136,6 +165,101 @@
     <div class="modal-foot" id="done-foot" style="display:none">
       <button class="btn btn-outline" onclick="openNew()">Add another</button>
       <button class="btn btn-primary" onclick="closeModal('new-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BATCH INVITE LINKS ─────────────────────────────────────── -->
+<div class="modal-backdrop" id="invite-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head">
+      <span class="modal-title">Invite a batch</span>
+      <button class="modal-close" onclick="closeModal('invite-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="small muted mb16">
+        One link per class. Send it once — to the group's WhatsApp, on the board, wherever they
+        are. Each student fills their details in once, and lands here for you to approve.
+      </p>
+
+      <div class="alert alert-error" id="iv-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="iv-course">Course *</label>
+          <select class="form-select" id="iv-course"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="iv-group">Group</label>
+          <select class="form-select" id="iv-group"><option value="">No group</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="iv-label">Name it <span class="muted" style="font-weight:400">(only you see this)</span></label>
+          <input type="text" class="form-input" id="iv-label" placeholder="Saturday 4pm, Sept intake">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="iv-max">Stop after</label>
+          <input type="number" class="form-input" id="iv-max" min="1" max="500" placeholder="No limit">
+          <p class="form-hint">Registrations, not students. Leave empty for no limit.</p>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-sm mb16" id="iv-create" onclick="createInvite()">Create link</button>
+
+      <!-- The link, the moment it exists. A teacher came here to send
+           something, so the two buttons that send it come before the
+           list of everything they have ever made. -->
+      <div id="iv-fresh" style="display:none">
+        <div class="alert alert-success mb16">Link ready. Send it to the batch — it works until you close it.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+          <span class="small" style="font-weight:700;word-break:break-all" id="iv-url">—</span>
+        </div>
+        <div class="row mb16">
+          <button class="btn btn-success btn-sm" onclick="shareInvite()">Send on WhatsApp</button>
+          <button class="btn btn-outline btn-sm" onclick="copyInvite()">Copy link</button>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:16px">
+        <span class="small muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Your links</span>
+        <div id="iv-list" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="closeModal('invite-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── APPROVED: the account that just came into being ─────────── -->
+<div class="modal-backdrop" id="approved-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head">
+      <span class="modal-title">Account created</span>
+      <button class="modal-close" onclick="closeModal('approved-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-success mb16" id="ap-mailed">Emailed to them. This password is shown only once.</div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div class="spread" style="margin-bottom:8px">
+          <span class="small muted">Email</span><span class="small" style="font-weight:700" id="ap-email">—</span>
+        </div>
+        <div class="spread">
+          <span class="small muted">Password</span>
+          <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="ap-pw">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-success" onclick="shareApproved()">Send on WhatsApp</button>
+      <button class="btn btn-outline" onclick="copyApproved()">Copy details</button>
+      <button class="btn btn-primary" onclick="closeModal('approved-modal')">Done</button>
     </div>
   </div>
 </div>
@@ -312,7 +436,11 @@ let editingEnrol = null;
 let editingStudent = null;
 let lastCreated = null;
 let lastReset = null;
+let lastApproved = null;
 let pendingDelete = null;
+let invites = [];             // this teacher's batch links
+let pending = [];             // registrations waiting to be approved
+let lastInvite = null;        // the link just made, for Copy and WhatsApp
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'students' });
@@ -323,6 +451,7 @@ let pendingDelete = null;
   await loadGroups();
   await loadCourses();
   await loadStudents();
+  await loadPending();
 
   const allow = await studentAllowance();
   if (allow) renderSubscriptionNotice(allow);
@@ -411,6 +540,239 @@ function fillGroupFilter() {
   pick.disabled = !courseId || !mine.length;
   pick.value = '';
   render();
+}
+
+// ── Batch invites: who is waiting ─────────────────────────────────
+// A registration is a filled-in form, not an account. Reading them
+// needs nothing special — the staff row-level-security policy already
+// confines this to the teacher's own space — but approving one creates
+// an auth user, so that goes through /api/invites.
+async function loadPending() {
+  const { data } = await sb.from('student_registrations')
+    .select('id, full_name, email, phone, parent_phone, course_id, group_id, name_flag, submitted_at, courses(title)')
+    .eq('teacher_id', me.teacher_id).eq('status', 'pending')
+    .order('submitted_at', { ascending: true });
+  pending = data || [];
+  renderPending();
+}
+
+function renderPending() {
+  const card = document.getElementById('pending-card');
+  card.style.display = pending.length ? 'block' : 'none';
+  if (!pending.length) return;
+
+  document.getElementById('pending-count').textContent =
+    `${pending.length} waiting`;
+
+  document.getElementById('pending-rows').innerHTML = pending.map(r => {
+    const g = groups.find(x => x.id === r.group_id);
+    const where = [r.courses?.title, g ? g.name : null].filter(Boolean).join(' · ');
+    return `<tr>
+      <td>
+        <span style="font-weight:650">${escHtml(r.full_name)}</span>
+        ${r.name_flag ? `<span class="badge b-yellow" style="margin-left:6px"
+          title="Somebody in your space already has this name. It may be the same person registering twice, or two students who share a name.">Same name</span>` : ''}
+        <div class="small muted">${escHtml(r.email)}</div>
+      </td>
+      <td class="small">${where ? `<span class="badge b-brand">${escHtml(where)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="small muted">${escHtml(r.phone || r.parent_phone || '—')}</td>
+      <td class="small muted">${timeAgo(r.submitted_at)}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-primary btn-xs" onclick="approveReg('${r.id}')">Approve</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="rejectReg('${r.id}')">Turn down</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Approving is the same act as creating a student by hand — same plan
+// check, same welcome email, same one-time password — so it ends on the
+// same handover: the password is shown once and never again.
+async function approveReg(id) {
+  const r = pending.find(x => x.id === id);
+  if (!r) return;
+  if (r.name_flag && !confirm(
+    `${r.full_name} has the same name as somebody already in your space. `
+    + 'If this is the same person registering twice, turn it down instead. Approve anyway?')) return;
+
+  try {
+    const data = await apiPost('/api/invites', { action: 'approve', registration_id: id });
+    lastApproved = { email: data.email, password: data.password, phone: data.phone };
+
+    document.getElementById('ap-email').textContent = data.email;
+    document.getElementById('ap-pw').textContent = data.password;
+    document.getElementById('ap-mailed').textContent = data.email_sent
+      ? 'Emailed to them. This password is shown only once — keep a copy if you want to send it yourself too.'
+      : 'The email could not be sent, so this is the only place these details exist. Send them yourself.';
+    openModal('approved-modal');
+
+    await Promise.all([loadStudents(), loadPending()]);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// Turning one down also frees their email and number to register again,
+// which is the point: a student who mistyped their address is otherwise
+// locked out by their own first attempt.
+async function rejectReg(id) {
+  const r = pending.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Turn down ${r.full_name}? No account is created, and they can register again with the same link.`)) return;
+
+  try {
+    await apiPost('/api/invites', { action: 'reject', registration_id: id });
+    showToast('Turned down. They can register again.', 'success');
+    await loadPending();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ── Batch invites: the links ──────────────────────────────────────
+function openInvites() {
+  say('iv-alert', '');
+  document.getElementById('iv-fresh').style.display = 'none';
+  document.getElementById('iv-label').value = '';
+  document.getElementById('iv-max').value = '';
+
+  const course = document.getElementById('iv-course');
+  course.innerHTML = courses.length
+    ? courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('')
+    : '<option value="">No courses yet</option>';
+  course.onchange = fillInviteGroups;
+  fillInviteGroups();
+
+  document.getElementById('iv-list').innerHTML = '<p class="small muted">Loading…</p>';
+  openModal('invite-modal');
+  loadInvites();
+}
+
+function fillInviteGroups() {
+  const courseId = document.getElementById('iv-course').value;
+  const pick = document.getElementById('iv-group');
+  const mine = groupsFor(courseId);
+  pick.innerHTML = '<option value="">No group</option>'
+    + mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('');
+  pick.disabled = !mine.length;
+}
+
+async function loadInvites() {
+  const { data } = await sb.from('invite_links')
+    .select('id, token, label, course_id, group_id, is_open, max_uses, expires_at, created_at, courses(title)')
+    .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+  invites = data || [];
+
+  // How many people each link has brought in. Counted here rather than
+  // stored on the link, so closing and reopening one never loses count.
+  const { data: regs } = await sb.from('student_registrations')
+    .select('invite_id, status').eq('teacher_id', me.teacher_id).neq('status', 'rejected');
+  const used = new Map();
+  (regs || []).forEach(r => used.set(r.invite_id, (used.get(r.invite_id) || 0) + 1));
+
+  renderInvites(used);
+}
+
+function renderInvites(used) {
+  const host = document.getElementById('iv-list');
+  if (!invites.length) {
+    host.innerHTML = '<p class="small muted">No links yet. Make one above and send it to a class.</p>';
+    return;
+  }
+
+  host.innerHTML = invites.map(v => {
+    const g = groups.find(x => x.id === v.group_id);
+    const where = [v.courses?.title, g ? g.name : null].filter(Boolean).join(' · ');
+    const count = used.get(v.id) || 0;
+    const expired = v.expires_at && new Date(v.expires_at) < new Date();
+    const full = v.max_uses && count >= v.max_uses;
+    const live = v.is_open && !expired && !full;
+
+    return `<div style="border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:8px">
+      <div class="spread" style="gap:10px;flex-wrap:wrap">
+        <div style="min-width:0">
+          <span style="font-weight:650">${escHtml(v.label || where || 'Link')}</span>
+          <span class="badge ${live ? 'b-green' : 'b-gray'}" style="margin-left:6px">${live ? 'Open' : expired ? 'Expired' : full ? 'Full' : 'Closed'}</span>
+          <div class="small muted">${escHtml(where)} · ${count} registered${v.max_uses ? ` of ${v.max_uses}` : ''}</div>
+        </div>
+        <div style="white-space:nowrap">
+          <button class="btn btn-outline btn-xs" onclick="copyInvite('${v.token}')">Copy</button>
+          <button class="btn btn-ghost btn-xs" onclick="toggleInvite('${v.id}', ${v.is_open ? 'false' : 'true'})">${v.is_open ? 'Close' : 'Reopen'}</button>
+          <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteInvite('${v.id}')">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function createInvite() {
+  const courseId = document.getElementById('iv-course').value;
+  if (!courseId) { say('iv-alert', 'Create a course first, then a link to enrol students onto it.'); return; }
+
+  const max = parseInt(document.getElementById('iv-max').value, 10);
+  const btn = document.getElementById('iv-create');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  say('iv-alert', '');
+
+  try {
+    const data = await apiPost('/api/invites', {
+      action: 'create',
+      course_id: courseId,
+      group_id: document.getElementById('iv-group').value || null,
+      label: document.getElementById('iv-label').value,
+      max_uses: Number.isInteger(max) && max > 0 ? max : null,
+    });
+    lastInvite = data.url;
+    document.getElementById('iv-url').textContent = data.url;
+    document.getElementById('iv-fresh').style.display = 'block';
+    document.getElementById('iv-label').value = '';
+    document.getElementById('iv-max').value = '';
+    await loadInvites();
+  } catch (err) {
+    say('iv-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create link';
+  }
+}
+
+function inviteUrl(token) { return `${location.origin}/join/${token}`; }
+function copyInvite(token) { copy(token ? inviteUrl(token) : lastInvite); }
+
+// No number to send it to — a batch link goes to a group chat, and
+// WhatsApp asks which one. That is the right question for it to ask.
+function shareInvite() {
+  if (!lastInvite) return;
+  const text = encodeURIComponent(
+    `Registration for ${me.teacher?.display_name || 'our course'}.\n\n`
+    + `Fill this in ONCE only — one form per student:\n${lastInvite}\n\n`
+    + 'Your sign-in details will be sent to you after I confirm you.');
+  window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
+}
+
+async function toggleInvite(id, open) {
+  try {
+    await apiPost('/api/invites', { action: 'set_open', invite_id: id, is_open: open });
+    await loadInvites();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function deleteInvite(id) {
+  if (!confirm('Delete this link? Anyone still holding it will be told it is closed. Students who already registered are kept.')) return;
+  try {
+    await apiPost('/api/invites', { action: 'delete', invite_id: id });
+    await loadInvites();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function copyApproved() { copy(credentialsText(lastApproved)); }
+function shareApproved() {
+  if (!lastApproved) return;
+  const digits = (lastApproved.phone || '').replace(/\D/g, '');
+  const text = encodeURIComponent(
+    `Hello! Your account on ${me.teacher?.display_name || 'Lumen'} is ready.\n\n` + credentialsText(lastApproved));
+  window.open(digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank', 'noopener');
 }
 
 // ── Courses and groups for one student ────────────────────────────

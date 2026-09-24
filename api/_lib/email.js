@@ -177,17 +177,24 @@ export function signInEmailChanged({ name, oldEmail, newEmail, spaceName, loginU
 // The trade is preview deployments — mail triggered from one carries
 // that deployment's throwaway URL. Pin it once the final domain exists.
 export function loginUrlFor(req) {
+  return siteUrlFor(req, '/login.html');
+}
+
+// An absolute link back to this deployment. Everything sent outwards
+// needs one: an email is read somewhere the site's own relative paths
+// mean nothing, and an invite link is pasted into WhatsApp.
+export function siteUrlFor(req, path = '/') {
   const configured = (process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
   if (configured) {
     // Tolerate "lumen.education" as well as "https://lumen.education".
     // This gets edited by hand when a domain changes, and a missing
     // scheme would otherwise produce a link that goes nowhere.
     const base = /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
-    return `${base}/login.html`;
+    return `${base}${path}`;
   }
 
   const host = (req?.headers?.host || '').trim();
-  if (!host) return '/login.html';
+  if (!host) return path;
   const proto = /^(localhost|127\.|\[::1\])/.test(host) ? 'http' : 'https';
-  return `${proto}://${host}/login.html`;
+  return `${proto}://${host}${path}`;
 }

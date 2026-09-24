@@ -24,6 +24,32 @@ export function generatePassword(length = 12) {
 
 function pick(set) { return set[randomInt(set.length)]; }
 
+// The random part of an invite link. Same unambiguous alphabet as a
+// password, for the same reason: this gets read off one screen and typed
+// into another, or dictated down a phone. 10 characters of it is about
+// 52 bits — far past guessing a live one, which matters because knowing
+// a token is all it takes to submit a registration.
+export function generateToken(length = 10) {
+  const all = UPPER + LOWER + DIGIT;
+  let out = '';
+  for (let i = 0; i < length; i++) out += pick(all);
+  return out;
+}
+
+// "Is this the same phone number?" — the last 9 digits of it, which is
+// what makes +20 101 234 5678 and 01012345678 the same person.
+//
+// This MUST agree with the generated phone_key column in
+// supabase-migration-v11.sql: that column is what the unique index
+// enforces, and this is what the handler checks first so the student
+// gets a sentence instead of a constraint violation. If one changes,
+// change both.
+export function phoneKey(value) {
+  const digits = String(value || '').replace(/[^0-9]/g, '');
+  if (digits.length < 7) return null;
+  return digits.slice(-9);
+}
+
 export function cleanEmail(value) {
   const email = String(value || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new HttpError(400, 'That email address does not look right.');
@@ -57,6 +83,9 @@ export function cleanSlug(value) {
 const RESERVED_SLUGS = new Set([
   'admin', 'api', 'app', 'assets', 'css', 'js', 'login', 'logout', 'register',
   'portal', 'teacher', 'lumen', 'www', 'help', 'support', 'pricing', 'features', 'contact',
+  // Where a batch invite link points. A space slugged "join" would sit on
+  // top of every teacher's registration links, not just its own.
+  'join',
 ]);
 
 // Supabase has no "find a user by email" admin call, so this pages
