@@ -22,6 +22,15 @@
   }
   .unit { border: 1px solid var(--border); border-radius: 13px; margin-bottom: 14px; overflow: hidden; background: var(--card); }
   .unit-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--bg); }
+  /* The whole head is the handle. list-style in both spellings, or the
+     browser draws its own triangle beside ours. */
+  .unit-summary { cursor: pointer; list-style: none; }
+  .unit-summary::-webkit-details-marker { display: none; }
+  .unit-summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .unit-summary:hover .unit-head { background: var(--primary-soft); }
+  .unit-chev { display: flex; color: var(--muted); transition: transform .2s; }
+  .unit-chev svg { width: 17px; height: 17px; }
+  .unit[open] .unit-chev { transform: rotate(180deg); }
   .unit-title { font-weight: 700; font-size: .87rem; }
   .unit-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
   .lesson-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); }
@@ -298,7 +307,12 @@ async function loadCourses(selectId) {
 // The grip every draggable block carries. Six dots is what a handle
 // looks like everywhere else, so nobody has to be told what it does.
 function gripHtml(kind) {
-  return `<span class="drag-handle" data-kind="${kind}" title="Drag to reorder" aria-label="Drag to reorder">
+  // preventDefault as well as stopPropagation: a <summary> toggles on
+  // the click's default action, so stopping it from bubbling is not
+  // enough to keep a grip press from opening the unit.
+  return `<span class="drag-handle" data-kind="${kind}"
+      onclick="event.preventDefault();event.stopPropagation()"
+      title="Drag to reorder" aria-label="Drag to reorder">
     <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
   </span>`;
 }
@@ -339,6 +353,15 @@ async function saveOrder(table, ids, message) {
 }
 
 let justDragged = false;
+
+// Which units the teacher has opened. Editing anything redraws the
+// pane, and a unit that shut itself because you added a lesson to it
+// would be maddening.
+const expandedUnits = new Set();
+
+function rememberUnit(id, open) {
+  if (open) expandedUnits.add(id); else expandedUnits.delete(id);
+}
 
 function selectCourse(id) {
   // The mouseup that ends a drag also fires a click. Selecting the
@@ -612,18 +635,29 @@ function unitHtml(u) {
   // A lesson and the papers set on it move together, so each is wrapped
   // in a block of its own: dragging the lesson out from under its own
   // tests would leave them stranded beneath whatever came next.
-  return `<div class="unit" data-id="${u.id}">
-    <div class="unit-head">
-      ${gripHtml('unit')}
-      <div style="flex:1;min-width:0">
-        <div class="unit-title">${escHtml(u.title)}</div>
-        <div class="unit-meta">${unitMeta(u)}</div>
+  // A <details>, like the student's. A term of units open at once is a
+  // page nobody can find anything in — and this one is longer, because
+  // every lesson carries its papers and its buttons.
+  //
+  // Everything on the head that is not the head itself stops its click
+  // there: a summary toggles on any click that reaches it, so Edit would
+  // open the unit on its way to opening the modal.
+  return `<details class="unit" data-id="${u.id}" ${expandedUnits.has(u.id) ? 'open' : ''}
+      ontoggle="rememberUnit('${u.id}', this.open)">
+    <summary class="unit-summary">
+      <div class="unit-head">
+        ${gripHtml('unit')}
+        <div style="flex:1;min-width:0">
+          <div class="unit-title">${escHtml(u.title)}</div>
+          <div class="unit-meta">${unitMeta(u)}</div>
+        </div>
+        ${state}
+        <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();editUnit('${u.id}')">Edit</button>
+        <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();editLesson('${u.id}')">Add lesson</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="event.stopPropagation();deleteUnit('${u.id}')">Delete</button>
+        <span class="unit-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
       </div>
-      ${state}
-      <button class="btn btn-ghost btn-xs" onclick="editUnit('${u.id}')">Edit</button>
-      <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}')">Add lesson</button>
-      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteUnit('${u.id}')">Delete</button>
-    </div>
+    </summary>
     <div class="lesson-list" data-unit="${u.id}">
       ${u.lessons.map(l => `
         <div class="lesson-block" data-id="${l.id}">
@@ -644,7 +678,7 @@ function unitHtml(u) {
       ? `<div class="unit-tests">On the whole unit</div>
          <div class="test-list">${(testsByUnit.get(u.id) || []).map(testRow).join('')}</div>`
       : ''}
-  </div>`;
+  </details>`;
 }
 
 function unitMeta(u) {
