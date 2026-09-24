@@ -207,8 +207,28 @@ let editingTest = null;
   await loadTests();
 
   document.getElementById('b-search').addEventListener('input', renderPicker);
-  if (new URLSearchParams(location.search).get('action') === 'new') openBuilder();
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('from') === 'bank') await openBuilderFromBank();
+  else if (params.get('action') === 'new') openBuilder();
 })();
+
+// Arriving from the question bank with a selection. The bank knows which
+// questions; everything else a test needs — its title, its window, its
+// pass mark — it does not, so this opens the ordinary builder with the
+// questions already on it rather than saving anything.
+async function openBuilderFromBank() {
+  let seed = null;
+  try {
+    seed = JSON.parse(sessionStorage.getItem('lumen_test_seed') || 'null');
+  } catch (_) { seed = null; }
+  // Read once. A refresh should give a blank builder, not rebuild a test
+  // the teacher has already moved on from.
+  sessionStorage.removeItem('lumen_test_seed');
+
+  if (!seed?.ids?.length) { openBuilder(); return; }
+  await openBuilder(null, seed);
+}
 
 async function loadCourses() {
   const { data } = await sb.from('courses').select('id, title')
@@ -227,11 +247,52 @@ async function loadSections() {
     + sections.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
 }
 
+// Paged rather than capped. This used to end in .limit(800), which did
+// not fail or warn — a bank past that simply stopped, and the questions
+// past the cap could not be picked onto any test at all. The tie-break
+// on id matters: a pasted batch shares created_at to the microsecond,
+// and rows that tie come back in a different order per page, dropping
+// some and repeating others.
+const BANK_PAGE = 500;
+
 async function loadBank() {
-  const { data } = await sb.from('question_bank').select('id, question_text, options, explanation, topic, course_id')
-    .eq('teacher_id', me.teacher_id).eq('is_published', true)
-    .order('created_at', { ascending: false }).limit(800);
-  bank = data || [];
+  const rows = [];
+  for (let from = 0; ; from += BANK_PAGE) {
+    const { data } = await sb.from('question_bank')
+      .select('id, question_text, options, explanation, topic, course_id')
+      .eq('teacher_id', me.teacher_id).eq('is_published', true)
+      .order('created_at', { ascending: false }).order('id')
+      .range(from, from + BANK_PAGE - 1);
+    rows.push(...(data || []));
+    if ((data || []).length < BANK_PAGE) break;
+  }
+  bank = rows;
+}
+
+// The questions a selection from the bank named, fetched by id rather
+// than looked up in `bank`: the picker's copy is the published ones, and
+// a selection must not quietly lose a question for a reason the teacher
+// cannot see. Chunked because these go out as a query string.
+async function questionsFromBank(ids) {
+  const found = new Map();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await sb.from('question_bank')
+      .select('id, question_text, options, explanation')
+      .eq('teacher_id', me.teacher_id).in('id', ids.slice(i, i + 100));
+    for (const row of data || []) found.set(row.id, row);
+  }
+  // Back into the order they were picked in, not the order they came
+  // back in, so the paper reads the way the bank did.
+  return ids.filter(id => found.has(id)).map(id => {
+    const b = found.get(id);
+    return {
+      id: b.id,
+      question_text: b.question_text,
+      options: b.options,
+      explanation: b.explanation,
+      points: 1,
+    };
+  });
 }
 
 async function loadTests() {
@@ -271,7 +332,10 @@ async function loadTests() {
 }
 
 // ── Builder ───────────────────────────────────────────────────────
-async function openBuilder(id) {
+// `seed` is a selection handed over from the question bank: the ids it
+// picked and the filters it picked them under. Only ever passed for a
+// new test — editing one takes its questions from the test itself.
+async function openBuilder(id, seed = null) {
   if (!courses.length) { showToast('Create a course first — a test has to belong to one.', 'error'); return; }
 
   const t = id ? tests.find(x => x.id === id) : null;
@@ -280,8 +344,9 @@ async function openBuilder(id) {
 
   document.getElementById('b-title').textContent = t ? 'Edit test' : 'New test';
   document.getElementById('b-name').value = t?.title || '';
-  document.getElementById('b-section').value = t?.section_id || '';
-  document.getElementById('b-course').value = t?.course_id || courses[0].id;
+  document.getElementById('b-section').value = t?.section_id || seed?.section_id || '';
+  document.getElementById('b-course').value = t?.course_id
+    || (courses.some(c => c.id === seed?.course_id) ? seed.course_id : courses[0].id);
   document.getElementById('b-time').value = t?.time_limit_min || '';
   document.getElementById('b-pass').value = t?.passing_score_pct ?? 60;
   document.getElementById('b-open').value = toLocalInput(t?.open_at);
@@ -292,10 +357,12 @@ async function openBuilder(id) {
   togglePaste(false);
 
   await onCourseChange();
-  if (t) {
-    document.getElementById('b-unit').value = t.module_id || '';
+  const unitId = t ? t.module_id : seed?.module_id;
+  const lessonId = t ? t.lesson_id : seed?.lesson_id;
+  if (unitId) {
+    document.getElementById('b-unit').value = unitId;
     await onUnitChange();
-    document.getElementById('b-lesson').value = t.lesson_id || '';
+    document.getElementById('b-lesson').value = lessonId || '';
   }
 
   // An existing test carries its own copies of the questions, not
@@ -306,6 +373,12 @@ async function openBuilder(id) {
       .select('question_text, options, explanation, points, order_index')
       .eq('test_id', t.id).order('order_index');
     chosen = (data || []).map(q => ({ ...q, id: 'existing-' + q.order_index }));
+  } else if (seed?.ids?.length) {
+    chosen = await questionsFromBank(seed.ids);
+    if (chosen.length < seed.ids.length) {
+      say('b-alert', `${seed.ids.length - chosen.length} of the questions you picked could not be read `
+        + 'and are not on this test. The rest are below.');
+    }
   }
 
   renderPicker();

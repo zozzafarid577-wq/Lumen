@@ -261,3 +261,58 @@ describe('the pages as a whole', () => {
     }
   });
 });
+
+// Picking questions in the bank and building a test out of them is one
+// job split across two pages, joined by a sessionStorage key and a query
+// string. Neither end fails loudly when the other changes: a renamed key
+// just means the builder opens empty, and a mistyped path lands on a
+// 404 with the selection already handed over. Nothing else in the suite
+// looks at a string inside location.href.
+describe('the bank hands a selection to the test builder', () => {
+  const page = (rel) => PAGES.find(p => p.rel === rel)?.html || '';
+  const BANK = page('teacher/question-bank.html');
+  const TESTS = page('teacher/tests.html');
+  const KEY = 'lumen_test_seed';
+
+  it('finds both pages', () => {
+    expect(BANK.length).toBeGreaterThan(0);
+    expect(TESTS.length).toBeGreaterThan(0);
+  });
+
+  it('writes the key the builder reads', () => {
+    expect(BANK, 'the bank never writes the handover').toMatch(
+      new RegExp(`sessionStorage\\.setItem\\(\\s*'${KEY}'`));
+    expect(TESTS, 'the builder never reads the handover').toMatch(
+      new RegExp(`sessionStorage\\.getItem\\(\\s*'${KEY}'`));
+  });
+
+  it('clears the key once it has been read, so a refresh starts clean', () => {
+    expect(TESTS).toMatch(new RegExp(`sessionStorage\\.removeItem\\(\\s*'${KEY}'`));
+  });
+
+  it('sends the teacher to a page that exists, with the flag it looks for', () => {
+    const nav = BANK.match(/location\.href\s*=\s*'([^']+)'/);
+    expect(nav, 'the bank never navigates to the builder').toBeTruthy();
+
+    const [path, query] = nav[1].split('?');
+    expect(existsSync(join(ROOT, path.replace(/^\//, ''))), `${path} does not exist`).toBe(true);
+
+    // The flag the builder branches on has to be the one being sent.
+    const flag = new URLSearchParams(query).get('from');
+    expect(flag).toBe('bank');
+    expect(TESTS).toMatch(new RegExp(`get\\('from'\\)\\s*===\\s*'${flag}'`));
+  });
+
+  it('never lets the bank offer more questions than a test can hold', () => {
+    // api/save-test.js refuses more than 300, and finding that out after
+    // picking four hundred is finding out too late.
+    const capped = BANK.match(/MAX_TEST_QUESTIONS\s*=\s*(\d+)/);
+    expect(capped, 'the bank does not cap a selection').toBeTruthy();
+
+    const api = readFileSync(join(ROOT, 'api/save-test.js'), 'utf8');
+    const server = api.match(/list\.length\s*>\s*(\d+)/);
+    expect(server, 'save-test.js no longer caps the question list').toBeTruthy();
+    expect(Number(capped[1]), 'the page and the server disagree about the limit')
+      .toBe(Number(server[1]));
+  });
+});

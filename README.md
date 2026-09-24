@@ -430,6 +430,37 @@ A test also holds its **own copies** of its questions, not pointers into
 the bank, so editing or deleting a bank question never changes a paper
 students have already sat.
 
+### Building a paper out of the bank
+
+The way in is the bank's own filters. Narrow to a course, a unit, a
+lesson, a section, a difficulty; tick **Select all showing**; press
+**Create a test from these**. The test builder opens with those
+questions already on it and with the course, unit, lesson and section
+pre-filled from the filters they were picked under — the teacher adds a
+title and a window and saves.
+
+The selection deliberately **survives a filter change**, because a paper
+is usually built out of more than one lesson: take all of lesson 1,
+narrow to lesson 2, take that too. The bar says how many of the picks
+are no longer on screen so the count is never a surprise.
+
+The handover is a `sessionStorage` key (`lumen_test_seed`) holding the
+ids and the filters, not a query string — "select all" on a full bank is
+hundreds of ids, which no browser will carry in a URL. It is read once
+and removed, so refreshing the builder gives a blank one rather than
+silently rebuilding a paper the teacher has moved on from. The builder
+then fetches those questions **by id** rather than looking them up in
+the copy of the bank it holds for the picker, so a selection cannot
+quietly lose a question for a reason nobody can see. A test caps at 300
+questions in `api/save-test.js`, and the bank says so before the click
+rather than after it.
+
+**Delete selected** is the same selection pointed the other way, for a
+bank that needs clearing out — the one filled by the old behaviour where
+saving a test filed all of its questions. It cannot reach a test:
+`test_questions` holds its own copies and nothing references
+`question_bank`.
+
 The paste box is parsed by `/api/questions` with `action: 'parse'`, the
 same endpoint the bank's own importer previews with, so what is
 understood in the two places cannot drift apart. It reads multiple

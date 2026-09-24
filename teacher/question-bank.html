@@ -55,6 +55,28 @@
         </div>
         <span class="small muted" id="count">—</span>
       </div>
+      <!-- Picking questions out of a filtered bank is how a paper gets
+           built: unit 1, lesson 1, vocabulary, take all of them. The bar
+           only appears once there is something to act on, so the page
+           reads the same as it always did until you want it. -->
+      <div class="card-body" id="sel-bar" style="display:none;padding-top:0;border-top:1px solid var(--border);margin-top:4px">
+        <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap">
+          <label class="form-check" style="margin:0">
+            <input type="checkbox" id="sel-all" onchange="toggleAllShown(this.checked)">
+            Select all showing
+          </label>
+          <span class="small muted" id="sel-count">None selected</span>
+          <button class="btn btn-ghost btn-sm" id="sel-clear" onclick="clearSelection()" style="display:none">Clear</button>
+          <button class="btn btn-primary btn-sm" id="sel-make" onclick="makeTestFromSelection()" disabled>
+            Create a test from these
+          </button>
+          <button class="btn btn-ghost btn-sm" id="sel-del" style="color:var(--danger)"
+            onclick="deleteSelection()" disabled>
+            Delete selected
+          </button>
+        </div>
+        <p class="form-hint" id="sel-hint" style="margin-top:8px;display:none"></p>
+      </div>
     </div>
 
     <div id="list"><div class="skel" style="height:90px;margin-bottom:12px"></div><div class="skel" style="height:90px"></div></div>
@@ -217,6 +239,10 @@ let me = null;
 let courses = [];
 let bank = [];
 let editingQ = null;
+// Ids, not rows: the bank is reloaded after every edit and a held row
+// would go stale. Kept across filter changes on purpose — a paper is
+// usually built out of more than one lesson.
+let selected = new Set();
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'questions' });
@@ -225,6 +251,10 @@ let editingQ = null;
 
   await Promise.all([loadCourses(), loadSections()]);
   await loadBank();
+
+  // An assistant who may write questions but not set papers gets the
+  // picking, not the button that would bounce them off the tests page.
+  if (!staffHasPerm(me, 'tests')) document.getElementById('sel-make').style.display = 'none';
 
   ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter', 'section-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
@@ -358,7 +388,9 @@ async function loadBank() {
   render();
 }
 
-function render() {
+// What the filters currently leave. Shared with the selection bar, so
+// "select all showing" cannot drift from what is on screen.
+function shownQuestions() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const courseId = document.getElementById('course-filter').value;
   const unitId = document.getElementById('unit-filter').value;
@@ -366,7 +398,7 @@ function render() {
   const sectionId = document.getElementById('section-filter').value;
   const diff = document.getElementById('diff-filter').value;
 
-  const list = bank.filter(b =>
+  return bank.filter(b =>
     // A unit belongs to one course, so a question matching the unit is
     // on that course whatever its own course_id says. Testing both used
     // to hide any question that had been filed with a unit and no
@@ -380,8 +412,18 @@ function render() {
     (!sectionId || b.section_id === sectionId) &&
     (!diff || b.difficulty === diff) &&
     (!q || `${b.question_text} ${b.topic || ''}`.toLowerCase().includes(q)));
+}
+
+function render() {
+  const list = shownQuestions();
 
   document.getElementById('count').textContent = `${list.length} of ${bank.length} question${bank.length === 1 ? '' : 's'}`;
+
+  // A question that has been filtered away is still picked — narrowing
+  // to a lesson, taking all of it, then widening to the next one is the
+  // way a paper gets built out of several lessons.
+  document.getElementById('sel-bar').style.display = list.length ? '' : 'none';
+  updateSelectionBar();
 
   const host = document.getElementById('list');
   if (!list.length) {
@@ -395,6 +437,10 @@ function render() {
   host.innerHTML = list.map(b => `
     <div class="q-card">
       <div class="spread" style="align-items:flex-start;margin-bottom:8px">
+        <label class="form-check" style="margin:0 10px 0 0" title="Pick this question for a test">
+          <input type="checkbox" class="q-pick" value="${b.id}" ${selected.has(b.id) ? 'checked' : ''}
+            onchange="togglePick('${b.id}', this.checked)">
+        </label>
         <div class="q-text">${escHtml(b.question_text)}</div>
         <div class="row" style="flex-wrap:nowrap">
           <button class="btn btn-ghost btn-xs" onclick="togglePractice('${b.id}')"
@@ -421,6 +467,131 @@ function render() {
         ${b.lessons?.title ? `<span class="badge b-gray">${escHtml(b.lessons.title)}</span>` : ''}
       </div>
     </div>`).join('');
+}
+
+// ── Picking questions for a test ──────────────────────────────────
+// A teacher filters to unit 1, lesson 1, vocabulary, takes the lot, then
+// filters to the next lesson and takes that too. The selection is not
+// cleared by a filter change, which is what makes building a paper out
+// of several lessons one pass rather than several.
+//
+// The questions themselves are not copied here. The ids are handed to
+// the test builder, which is where a test gets its title, its course,
+// its window and everything else a test needs and the bank does not
+// know — and where the paper is finally saved.
+const MAX_TEST_QUESTIONS = 300;   // api/save-test.js refuses more
+
+function togglePick(id, on) {
+  if (on) selected.add(id); else selected.delete(id);
+  updateSelectionBar();
+}
+
+function toggleAllShown(on) {
+  for (const b of shownQuestions()) {
+    if (on) selected.add(b.id); else selected.delete(b.id);
+  }
+  document.querySelectorAll('.q-pick').forEach(el => { el.checked = on; });
+  updateSelectionBar();
+}
+
+function clearSelection() {
+  selected.clear();
+  document.querySelectorAll('.q-pick').forEach(el => { el.checked = false; });
+  updateSelectionBar();
+}
+
+function updateSelectionBar() {
+  const n = selected.size;
+  const shown = shownQuestions();
+  const allShown = shown.length > 0 && shown.every(b => selected.has(b.id));
+  const tooMany = n > MAX_TEST_QUESTIONS;
+
+  document.getElementById('sel-all').checked = allShown;
+  document.getElementById('sel-clear').style.display = n ? '' : 'none';
+  document.getElementById('sel-make').disabled = !n || tooMany;
+  // No cap on deleting. The 300 is what a test can hold, not what the
+  // bank can lose in one go — and clearing out a bank filled by the old
+  // auto-filing is the whole reason this button exists.
+  document.getElementById('sel-del').disabled = !n;
+
+  const offScreen = n - shown.filter(b => selected.has(b.id)).length;
+  document.getElementById('sel-count').textContent = n
+    ? `${n} selected${offScreen ? ` (${offScreen} not showing)` : ''}`
+    : 'None selected';
+
+  // Said here rather than after the click: a teacher who has just picked
+  // four hundred questions should not find out on the next page.
+  const hint = document.getElementById('sel-hint');
+  hint.style.display = tooMany ? '' : 'none';
+  if (tooMany) {
+    hint.textContent = `A test can hold ${MAX_TEST_QUESTIONS} questions at most — `
+      + `that is ${n - MAX_TEST_QUESTIONS} too many. Narrow the filters, or unpick some.`;
+  }
+}
+
+// sessionStorage rather than the URL: "select all" on a full bank is
+// hundreds of ids, which no browser will carry as a query string. It is
+// read once and removed, so a refresh of the builder does not silently
+// rebuild a test the teacher has moved on from.
+function makeTestFromSelection() {
+  const ids = [...selected];
+  if (!ids.length || ids.length > MAX_TEST_QUESTIONS) return;
+
+  sessionStorage.setItem('lumen_test_seed', JSON.stringify({
+    ids,
+    // What the bank was filtered to travels with them, so the paper
+    // starts out filed where its questions came from.
+    course_id:  document.getElementById('course-filter').value || null,
+    module_id:  document.getElementById('unit-filter').value || null,
+    lesson_id:  document.getElementById('lesson-filter').value || null,
+    section_id: document.getElementById('section-filter').value || null,
+  }));
+  location.href = '/teacher/tests.html?from=bank';
+}
+
+// Clearing out a bank in one go, which is what a bank filled by the old
+// save-a-test-files-its-questions behaviour needs. The count is said out
+// loud and typed nowhere: a wrong click costs questions, so it is worth
+// one more sentence than the single-question delete gets.
+//
+// It cannot reach a test. test_questions holds its own copy of every
+// question on every paper and has no foreign key to this table, so a
+// paper already set, already sat and already marked is untouched.
+async function deleteSelection() {
+  const ids = [...selected];
+  if (!ids.length) return;
+
+  if (!confirm(`Delete ${ids.length} question${ids.length === 1 ? '' : 's'} from your bank?\n\n`
+    + 'Tests already built from them keep their own copies — no paper, attempt or mark is affected.\n\n'
+    + 'This cannot be undone.')) return;
+
+  const btn = document.getElementById('sel-del');
+  btn.disabled = true;
+
+  // Chunked because these go out as a query string, and a bank being
+  // cleared out is the case where the list is longest.
+  let gone = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { error } = await sb.from('question_bank').delete().in('id', chunk);
+    if (error) {
+      // What went is said as well as what did not: stopping silently
+      // after four hundred of nine hundred is the worst of both.
+      // Narrowed before the reload, so the checkboxes it draws show
+      // what is actually still picked.
+      selected = new Set(ids.slice(i));
+      await loadBank();
+      showToast(gone
+        ? `${gone} deleted, then it stopped: ${friendlyError(error.message)}`
+        : friendlyError(error.message), 'error');
+      return;
+    }
+    gone += chunk.length;
+  }
+
+  selected.clear();
+  await loadBank();
+  showToast(`${gone} question${gone === 1 ? '' : 's'} deleted.`, 'success');
 }
 
 // ── One question ──────────────────────────────────────────────────
