@@ -117,46 +117,6 @@
   </div>
 </div>
 
-<!-- ── GROUPS ─────────────────────────────────────────────────── -->
-<!-- The sittings of one course. A teacher runs the same course three
-     times a week to three sets of students; each of those is a group,
-     and a student's enrolment says which one they attend. -->
-<div class="modal-backdrop" id="groups-modal">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-head">
-      <span class="modal-title">Groups</span>
-      <button class="modal-close" onclick="closeModal('groups-modal')" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="alert alert-error" id="gm-alert" style="display:none;margin-bottom:16px"></div>
-      <p class="small muted" id="gm-course" style="margin-bottom:14px"></p>
-      <div id="gm-list"></div>
-
-      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px">
-        <div class="form-group">
-          <label class="form-label" for="gm-name" id="gm-name-label">New group</label>
-          <input type="text" class="form-input" id="gm-name" placeholder="Sunday group">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Days it meets</label>
-          <div class="row" id="gm-days"></div>
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label" for="gm-time">Starts at</label>
-          <input type="time" class="form-input" id="gm-time" style="max-width:150px">
-          <p class="form-hint">Both are optional — a group with just a name still works.</p>
-        </div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" id="gm-cancel" onclick="resetGroupForm()" style="display:none">Cancel edit</button>
-      <button class="btn btn-primary" id="gm-save" onclick="saveGroup()">Add group</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── UNIT ───────────────────────────────────────────────────── -->
 <div class="modal-backdrop" id="unit-modal">
   <div class="modal">
@@ -372,125 +332,6 @@ function selectCourse(id) {
   loadCourses(id);
 }
 
-// ── Groups ────────────────────────────────────────────────────────
-// The sittings of the course on screen. Which one a student attends is
-// set on their enrolment, over on the Students page — this is only where
-// the groups themselves are written.
-let groups = [];
-let editingGroup = null;
-
-async function openGroups() {
-  const course = courses.find(c => c.id === currentCourseId);
-  if (!course) return;
-
-  document.getElementById('gm-course').textContent =
-    `The sittings of ${course.title}. Put a student in one from the Students page.`;
-  document.getElementById('gm-days').innerHTML = DAY_SHORT.map((d, i) =>
-    `<label class="form-check" style="margin:0"><input type="checkbox" class="gm-day" value="${i}">${d}</label>`).join('');
-  resetGroupForm();
-  say('gm-alert', '');
-  openModal('groups-modal');
-  await loadGroups();
-}
-
-async function loadGroups() {
-  const { data, error } = await sb.from('groups')
-    .select('*, enrollments(student_id)')
-    .eq('course_id', currentCourseId).order('name');
-  if (error) { say('gm-alert', friendlyError(error.message)); return; }
-  groups = data || [];
-  renderGroups();
-}
-
-function renderGroups() {
-  const host = document.getElementById('gm-list');
-  if (!groups.length) {
-    host.innerHTML = '<p class="small muted">No groups on this course yet. Add the first one below.</p>';
-    return;
-  }
-
-  host.innerHTML = groups.map(g => {
-    const n = (g.enrollments || []).length;
-    return `<div class="list-row" style="padding:11px 0">
-      <div style="flex:1;min-width:0">
-        <div class="lr-title">${escHtml(g.name)}</div>
-        <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}</div>
-      </div>
-      <button class="btn btn-ghost btn-xs" onclick="editGroup('${g.id}')">Edit</button>
-      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteGroup('${g.id}')">Delete</button>
-    </div>`;
-  }).join('');
-}
-
-function editGroup(id) {
-  const g = groups.find(x => x.id === id);
-  if (!g) return;
-  editingGroup = g;
-  document.getElementById('gm-name-label').textContent = 'Rename group';
-  document.getElementById('gm-name').value = g.name;
-  document.getElementById('gm-time').value = (g.start_time || '').slice(0, 5);
-  document.querySelectorAll('.gm-day').forEach(el => { el.checked = (g.days || []).includes(+el.value); });
-  document.getElementById('gm-save').textContent = 'Save changes';
-  document.getElementById('gm-cancel').style.display = '';
-}
-
-function resetGroupForm() {
-  editingGroup = null;
-  document.getElementById('gm-name-label').textContent = 'New group';
-  document.getElementById('gm-name').value = '';
-  document.getElementById('gm-time').value = '';
-  document.querySelectorAll('.gm-day').forEach(el => { el.checked = false; });
-  document.getElementById('gm-save').textContent = 'Add group';
-  document.getElementById('gm-cancel').style.display = 'none';
-}
-
-async function saveGroup() {
-  const name = document.getElementById('gm-name').value.trim();
-  if (!name) { say('gm-alert', 'Give the group a name.'); return; }
-
-  const row = {
-    teacher_id: me.teacher_id,
-    course_id: currentCourseId,
-    name,
-    days: [...document.querySelectorAll('.gm-day')].filter(el => el.checked).map(el => +el.value),
-    start_time: document.getElementById('gm-time').value || null,
-  };
-
-  const btn = document.getElementById('gm-save');
-  btn.disabled = true;
-  const { error } = editingGroup
-    ? await sb.from('groups').update(row).eq('id', editingGroup.id)
-    : await sb.from('groups').insert(row);
-  btn.disabled = false;
-
-  if (error) {
-    // The unique index on (course_id, lower(name)) is what catches a
-    // second "Sunday" typed in a hurry.
-    say('gm-alert', /duplicate|unique/i.test(error.message)
-      ? 'This course already has a group with that name.'
-      : friendlyError(error.message));
-    return;
-  }
-
-  say('gm-alert', '');
-  resetGroupForm();
-  await loadGroups();
-  showToast('Group saved.', 'success');
-}
-
-async function deleteGroup(id) {
-  const g = groups.find(x => x.id === id);
-  const n = (g?.enrollments || []).length;
-  if (!confirm(n
-    ? `Delete "${g.name}"? Its ${n} student${n === 1 ? ' stays' : 's stay'} on the course — they just stop being in a group.`
-    : `Delete "${g?.name}"?`)) return;
-
-  const { error } = await sb.from('groups').delete().eq('id', id);
-  if (error) { say('gm-alert', friendlyError(error.message)); return; }
-  await loadGroups();
-  showToast('Group deleted.', 'success');
-}
-
 function editCourse(id) {
   const c = id ? courses.find(x => x.id === id) : null;
   editing.course = c || null;
@@ -579,7 +420,6 @@ async function loadUnits() {
           <div class="small muted">${escHtml(course.subject || 'No subject')}${course.exam_date ? ' · exam ' + fmtDate(course.exam_date) : ''} · ${units.length} unit${units.length === 1 ? '' : 's'}</div>
         </div>
         <div class="row">
-          <button class="btn btn-outline btn-sm" onclick="openGroups()">Groups</button>
           <button class="btn btn-outline btn-sm" onclick="editCourse('${course.id}')">Edit course</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCourse()">Delete</button>
           <button class="btn btn-primary btn-sm" onclick="editUnit()">Add unit</button>

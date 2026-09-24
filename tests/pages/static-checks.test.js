@@ -56,6 +56,20 @@ describe.each(PAGES)('$rel', ({ rel, html }) => {
     });
   });
 
+  // A page's script and its markup are one file, and moving a feature
+  // between pages moves them apart: the handler goes, the element it
+  // reads stays behind, and getElementById returns null at the first
+  // click rather than at load. Only literal ids are checked — the ones
+  // built from a row id (`'ns-g-' + c.id`) are written by the same code
+  // that reads them.
+  it('reads only element ids it actually has', () => {
+    const ids = new Set([...html.matchAll(/\bid=["']([^"'$]+)["']/g)].map(m => m[1]));
+    const wanted = new Set([...html.matchAll(/getElementById\(\s*'([^'$]+)'\s*\)/g)].map(m => m[1]));
+    for (const id of wanted) {
+      expect(ids.has(id), `getElementById('${id}') but nothing in ${rel} has that id`).toBe(true);
+    }
+  });
+
   it('links only to files that exist', () => {
     const hrefs = [...html.matchAll(/\b(?:href|src)=["'](\/[^"'#?]*)["']/g)].map(m => m[1]);
     for (const href of hrefs) {

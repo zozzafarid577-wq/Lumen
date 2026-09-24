@@ -205,10 +205,14 @@ Biology and the Tuesday group for Chemistry" expressible. The foreign key
 is on the pair `(group_id, course_id)`, so an enrolment naming a group
 from a different course is refused by the database, not just by the page.
 
-Groups are written under **Courses & lessons → Groups**; a student is put
-in one under **Students → Courses & groups**, which is also the only place
-an existing student's enrolments can be changed. Deleting a group sets its
-enrolments back to no group — students keep the course.
+Groups are written under **Students → Groups**, and a student is put in
+one under **Students → Courses & groups**, which is also the only place
+an existing student's enrolments can be changed. Both are on the same
+page on purpose: a teacher who finds a student with no group should not
+have to leave the list they are working through to make the group. The
+modal carries its own course picker, opening on whatever the list is
+filtered to. Deleting a group sets its enrolments back to no group —
+students keep the course.
 
 ## Batch invites — registering once
 
