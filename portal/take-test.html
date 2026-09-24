@@ -262,7 +262,22 @@ async function submitTest(auto = false) {
     completed_at: new Date().toISOString(),
   };
 
-  showResult(row, await save(row));
+  const outcome = await save(row);
+  showResult(row, outcome);
+
+  // Only once the mark is actually in the database. Telling a parent a
+  // score their teacher cannot see would be worse than telling them
+  // nothing — the offline copy is re-sent on the next page load, and the
+  // email follows it then.
+  if (outcome.saved) notifyParent(row.test_id);
+}
+
+// Fire and forget. A parent who does not get the email still has a
+// child whose result is saved; blocking the results page on a mail
+// provider would be the wrong way round.
+function notifyParent(testId) {
+  apiPost('/api/result-email', { test_id: testId })
+    .catch(err => console.warn('Result email not sent:', err.message));
 }
 
 // A finished test must not be lost to a lapsed token or a dropped

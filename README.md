@@ -250,6 +250,7 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
 | `POST /api/practice`  | student                | Serve bank questions with the answers stripped, and mark one at a time |
 | `POST /api/support`   | anyone signed in       | Email a help request written to Lumi, and file it when the table is there |
+| `POST /api/result-email` | student             | Email a finished test's mark to the parent on file, once |
 | `POST /api/teachers`  | owner                  | Open, edit and delete spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.

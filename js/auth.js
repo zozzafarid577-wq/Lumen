@@ -361,7 +361,14 @@ async function flushPendingAttempts(studentId) {
 
       const { error } = await withTimeout(
         sb.from('test_attempts').insert(row), SESSION_TIMEOUT_MS, 'a saved result');
-      if (error) stuck.push(row); else saved++;
+      if (error) { stuck.push(row); continue; }
+      saved++;
+
+      // A result that reached us late still reaches the parent. The
+      // server refuses to send the same attempt twice, so asking here
+      // as well as on the results page costs nothing.
+      apiPost('/api/result-email', { test_id: row.test_id })
+        .catch(err => console.warn('Result email not sent:', err.message));
     } catch (_) { stuck.push(row); }
   }
 
