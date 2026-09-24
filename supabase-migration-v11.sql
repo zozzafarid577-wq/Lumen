@@ -63,8 +63,11 @@ CREATE TABLE IF NOT EXISTS public.invite_links (
   -- The same pairing the enrolments table uses: a group named here has to
   -- belong to the course named here, or the link would enrol its students
   -- into a class that meets for something else.
+  -- The column list is load-bearing (see v14): bare SET NULL would null
+  -- course_id too, which is NOT NULL, and deleting a group a link points
+  -- at would fail instead of forgetting the group.
   CONSTRAINT invite_links_group_fk FOREIGN KEY (group_id, course_id)
-    REFERENCES public.groups(id, course_id) ON DELETE SET NULL
+    REFERENCES public.groups(id, course_id) ON DELETE SET NULL (group_id)
 );
 
 CREATE INDEX IF NOT EXISTS invite_links_teacher_idx

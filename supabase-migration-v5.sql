@@ -44,9 +44,17 @@ ALTER TABLE public.enrollments
 
 -- ON DELETE SET NULL: deleting a group a teacher no longer runs must not
 -- unenrol its students. They lose a timetable, not their course.
+--
+-- The column list is what makes that true, and it is not optional (see
+-- v14). Bare SET NULL nulls every column of the key, course_id included,
+-- and course_id is NOT NULL — so deleting a group with anyone in it
+-- fails with "null value in column course_id". This file shipped without
+-- it, which meant re-running v5 after v14 put the bug back; it is
+-- corrected here so the order these are replayed in cannot matter.
 ALTER TABLE public.enrollments DROP CONSTRAINT IF EXISTS enrollments_group_fk;
 ALTER TABLE public.enrollments ADD CONSTRAINT enrollments_group_fk
-  FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id) ON DELETE SET NULL;
+  FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id)
+  ON DELETE SET NULL (group_id);
 
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 

@@ -177,6 +177,20 @@ describe('supabase-setup.sql absorbs every migration', () => {
 });
 
 describe('every supabase-*.sql file', () => {
+  // Setup having the column list is not enough. A migration is replayed
+  // on a database the later ones have already reached — the README says
+  // to run them in order and that each is safe to run twice — so a
+  // migration still carrying bare SET NULL silently undoes v14 the next
+  // time anybody runs it. That is exactly how this came back once.
+  it.each(sqlFiles())('$name names the column on every composite ON DELETE SET NULL', ({ sql }) => {
+    const composite = /FOREIGN KEY\s*\(\s*\w+\s*,[^)]*\)\s*REFERENCES\s+public\.\w+\s*\([^)]*\)\s*ON DELETE SET NULL\s*(\()?/gi;
+    for (const m of sql.matchAll(composite)) {
+      expect(m[1], `a composite foreign key at ${m.index} uses bare ON DELETE SET NULL, `
+        + 'which nulls every column of the key — name the nullable one, e.g. SET NULL (group_id)')
+        .toBe('(');
+    }
+  });
+
   it.each(sqlFiles())('$name has balanced dollar-quoted blocks', ({ sql }) => {
     // An odd number of $$ means a function body or DO block was left
     // open, which swallows the rest of the file.

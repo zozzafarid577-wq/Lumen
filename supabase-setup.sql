@@ -376,8 +376,13 @@ CREATE TABLE IF NOT EXISTS public.groups (
   CONSTRAINT groups_id_course_key UNIQUE (id, course_id)
 );
 
--- ON DELETE SET NULL: deleting a group a teacher no longer runs must not
--- unenrol its students. They lose a timetable, not their course.
+-- ON DELETE SET NULL: a group vanishing must not quietly unenrol anybody.
+-- They lose a timetable, not their course.
+--
+-- The Students page deletes the enrolments itself before deleting a
+-- group, because there it is what the teacher asked for and they are
+-- shown whose enrolments they are. This is the floor under that, for
+-- every other way a group can disappear.
 --
 -- The column list is load-bearing, not decoration (Postgres 15+). Plain
 -- SET NULL nulls every column of the key, course_id included, and
