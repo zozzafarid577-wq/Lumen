@@ -103,8 +103,8 @@
         </div>
       </div>
       <p class="form-hint" style="margin-top:-8px;margin-bottom:16px">
-        Where this test sits in the course. Questions saved on it are filed in your bank under the same
-        unit and lesson, so you can find them again without remembering which test they were for.
+        Where this test sits in the course, and which questions from your bank are offered first.
+        Nothing you write here is added to your bank — the bank is yours to fill, on its own page.
       </p>
 
       <div class="form-row">
@@ -364,7 +364,7 @@ function renderPicker() {
           <span>${escHtml(b.question_text)}${(b.options || []).filter(o => o.correct).length > 1
             ? `<span class="muted"> · ${(b.options || []).filter(o => o.correct).length} answers</span>` : ''}${b.topic ? `<span class="muted"> · ${escHtml(b.topic)}</span>` : ''}</span>
         </div>`).join('')
-    : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty — paste questions above and they will be filed here as the test saves.'}</p>`;
+    : `<p class="small muted" style="padding:12px">${bank.length ? 'Nothing left to add.' : 'Your question bank is empty. Fill it on the Question bank page and the questions will be offered here — or paste questions above to put them on this test alone.'}</p>`;
 
   document.getElementById('chosen-col').innerHTML = chosen.length
     ? chosen.map((c, i) => `
@@ -398,10 +398,10 @@ function addQuestion(id) {
 function removeQuestion(i) { chosen.splice(i, 1); renderPicker(); }
 
 // ── Pasting questions straight onto the test ──────────────────────
-// Until now the only way onto a test was through the bank, which meant a
-// teacher with fifty questions in a Word file had to fill the bank first
-// and build the test second. They go on the test here and into the bank
-// when it saves, so the order stops mattering.
+// A teacher with fifty questions in a Word file should not have to put
+// them in the bank first to get them onto a paper. They go straight onto
+// the test and stay there: the bank is a collection kept on purpose, and
+// filling it with every one-off paper is what made it unusable.
 // The box has two jobs: taking new questions, and editing the ones
 // already on the test. Same textarea, same format, same parser — a
 // teacher who can paste questions can already edit them.
@@ -563,17 +563,10 @@ async function saveTest() {
       })),
     });
     closeModal('builder');
-    // What happened to the bank is said plainly, because a correction
-    // that quietly reached twelve other rows is something a teacher
-    // should hear about rather than discover.
-    const bits = [];
-    if (out.banked) bits.push(`${out.banked} new question${out.banked === 1 ? '' : 's'} added to your bank`);
-    if (out.corrected) bits.push(`${out.corrected} bank question${out.corrected === 1 ? '' : 's'} corrected`);
-
-    if (out.bank_error) showToast(`Test saved. ${out.bank_error}`, 'error');
-    else if (bits.length) showToast(`Test saved · ${bits.join(' · ')}.`, 'success');
-    else showToast('Test saved.', 'success');
-    await Promise.all([loadTests(), loadBank()]);
+    showToast(`Test saved · ${out.question_count} question${out.question_count === 1 ? '' : 's'}.`, 'success');
+    // Only the tests. Saving a test cannot change the bank, so there is
+    // nothing to reload it for.
+    await loadTests();
   } catch (err) {
     say('b-alert', err.message);
   } finally {

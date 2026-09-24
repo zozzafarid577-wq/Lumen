@@ -152,12 +152,12 @@ enrolled on, and practice is never written to `test_attempts`.
 
 Practice shows the answer once a student has had their go, so
 `question_bank.practice_ok` decides per question whether they may meet it
-there at all. It defaults to **true**, with one exception: questions filed
-into the bank by saving a test arrive with `practice_ok = false`, because
-those were written for a paper that may not have opened yet. A teacher
-flips either way from the bank — "Hold back" / "Allow practice" on the
-card, or the tick in the editor — and the flag is checked both when
-questions are served and again when one is marked.
+there at all. It defaults to **true**, and the teacher decides on the way
+in — the tick in the question editor, or the one on the batch importer,
+for a question being saved towards a paper that has not opened yet. They
+flip it afterwards from the bank too — "Hold back" / "Allow practice" on
+the card — and the flag is checked both when questions are served and
+again when one is marked.
 
 ## What a student sees
 
@@ -359,31 +359,34 @@ hurry is caught as the section that already exists. Removing a section
 nulls the label on the rows that point at it; the dialog says how many
 tests and questions that is, and that none of them are deleted.
 
-When a test is saved, its section is filed alongside its unit — but the
-two are decided **separately**. A question can easily know where it sits
-and not what it asks, so filling both or neither would leave half the
-bank unfilterable the day a teacher first adds sections.
+A question in the bank carries its own section, set where the question
+is, independently of where it sits. A question can easily know where it
+sits and not what it asks, so the two are never filled in together.
 
-### Questions go on the test and into the bank
+### The bank and a test are separate
 
-A test used to be buildable only out of the bank, which put the work in
-the wrong order: a teacher with fifty questions in a Word file had to
-fill the bank first and build the test second. Questions can now be
-pasted straight onto a test, and **saving a test files every question on
-it into the bank**, tagged with that test's course, unit and lesson.
+A test is built **from** the bank, by picking questions out of it, and
+never back into it. Saving a test writes `test_questions` and nothing
+else.
 
-Two things make that safe to do on every save:
+It did not always work that way. Saving a test used to file every
+question on it into the bank, tagged with the test's course, unit and
+lesson — which meant a fifty-question paper pasted out of a Word file
+put fifty rows into a bank nobody asked to have fifty rows in, and a
+correction made on one paper quietly rewrote bank rows other tests had
+been built from. The bank is a collection kept on purpose. It is filled
+on its own page, by hand or by its batch importer, and that is the only
+thing that writes to it.
+
+Two things still guard it, because the bank page writes straight from
+the browser and an importer can be run twice:
 
 - **`question_bank.text_key`** — md5 of the question text, generated in
-  Postgres, with a **unique** index on `(teacher_id, text_key)`. The
-  server hashes what it is about to file and asks which hashes are
-  already there, so a question picked onto three tests stays one row —
-  but that lookup is an optimisation, not the guarantee. Two saves in
-  the same second both pass it before either has written, and the bank
-  page writes to the table straight from the browser without passing
-  through `api/` at all. The index is what actually decides. It compares
-  hashes rather than texts because these go out as a query string: 300
-  questions of 2000 characters is a URL no proxy will carry.
+  Postgres, with a **unique** index on `(teacher_id, text_key)`. It is
+  the index that decides, not any check made before writing: the bank
+  page writes to the table without passing through `api/` at all, so
+  two imports in the same second both pass a read-and-compare before
+  either has written.
 - **The text is normalised before it is stored**, by a trigger calling
   `public.normalize_question_text()` — non-breaking spaces to ordinary
   ones, runs of whitespace collapsed, ends trimmed. Without it a single
@@ -394,19 +397,15 @@ Two things make that safe to do on every save:
   Case is deliberately left alone — case folding is the one operation
   the two languages disagree about across locales, and a dedup that is
   wrong is worse than one that is narrow.
-- **A question already filed keeps its unit.** The same question can be
-  right for two lessons, and the last test to use it does not get to
-  overwrite where it was filed. One that was never placed adopts the
-  test's, which is what makes the unit filter worth anything on a bank
-  filled before any of this existed. **The course is filled in with the
-  unit**, never separately: a question holding a unit and no course
-  matched the unit filter, failed the course filter and vanished from
-  both, because the bank only offers its unit list once a course is
-  picked, so the two are always live together.
 
-Filing is deliberately not fatal. The test exists by that point, and
-reporting it as failed would have the teacher build it a second time —
-so the count comes back in the response and the page says what happened.
+Questions can still be pasted straight onto a test without going near
+the bank, which is what keeps the work in the right order for a teacher
+who has a paper in a Word file and no interest in filing it. Those
+questions live on that test alone.
+
+A test also holds its **own copies** of its questions, not pointers into
+the bank, so editing or deleting a bank question never changes a paper
+students have already sat.
 
 The paste box is parsed by `/api/questions` with `action: 'parse'`, the
 same endpoint the bank's own importer previews with, so what is

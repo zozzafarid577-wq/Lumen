@@ -720,11 +720,12 @@ CREATE TABLE IF NOT EXISTS public.question_bank (
   -- Default true: holding one back is the deliberate act, not the norm.
   practice_ok   BOOLEAN NOT NULL DEFAULT true,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- Saving a test files its questions into the bank, and a teacher who
-  -- picks the same question onto three tests must not end up with three
-  -- copies of it. Comparing 2000-character texts over the wire is what
-  -- this avoids: the server hashes what it is about to file and asks
-  -- which hashes are already here.
+  -- The bank is filled from the bank page, by hand or by its batch
+  -- importer, and an importer run twice must not double the bank.
+  -- Comparing 2000-character texts over the wire is what this avoids.
+  -- The UNIQUE index on (teacher_id, text_key) is what actually decides:
+  -- the bank page writes straight from the browser, so any read-and-
+  -- compare done first is an optimisation, not the guarantee.
   --
   -- Deliberately exact rather than lower(btrim(...)): the hash has to be
   -- reproducible character-for-character in JavaScript, and case folding

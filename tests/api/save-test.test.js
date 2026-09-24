@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createHash } from 'node:crypto';
 
 vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
@@ -44,9 +43,7 @@ describe('saving a test', () => {
     const res = await call({ title: 'Unit 1 quiz', course_id: COURSE, questions: [Q(), Q()] });
 
     expect(res.statusCode).toBe(200);
-    // Both copies go on the test; the bank gets one, because they are
-    // the same question twice.
-    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2, banked: 1, corrected: 0, bank_error: null });
+    expect(res.body).toEqual({ test_id: 'test-new', question_count: 2 });
 
     const [inserted] = getSupabaseCalls('test_questions.insert');
     expect(inserted.payload).toHaveLength(2);
@@ -166,70 +163,6 @@ describe('the section', () => {
     expect(res.statusCode).toBe(403);
     expect(getSupabaseCalls('practice_tests.insert')).toHaveLength(0);
   });
-
-  it('files new questions under it', async () => {
-    configureSupabaseMock({ results: ownedSection(TEACHER_ID) });
-    const res = await call({ title: 'Quiz', course_id: COURSE, section_id: 'sec-1', questions: [Q()] });
-
-    expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.insert')[0].payload[0].section_id).toBe('sec-1');
-  });
-
-  it('gives a banked question its section without touching its unit', async () => {
-    // A question can easily know where it sits and not what it asks —
-    // filling both or neither would leave half the bank unfilterable the
-    // day a teacher adds sections.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      ...ownedSection(TEACHER_ID),
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-9', section_id: null }], error: null },
-    } });
-
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: [Q()],
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.update')[0].payload).toEqual({ section_id: 'sec-1' });
-  });
-
-  it('leaves a question that already has a section alone', async () => {
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      ...ownedSection(TEACHER_ID),
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: 'sec-9' }], error: null },
-    } });
-
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: [Q()],
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
-  });
-
-  it('updates rows wanting the same patch together', async () => {
-    // A fifty-question paper must not become fifty round trips.
-    const rows = [Q(), { ...Q(), question_text: 'Second?' }, { ...Q(), question_text: 'Third?' }];
-    const banked = rows.map((q, i) => ({
-      id: `bank-${i}`,
-      text_key: createHash('md5').update(q.question_text).digest('hex'), course_id: COURSE,
-      module_id: null, section_id: null,
-    }));
-    configureSupabaseMock({ results: {
-      ...ownedSection(TEACHER_ID),
-      'question_bank.select': { data: banked, error: null },
-    } });
-
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', section_id: 'sec-1', questions: rows,
-    });
-
-    expect(res.statusCode).toBe(200);
-    const updates = getSupabaseCalls('question_bank.update');
-    expect(updates).toHaveLength(1);
-    expect(updates[0].payload).toEqual({ module_id: 'unit-1', lesson_id: null, section_id: 'sec-1' });
-  });
 });
 
 describe('the unit and the lesson', () => {
@@ -278,246 +211,65 @@ describe('the unit and the lesson', () => {
   });
 });
 
-describe('filing the questions into the bank', () => {
-  it('files what the bank does not already hold, tagged with the test’s unit', async () => {
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
-      questions: [Q(), { ...Q(), question_text: 'What pairs with adenine?' }],
-    });
+
+// The bank is a collection the teacher fills on the bank page, and a
+// test is built from it by picking. Saving a test used to file every
+// question on it into the bank, which meant a fifty-question paper
+// pasted out of a Word file put fifty rows into the bank uninvited, and
+// a correction made on a paper quietly rewrote bank rows other tests
+// were built from. Nothing travels in either direction now, and the
+// only way to notice that has come back is a test that says so.
+describe('the question bank is left alone', () => {
+  const touchedBank = () => getSupabaseCalls().filter(c => c.table === 'question_bank');
+
+  it('writes nothing to the bank when a test is created', async () => {
+    const res = await call({ title: 'Unit 1 quiz', course_id: COURSE, questions: [Q(), Q()] });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.banked).toBe(2);
-
-    const [filed] = getSupabaseCalls('question_bank.insert');
-    expect(filed.payload).toHaveLength(2);
-    expect(filed.payload[0]).toMatchObject({
-      teacher_id: TEACHER_ID, course_id: COURSE, module_id: 'unit-1', lesson_id: null, is_published: true,
-    });
+    expect(touchedBank()).toHaveLength(0);
   });
 
-  it('keeps what it files out of practice', async () => {
-    // These questions arrived on a paper. Practice shows the answer, so
-    // letting them straight into it would rehearse a test that may not
-    // have opened yet.
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+  it('writes nothing to the bank when a test is edited', async () => {
+    const res = await call({ test_id: 'test-1', title: 'Unit 1 quiz', course_id: COURSE, questions: [Q()] });
 
     expect(res.statusCode).toBe(200);
-    const [filed] = getSupabaseCalls('question_bank.insert');
-    expect(filed.payload[0].practice_ok).toBe(false);
+    expect(touchedBank()).toHaveLength(0);
   });
 
-  it('sends a corrected answer back to the bank', async () => {
-    // The whole point of editing a test's questions: fixing which option
-    // is right on the paper has to reach the bank, or the next test built
-    // from that question is wrong all over again.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
+  // The labels are what the old filing used to copy onto bank rows.
+  it('writes nothing to the bank when the test is fully labelled', async () => {
     configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
-        // The bank has the WRONG option marked.
-        options: [{ text: 'Ribosome', correct: true }, { text: 'Mitochondrion', correct: false }],
-        explanation: null,
-      }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.corrected).toBe(1);
-    expect(res.body.banked).toBe(0);
-
-    const update = getSupabaseCalls('question_bank.update').find(c => c.payload.options);
-    expect(update.filters.id).toBe('bank-1');
-    expect(update.payload.options).toEqual(Q().options);
-  });
-
-  it('leaves the bank alone when the answer already matches', async () => {
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
-        options: Q().options, explanation: null,
-      }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
-
-    expect(res.body.corrected).toBe(0);
-    expect(getSupabaseCalls('question_bank.update').filter(c => c.payload.options)).toHaveLength(0);
-  });
-
-  it('files a reworded question as new rather than overwriting the original', async () => {
-    // The text is what identifies a bank row. Rewording makes a
-    // different question; the one it came from is left as it was.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
-        options: Q().options, explanation: null,
-      }], error: null },
+      'test_sections.select': { data: { id: 'sec-1', teacher_id: TEACHER_ID }, error: null },
+      'lessons.select': { data: { id: 'lesson-1', teacher_id: TEACHER_ID, module_id: 'unit-1' }, error: null },
     } });
 
     const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
-      questions: [{ ...Q(), question_text: 'Which organelle produces ATP?' }],
-    });
-
-    expect(res.body.banked).toBe(1);
-    expect(res.body.corrected).toBe(0);
-  });
-
-  it('skips a question the bank already holds', async () => {
-    // md5 of the question text, matching question_bank.text_key. A
-    // question picked onto three tests must not become three copies.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1' }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.banked).toBe(0);
-    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
-  });
-
-  it('gives a question that was never placed the test’s unit', async () => {
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: null }], error: null },
-    } });
-
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: null, questions: [Q()],
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1', lesson_id: 'lesson-1',
+      section_id: 'sec-1', questions: [Q()],
     });
 
     expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.update')[0].payload)
-      .toEqual({ module_id: 'unit-1', lesson_id: null });
+    expect(touchedBank()).toHaveLength(0);
   });
 
-  it('leaves a question that already has a unit alone', async () => {
-    // The same question can be right for two lessons, and the last test
-    // to use it does not get to overwrite where it was filed.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-9' }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+  // A changed answer is the case that used to reach other tests.
+  it('keeps a corrected answer on the paper it was corrected on', async () => {
+    const corrected = {
+      question_text: Q().question_text,
+      options: [{ text: 'Ribosome', correct: true }, { text: 'Mitochondrion', correct: false }],
+    };
+    const res = await call({ test_id: 'test-1', title: 'Quiz', course_id: COURSE, questions: [corrected] });
 
     expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
+    expect(touchedBank()).toHaveLength(0);
+    expect(getSupabaseCalls('test_questions.insert')[0].payload[0].options[0].correct).toBe(true);
   });
 
-  it('gives a question with a unit but no course the test’s course', async () => {
-    // What made the bank's unit filter lie. The unit list only appears
-    // once a course is picked, so both filters are live together — and a
-    // question filed with a unit and no course matched the unit, failed
-    // the course, and could not be found by either.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: null, module_id: 'unit-9' }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
-
-    expect(res.statusCode).toBe(200);
-    // Its unit is still its own — only the blank is filled.
-    expect(getSupabaseCalls('question_bank.update')[0].payload).toEqual({ course_id: COURSE });
-  });
-
-  it('never moves a question that already has a course', async () => {
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: 'course-9', module_id: 'unit-9' }], error: null },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
-
-    expect(res.statusCode).toBe(200);
-    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
-  });
-
-  it('matches a question the bank already holds despite Word’s spacing', async () => {
-    // The everyday cause of duplicates: these are pasted out of Word,
-    // and a non-breaking space or a double space made a question a
-    // person reads as identical hash to something else entirely.
-    const key = createHash('md5').update(Q().question_text).digest('hex');
-    configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1' }], error: null },
-    } });
-
-    const messy = Q().question_text.replace(/ /g, '  ');
-    const res = await call({
-      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
-      questions: [{ ...Q(), question_text: `  ${messy}\t` }],
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.banked).toBe(0);
-    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
-  });
-
-  it('stores the tidied text, so the hash it looked up is the one filed', async () => {
-    const res = await call({
-      title: 'Quiz', course_id: COURSE,
-      questions: [{ ...Q(), question_text: '  What  is   2 + 2?  ' }],
-    });
-
-    expect(res.statusCode).toBe(200);
-    const [insert] = getSupabaseCalls('question_bank.insert');
-    expect(insert.payload[0].question_text).toBe('What is 2 + 2?');
-  });
-
-  it('files the rest of the paper when one question is already there', async () => {
-    // The unique index added in migration v13 refuses a question filed
-    // by a save a moment earlier. Losing the other questions over it
-    // would have the teacher paste the whole batch again.
-    configureSupabaseMock({ results: {
-      'question_bank.insert': [
-        { data: null, error: { code: '23505', message: 'duplicate key' } },  // the batch
-        { data: null, error: { code: '23505', message: 'duplicate key' } },  // retried: this one is known
-        { data: null, error: null },                                          // retried: this one is new
-      ],
-    } });
-
-    const res = await call({
-      title: 'Quiz', course_id: COURSE,
-      questions: [Q(), { ...Q(), question_text: 'Second?' }],
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.banked).toBe(1);          // the one that was genuinely new
-    expect(res.body.bank_error).toBeNull();   // and no alarm raised over the other
-  });
-
-  it('still reports a write failure that is not a duplicate', async () => {
-    configureSupabaseMock({ results: {
-      'question_bank.insert': [
-        { data: null, error: { code: '23505', message: 'duplicate key' } },
-        { data: null, error: { code: '08006', message: 'connection failure' } },
-      ],
-    } });
-
+  it('says only what it did', async () => {
     const res = await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
 
-    expect(res.statusCode).toBe(200);         // the test itself still saved
-    expect(res.body.bank_error).toMatch(/not added to your question bank/i);
-  });
-
-  it('saves the test even when the bank write fails', async () => {
-    configureSupabaseMock({ results: {
-      'question_bank.insert': { data: null, error: { message: 'boom' } },
-    } });
-
-    const res = await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
-
-    // The test exists by then. Reporting it as failed would have the
-    // teacher build it a second time.
-    expect(res.statusCode).toBe(200);
-    expect(res.body.test_id).toBe('test-new');
-    expect(res.body.banked).toBe(0);
-    expect(res.body.bank_error).toMatch(/question bank/i);
+    // banked / corrected / bank_error are gone: the page has nothing to
+    // report about a bank it no longer writes to.
+    expect(Object.keys(res.body).sort()).toEqual(['question_count', 'test_id']);
   });
 });
