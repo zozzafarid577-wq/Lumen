@@ -16,6 +16,19 @@
 // handlers in api/ read it.
 // ─────────────────────────────────────────────────────────────────
 window.LUMEN_CONFIG = {
+  // The address Lumen is handed out under. Links a teacher sends — an
+  // invite link, a student's sign-in details — are built from this
+  // rather than from whatever URL the teacher happens to be browsing,
+  // so working from the deployment's own long hostname does not send
+  // students a link twice the length with a project name in it.
+  //
+  // Origin only, no trailing slash, no path. Remove it and links fall
+  // back to the current origin, which is what used to happen always.
+  //
+  // The server half of this is the PUBLIC_URL environment variable,
+  // read by siteUrlFor() in api/_lib/email.js for the links inside
+  // emails. The two should name the same site.
+  SITE_URL: 'https://lumenlearn.site',
   SUPABASE_URL: 'https://ivguwplraowoelewroxw.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2Z3V3cGxyYW93b2VsZXdyb3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDAzOTAsImV4cCI6MjEwNTY3NjM5MH0.gk2qncKT0qU20gpnFvyzvLPrXQetOecyjHDXEDSM15w',
 };

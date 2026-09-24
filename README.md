@@ -61,6 +61,27 @@ loads. What keeps one teacher's students out of another teacher's data is
 row-level security, not the secrecy of that key. **The service-role key
 must never appear in `js/`.**
 
+`SITE_URL` is the address Lumen is handed out under. Links a teacher
+gives somebody else — a batch invite pasted into WhatsApp, a student's
+sign-in details — are built from it rather than from whatever URL the
+teacher happens to be browsing. Without it, a teacher working on the
+deployment's own hostname sends students
+`lumen-something-projects.vercel.app/join/HdnAqBzjFL`, which wraps over
+three lines in a chat app. Origin only, no trailing slash; leave it out
+and links fall back to the current origin. Navigation inside the app
+stays relative either way, so a preview deployment keeps browsing
+itself.
+
+Its server-side twin is the **`PUBLIC_URL`** environment variable, read
+by `siteUrlFor()` in `api/_lib/email.js` for the links inside emails.
+Set both, to the same site, or a welcome email and the page that sent it
+will disagree about where Lumen lives.
+
+One deliberate exception: the password-reset redirect in
+`forgot-password.html` stays on `location.origin`. Supabase only
+redirects to URLs on its own allow-list, and the one that always matches
+is the origin the request came from.
+
 ### 3. The API
 
 Set three environment variables wherever you deploy (Vercel → Settings →

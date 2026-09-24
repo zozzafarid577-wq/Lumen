@@ -316,3 +316,58 @@ describe('the bank hands a selection to the test builder', () => {
       .toBe(Number(server[1]));
   });
 });
+
+// A link a teacher pastes into WhatsApp has to name the site Lumen is
+// handed out under, not whichever URL that teacher happened to have
+// open. Built from location.origin, a teacher working on the
+// deployment's own hostname sends students a link twice the length with
+// a project name in it — and every one of these is a string inside a
+// template literal, so nothing else in the suite would notice.
+describe('links a teacher hands to somebody else', () => {
+  const config = readFileSync(join(ROOT, 'js/config.js'), 'utf8');
+  const ui = readFileSync(join(ROOT, 'js/ui.js'), 'utf8');
+
+  it('has a canonical site to point at', () => {
+    expect(ui, 'js/ui.js defines no siteOrigin()').toMatch(/function siteOrigin\(/);
+
+    const set = config.match(/SITE_URL:\s*'([^']*)'/);
+    if (!set) return;   // no custom domain yet is allowed; links fall back
+    // Origin only. A trailing slash or a path here produces "…site//join"
+    // or "…site/app/join", and both are found by a student, not a test.
+    expect(set[1], 'SITE_URL must be an origin: no path, no trailing slash')
+      .toMatch(/^https?:\/\/[^/]+$/);
+  });
+
+  it('falls back to the current origin when no site is configured', () => {
+    // A deployment with no custom domain must still produce links that
+    // work, rather than links to nowhere.
+    expect(ui).toMatch(/if \(!configured\) return location\.origin;/);
+  });
+
+  const SHAREABLE = [
+    ['teacher/students.html', /function inviteUrl\(token\) \{[^}]*\}/],
+    ['teacher/students.html', /Lumen sign-in: \$\{[^}]+\}/],
+    ['teacher/team.html', /Lumen sign-in: \$\{[^}]+\}/],
+    ['admin/teachers.html', /Lumen sign-in: \$\{[^}]+\}/],
+    ['join.html', /Lumen sign-in: \$\{[^}]+\}/],
+  ];
+
+  it.each(SHAREABLE)('%s builds its shared link from siteOrigin()', (rel, re) => {
+    const html = PAGES.find(p => p.rel === rel)?.html;
+    expect(html, `${rel} not found`).toBeTruthy();
+
+    const found = html.match(re);
+    expect(found, `${rel} no longer contains the link this checks`).toBeTruthy();
+    expect(found[0], `${rel} still builds a shared link from location.origin`)
+      .not.toMatch(/location\.origin/);
+    expect(found[0]).toMatch(/siteOrigin\(\)/);
+  });
+
+  it('leaves the password-reset redirect on the current origin', () => {
+    // Supabase only redirects to URLs on its own allow-list, and the one
+    // that always matches is the origin the request came from. Pinning
+    // this to the canonical site breaks a reset started anywhere else.
+    const forgot = PAGES.find(p => p.rel === 'forgot-password.html').html;
+    expect(forgot).toMatch(/redirectTo: location\.origin/);
+  });
+});

@@ -17,11 +17,11 @@
     <a href="/" aria-label="Lumen home"><img src="/assets/lumen-logo-light.png" alt="Lumen" class="logo-img logo-auth"></a>
     <div>
       <img src="/assets/lumen-tagline-light.png" alt="Educate with Excellence" class="tagline-img tagline-auth">
-      <p>Your teacher uses Lumen for lessons, homework and results. Fill this in once and they will set your account up.</p>
+      <p>Your teacher uses Lumen for lessons, homework and results. Fill this in once and your account is ready.</p>
       <ul class="auth-points">
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Register once — one form per student</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Your teacher checks it and confirms you</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Your sign-in details are sent to you after that</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Your sign-in appears on the next screen</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>We email it to you as well, so you have both</li>
       </ul>
     </div>
     <p style="font-size:.8rem;opacity:.6">© <span class="year">2026</span> Lumen</p>
@@ -209,7 +209,7 @@ el('join-form').addEventListener('submit', async e => {
 // because clipboard.writeText needs a secure context and a permission
 // some in-app browsers — the ones a WhatsApp link opens in — refuse.
 async function copyCreds() {
-  const text = `Lumen sign-in: ${location.origin}/login.html\n`
+  const text = `Lumen sign-in: ${siteOrigin()}/login.html\n`
     + `Email: ${el('done-email').textContent}\n`
     + `Password: ${el('done-pw').textContent}`;
   const btn = el('copy-creds');

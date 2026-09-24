@@ -86,6 +86,24 @@ function groupLabel(group) {
   return when ? `${group.name} · ${when}` : group.name;
 }
 
+// The origin to put in something a teacher hands to somebody else: an
+// invite link pasted into WhatsApp, a student's sign-in details read out
+// loud. LUMEN_CONFIG.SITE_URL when it is set, the current origin when it
+// is not — so a deployment that has no custom domain yet still produces
+// links that work.
+//
+// Not for navigating inside the app, which stays relative: a teacher who
+// opened a preview deployment should keep browsing that preview rather
+// than being thrown to the live site half way through a page.
+function siteOrigin() {
+  const configured = String(window.LUMEN_CONFIG?.SITE_URL || '').trim().replace(/\/+$/, '');
+  if (!configured) return location.origin;
+  // Tolerate "lumenlearn.site" as well as "https://lumenlearn.site".
+  // This is edited by hand when a domain changes, and a missing scheme
+  // would otherwise produce a link that goes nowhere.
+  return /^https?:\/\//i.test(configured) ? configured : `https://${configured}`;
+}
+
 // A–Z the way a person reads a list, which is not the way Postgres
 // sorts one. `.order('name')` compares text by the database's collation:
 // "Group 10" lands before "Group 2" because 1 comes before 2, and a

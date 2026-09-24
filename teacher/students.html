@@ -980,7 +980,7 @@ async function createInvite() {
   }
 }
 
-function inviteUrl(token) { return `${location.origin}/join/${token}`; }
+function inviteUrl(token) { return `${siteOrigin()}/join/${token}`; }
 function copyInvite(token) { copy(token ? inviteUrl(token) : lastInvite); }
 
 // No number to send it to — a batch link goes to a group chat, and
@@ -1332,7 +1332,7 @@ async function createStudent() {
 }
 
 function credentialsText(c) {
-  return `Lumen sign-in: ${location.origin}/login.html\nEmail: ${c.email}\nPassword: ${c.password}\n\nPlease change your password after signing in for the first time.`;
+  return `Lumen sign-in: ${siteOrigin()}/login.html\nEmail: ${c.email}\nPassword: ${c.password}\n\nPlease change your password after signing in for the first time.`;
 }
 
 function sendWhatsApp() {

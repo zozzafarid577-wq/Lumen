@@ -291,7 +291,7 @@ async function save() {
 
 function copyCreds() {
   if (!lastCreds) return;
-  const text = `Lumen sign-in: ${location.origin}/login.html\nEmail: ${lastCreds.email}\nPassword: ${lastCreds.password}`;
+  const text = `Lumen sign-in: ${siteOrigin()}/login.html\nEmail: ${lastCreds.email}\nPassword: ${lastCreds.password}`;
   navigator.clipboard.writeText(text)
     .then(() => showToast('Copied.', 'success'))
     .catch(() => showToast('Your browser would not let us copy. Select the details and copy them by hand.', 'error'));
