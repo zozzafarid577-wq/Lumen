@@ -169,6 +169,70 @@ const SERVICE_DOWN_MESSAGE =
 const CONNECTION_FAILED_MESSAGE =
   'We could not reach Lumen. Please check your internet connection and try again. Your work is safe.';
 
+// ── Dragging a block into a new place ─────────────────────────────
+// A teacher orders their course by dragging, not by typing numbers into
+// a field. The drag starts on a handle rather than anywhere on the row,
+// or every attempt to click Edit would pick the row up instead.
+//
+// `container` is the element the items sit directly inside; `onReorder`
+// is handed the ids in their new order, top to bottom.
+function makeSortable(container, { itemSelector, handleSelector, onReorder }) {
+  // Lists are redrawn by replacing innerHTML, so this is called again
+  // after every render. A container that still carries the mark is one
+  // that already has these listeners.
+  if (!container || container.dataset.sortable === '1') return;
+  container.dataset.sortable = '1';
+
+  let dragged = null;
+
+  // Nothing is draggable until a handle is pressed. Delegated, so items
+  // drawn after this runs behave the same as the ones already there.
+  const arm = (e) => {
+    const handle = e.target.closest?.(handleSelector);
+    const item = handle && handle.closest(itemSelector);
+    if (item && container.contains(item)) item.draggable = true;
+  };
+  container.addEventListener('mousedown', arm);
+  container.addEventListener('touchstart', arm, { passive: true });
+
+  container.addEventListener('dragstart', (e) => {
+    const item = e.target.closest?.(itemSelector);
+    if (!item || !item.draggable) return;
+    dragged = item;
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox starts no drag at all without something on the transfer.
+    try { e.dataTransfer.setData('text/plain', item.dataset.id || ''); } catch (_) {}
+  });
+
+  // The row is moved as the pointer passes the halfway line of whatever
+  // it is over, so what you see while dragging is what you get on drop.
+  container.addEventListener('dragover', (e) => {
+    if (!dragged) return;
+    const over = e.target.closest?.(itemSelector);
+    if (!over || over === dragged || over.parentElement !== dragged.parentElement) return;
+    e.preventDefault();
+    const box = over.getBoundingClientRect();
+    const below = (e.clientY - box.top) > box.height / 2;
+    over.parentElement.insertBefore(dragged, below ? over.nextSibling : over);
+  });
+
+  container.addEventListener('drop', (e) => e.preventDefault());
+
+  container.addEventListener('dragend', () => {
+    if (!dragged) return;
+    const parent = dragged.parentElement;
+    dragged.classList.remove('dragging');
+    dragged.draggable = false;
+    dragged = null;
+    const ids = [...parent.children]
+      .filter(el => el.matches?.(itemSelector))
+      .map(el => el.dataset.id)
+      .filter(Boolean);
+    if (ids.length) onReorder(ids, parent);
+  });
+}
+
 function onBodyReady(fn) {
   if (typeof document === 'undefined') return;
   if (document.body) { fn(); return; }

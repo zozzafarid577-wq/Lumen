@@ -166,11 +166,15 @@ function rememberUnit(id, open) {
   // The group comes along with the enrolment: which sitting of this
   // course they attend is part of what the course is, to them.
   const { data: enrolments } = await sb.from('enrollments')
-    .select('expires_at, groups(name, days, start_time), courses(id, title, subject, description, exam_date)')
+    .select('expires_at, groups(name, days, start_time), courses(id, title, subject, description, exam_date, order_index)')
     .eq('student_id', me.id);
 
+  // In the order their teacher put them in, not alphabetically: a
+  // teacher who drags Senior 1 above Senior 2 means it for the student
+  // as well as for themselves.
   courses = (enrolments || []).map(e => ({ ...e.courses, expires_at: e.expires_at, group: e.groups }))
-    .filter(c => c?.id).sort((a, b) => a.title.localeCompare(b.title));
+    .filter(c => c?.id)
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.title.localeCompare(b.title));
 
   if (!courses.length) {
     document.getElementById('units').innerHTML =

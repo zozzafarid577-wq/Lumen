@@ -439,6 +439,24 @@ html[data-theme="dark"] .on-dark { display: block; }
 .toast-info    { background: #7A3578; }
 @keyframes toast-in { from{transform:translateX(20px) scale(.95);opacity:0} to{transform:translateX(0) scale(1);opacity:1} }
 
+/* ── DRAG HANDLES ────────────────────────────────────────────────
+   The grip a block is picked up by. Only the handle starts a drag, so
+   the buttons on the same row stay clickable — see makeSortable(). */
+.drag-handle {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 26px; margin-left: -4px; border-radius: 6px;
+  color: var(--border); cursor: grab; transition: color .15s, background .15s;
+}
+.drag-handle:hover { color: var(--muted); background: var(--bg); }
+.drag-handle:active { cursor: grabbing; }
+.drag-handle svg { width: 15px; height: 15px; }
+/* The grip only shows itself once the pointer is over the block it
+   belongs to — a list at rest should not be a field of dots. */
+.course-pick .drag-handle, .unit-head .drag-handle, .lesson-row .drag-handle { opacity: 0; }
+.course-pick:hover .drag-handle, .unit:hover .unit-head .drag-handle,
+.lesson-row:hover .drag-handle, .drag-handle:focus-visible { opacity: 1; }
+.dragging { opacity: .4; }
+
 /* ── A GREETING, NOT A BANNER ────────────────────────────────────
    A student's dashboard opens on their courses. The hello is a line
    above them rather than a slab of gradient pushing them below the

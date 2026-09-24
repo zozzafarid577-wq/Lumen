@@ -255,7 +255,10 @@ let editing = { course: null, unit: null, lesson: null };
 // ── Courses ───────────────────────────────────────────────────────
 async function loadCourses(selectId) {
   const { data, error } = await sb.from('courses')
-    .select('*').eq('teacher_id', me.teacher_id).order('created_at', { ascending: false });
+    // Newest-first is the tie-break, so a space that has never been
+    // reordered — every index still 0 — looks exactly as it did.
+    .select('*').eq('teacher_id', me.teacher_id)
+    .order('order_index').order('created_at', { ascending: false });
   if (error) { showToast(friendlyError(error.message), 'error'); return; }
   courses = data || [];
 
@@ -273,7 +276,8 @@ async function loadCourses(selectId) {
   currentCourseId = selectId || (courses.some(c => c.id === currentCourseId) ? currentCourseId : courses[0].id);
 
   list.innerHTML = courses.map(c => `
-    <div class="course-pick${c.id === currentCourseId ? ' on' : ''}" onclick="selectCourse('${c.id}')">
+    <div class="course-pick${c.id === currentCourseId ? ' on' : ''}" data-id="${c.id}" onclick="selectCourse('${c.id}')">
+      ${gripHtml('course')}
       <div class="ci">${escHtml(initials(c.title))}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:.83rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.title)}</div>
@@ -282,10 +286,65 @@ async function loadCourses(selectId) {
       ${c.is_active ? '' : '<span class="badge b-gray">Hidden</span>'}
     </div>`).join('');
 
+  makeSortable(list, {
+    itemSelector: '.course-pick',
+    handleSelector: '.drag-handle[data-kind="course"]',
+    onReorder: (ids) => saveOrder('courses', ids, 'Courses reordered.'),
+  });
+
   await loadUnits();
 }
 
-function selectCourse(id) { currentCourseId = id; loadCourses(id); }
+// The grip every draggable block carries. Six dots is what a handle
+// looks like everywhere else, so nobody has to be told what it does.
+function gripHtml(kind) {
+  return `<span class="drag-handle" data-kind="${kind}" title="Drag to reorder" aria-label="Drag to reorder">
+    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+  </span>`;
+}
+
+// Position in the list becomes order_index. Written straight away — a
+// drag that has to be confirmed with a Save button is a drag that gets
+// lost when the teacher navigates away.
+async function saveOrder(table, ids, message) {
+  justDragged = true;
+  setTimeout(() => { justDragged = false; }, 300);
+
+  const results = await Promise.all(
+    ids.map((id, i) => sb.from(table).update({ order_index: i }).eq('id', id)));
+
+  const failed = results.find(r => r.error);
+  if (failed) {
+    showToast(friendlyError(failed.error.message), 'error');
+    // Put the list back the way the database still has it.
+    await loadCourses(currentCourseId);
+    return;
+  }
+
+  // The arrays behind the page are re-sorted rather than reloaded: a
+  // round trip here would redraw the list under the teacher's cursor.
+  ids.forEach((id, i) => {
+    const row = courses.find(c => c.id === id) || units.find(u => u.id === id)
+      || units.flatMap(u => u.lessons).find(l => l.id === id);
+    if (row) row.order_index = i;
+  });
+  courses.sort((a, b) => a.order_index - b.order_index);
+  units.sort((a, b) => a.order_index - b.order_index);
+  units.forEach(u => u.lessons.sort((a, b) => a.order_index - b.order_index));
+
+  showToast(message, 'success');
+}
+
+let justDragged = false;
+
+function selectCourse(id) {
+  // The mouseup that ends a drag also fires a click. Selecting the
+  // course here would reload the list while its new order is still
+  // being written.
+  if (justDragged) return;
+  currentCourseId = id;
+  loadCourses(id);
+}
 
 // ── Groups ────────────────────────────────────────────────────────
 // The sittings of the course on screen. Which one a student attends is
@@ -511,7 +570,23 @@ async function loadUnits() {
     return;
   }
 
-  pane.innerHTML = header + units.map(u => unitHtml(u)).join('');
+  // Wrapped so the units are siblings of each other and nothing else —
+  // the header card must not be draggable along with them.
+  pane.innerHTML = header + `<div id="unit-list">${units.map(u => unitHtml(u)).join('')}</div>`;
+
+  makeSortable(document.getElementById('unit-list'), {
+    itemSelector: '.unit',
+    handleSelector: '.drag-handle[data-kind="unit"]',
+    onReorder: (ids) => saveOrder('modules', ids, 'Units reordered.'),
+  });
+
+  // One list per unit: a lesson is dragged within its own unit, not
+  // across into another, which would need its module_id rewritten too.
+  pane.querySelectorAll('.lesson-list').forEach(list => makeSortable(list, {
+    itemSelector: '.lesson-block',
+    handleSelector: '.drag-handle[data-kind="lesson"]',
+    onReorder: (ids) => saveOrder('lessons', ids, 'Lessons reordered.'),
+  }));
 }
 
 function unitHtml(u) {
@@ -521,8 +596,12 @@ function unitHtml(u) {
     : open ? '<span class="badge b-green">Open</span>'
            : `<span class="badge b-yellow">Opens ${escHtml(fmtDateTime(u.open_at))}</span>`;
 
-  return `<div class="unit">
+  // A lesson and the papers set on it move together, so each is wrapped
+  // in a block of its own: dragging the lesson out from under its own
+  // tests would leave them stranded beneath whatever came next.
+  return `<div class="unit" data-id="${u.id}">
     <div class="unit-head">
+      ${gripHtml('unit')}
       <div style="flex:1;min-width:0">
         <div class="unit-title">${escHtml(u.title)}</div>
         <div class="unit-meta">${unitMeta(u)}</div>
@@ -532,16 +611,22 @@ function unitHtml(u) {
       <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}')">Add lesson</button>
       <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteUnit('${u.id}')">Delete</button>
     </div>
-    ${u.lessons.map(l => `
-      <div class="lesson-row">
-        <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
-        <div class="ln">
-          <div class="lr-title">${escHtml(l.title)}</div>
-          <div class="lr-sub">${l.duration_min ? l.duration_min + ' min · ' : ''}${(l.lesson_materials || []).length} material${(l.lesson_materials || []).length === 1 ? '' : 's'}${l.video_url ? ' · recording attached' : ''}</div>
-        </div>
-        <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}','${l.id}')">Edit</button>
-        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteLesson('${l.id}')">Delete</button>
-      </div>` + (testsByLesson.get(l.id) || []).map(testRow).join('')).join('')}
+    <div class="lesson-list" data-unit="${u.id}">
+      ${u.lessons.map(l => `
+        <div class="lesson-block" data-id="${l.id}">
+          <div class="lesson-row">
+            ${gripHtml('lesson')}
+            <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+            <div class="ln">
+              <div class="lr-title">${escHtml(l.title)}</div>
+              <div class="lr-sub">${l.duration_min ? l.duration_min + ' min · ' : ''}${(l.lesson_materials || []).length} material${(l.lesson_materials || []).length === 1 ? '' : 's'}${l.video_url ? ' · recording attached' : ''}</div>
+            </div>
+            <button class="btn btn-ghost btn-xs" onclick="editLesson('${u.id}','${l.id}')">Edit</button>
+            <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteLesson('${l.id}')">Delete</button>
+          </div>
+          ${(testsByLesson.get(l.id) || []).map(testRow).join('')}
+        </div>`).join('')}
+    </div>
     ${(testsByUnit.get(u.id) || []).length
       ? `<div class="unit-tests">On the whole unit</div>${(testsByUnit.get(u.id) || []).map(testRow).join('')}`
       : ''}

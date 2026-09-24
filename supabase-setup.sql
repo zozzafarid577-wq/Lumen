@@ -284,6 +284,9 @@ CREATE TABLE IF NOT EXISTS public.courses (
   thumbnail_url TEXT,
   exam_date     DATE,
   is_active     BOOLEAN NOT NULL DEFAULT true,
+  -- The order the teacher dragged them into. Ties fall back to
+  -- newest-first, so a space that never reorders looks unchanged.
+  order_index   INTEGER NOT NULL DEFAULT 0,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -920,6 +923,7 @@ GRANT EXECUTE ON FUNCTION public.my_student_allowance() TO authenticated;
 -- leading column on each of these.
 CREATE INDEX IF NOT EXISTS idx_profiles_tenant       ON public.profiles(teacher_id, role);
 CREATE INDEX IF NOT EXISTS idx_courses_tenant        ON public.courses(teacher_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_courses_order         ON public.courses(teacher_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_modules_course_order  ON public.modules(course_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_lessons_module_order  ON public.lessons(module_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_materials_lesson      ON public.lesson_materials(lesson_id);
