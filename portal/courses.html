@@ -147,6 +147,7 @@ let doneIds = new Set();
 let bestByTest = new Map();   // test_id -> the student's best attempt
 let practiceByUnit = {};      // module_id -> how many bank questions to practise
 let practiceFetchedFor = null;
+let dueByTest = new Map();   // test_id -> the deadline set to this student
 // Which units the student has opened. Ticking a lesson off redraws the
 // whole page, and a unit that shut itself because they marked something
 // done inside it would be maddening.
@@ -225,7 +226,7 @@ async function load() {
   // returned at all — the database refuses them, not this page. So an
   // empty `lessons` array on a closed unit is the expected shape, and
   // the lock below is a label on that, not the lock itself.
-  const [{ data, error }, { data: tests }] = await Promise.all([
+  const [{ data, error }, { data: tests }, { data: setForMe }] = await Promise.all([
     sb.from('modules')
       .select('*, lessons(*, lesson_materials(id, title, file_url, kind))')
       .eq('course_id', courseId).order('order_index'),
@@ -234,9 +235,22 @@ async function load() {
     // the lesson they are reading.
     sb.from('practice_tests').select('*, test_sections(name, color)')
       .eq('course_id', courseId).eq('is_active', true).order('order_index').order('created_at'),
+    // The deadlines set to this student — to their whole course, or to
+    // the group they attend. The database only returns the ones that
+    // apply to them, so anything that arrives here is theirs.
+    sb.from('test_assignments').select('test_id, due_at').eq('course_id', courseId),
   ]);
 
   if (error) { host.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
+
+  // The earliest deadline wins if a test is set both to the whole course
+  // and to their group: the sooner one is the one they have to meet.
+  dueByTest = new Map();
+  (setForMe || []).forEach(a => {
+    if (!a.due_at) return;
+    const seen = dueByTest.get(a.test_id);
+    if (!seen || a.due_at < seen) dueByTest.set(a.test_id, a.due_at);
+  });
 
   const units = data || [];
   const visible = units.filter(u => u.is_done || u.open_at);   // drafts stay out of sight entirely
@@ -435,8 +449,13 @@ function materialRow(m) {
 function testRow(t, under) {
   const best = bestByTest.get(t.id);
   const w = testWindow(t, new Date());
-  const bits = [t.time_limit_min ? t.time_limit_min + ' min' : null, `pass at ${t.passing_score_pct}%`]
-    .filter(Boolean).join(' · ');
+  const due = dueByTest.get(t.id);
+  const late = due && new Date(due) < new Date();
+  const bits = [
+    t.time_limit_min ? t.time_limit_min + ' min' : null,
+    `pass at ${t.passing_score_pct}%`,
+    due ? `${late ? 'was due' : 'due'} ${fmtDateTime(due)}` : null,
+  ].filter(Boolean).join(' · ');
 
   // Three states, and only one of them is a button: do it, do it again
   // for a better mark, or wait. A test whose window has closed is left
@@ -452,7 +471,8 @@ function testRow(t, under) {
         ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
       <div class="lr-sub">${escHtml(bits)}</div>
     </div>
-    ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>` : ''}
+    ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>`
+      : late ? '<span class="badge b-red">Late</span>' : ''}
     ${action}
   </div>`;
 }

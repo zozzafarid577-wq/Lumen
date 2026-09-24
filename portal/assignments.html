@@ -24,6 +24,10 @@
   </header>
 
   <main class="content">
+    <!-- Tests their teacher set them, with the deadline. Above the
+         hand-in work because a deadline on a test is the one a student
+         is most likely to have forgotten. -->
+    <div id="set-tests"></div>
     <div id="list"><div class="skel" style="height:110px;margin-bottom:16px"></div><div class="skel" style="height:110px"></div></div>
   </main>
 </div>
@@ -77,6 +81,8 @@ let handing = null;
 })();
 
 async function load() {
+  await drawSetTests();
+
   const [{ data: list, error }, { data: subs }] = await Promise.all([
     sb.from('assignments').select('*, courses(title)').eq('is_active', true).order('due_at', { ascending: true, nullsFirst: false }),
     sb.from('assignment_submissions').select('*').eq('student_id', me.id),
@@ -151,6 +157,62 @@ function openHandIn(id) {
     document.getElementById('hm-alert').className = 'alert alert-warning';
   }
   openModal('hand-modal');
+}
+
+// ── Tests set to them ─────────────────────────────────────────────
+// The database only returns the assignments that apply to this student
+// — their whole course, or the group they attend — so anything that
+// arrives here is theirs to do.
+async function drawSetTests() {
+  const host = document.getElementById('set-tests');
+
+  const [{ data: set, error }, { data: attempts }] = await Promise.all([
+    sb.from('test_assignments')
+      .select('id, due_at, test_id, practice_tests(id, title, is_active, time_limit_min, passing_score_pct, test_sections(name, color), courses(title))')
+      .order('due_at', { nullsFirst: false }),
+    sb.from('test_attempts').select('test_id, percentage, passed')
+      .eq('student_id', me.id).not('completed_at', 'is', null),
+  ]);
+
+  // A space that has not run migration v8 has no such table. That is a
+  // missing feature, not a broken page.
+  if (error || !set?.length) { host.innerHTML = ''; return; }
+
+  const best = new Map();
+  (attempts || []).forEach(a => {
+    const p = parseFloat(a.percentage);
+    if (isNaN(p)) return;
+    const seen = best.get(a.test_id);
+    if (!seen || p > parseFloat(seen.percentage)) best.set(a.test_id, a);
+  });
+
+  const live = set.filter(a => a.practice_tests?.is_active);
+  if (!live.length) { host.innerHTML = ''; return; }
+
+  const now = new Date();
+  host.innerHTML = `
+    <div class="card mb24">
+      <div class="card-header"><span class="card-title">Tests set for you</span></div>
+      ${live.map(a => {
+        const t = a.practice_tests;
+        const done = best.get(t.id);
+        const late = a.due_at && new Date(a.due_at) < now;
+        const bits = [t.courses?.title, t.time_limit_min ? t.time_limit_min + ' min' : null,
+          a.due_at ? `${late ? 'was due' : 'due'} ${fmtDateTime(a.due_at)}` : 'no deadline']
+          .filter(Boolean).join(' · ');
+        return `<div class="list-row">
+          <div class="lr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg></div>
+          <div style="flex:1;min-width:0">
+            <div class="lr-title">${escHtml(t.title)}${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
+            <div class="lr-sub">${escHtml(bits)}</div>
+          </div>
+          ${done
+            ? `<span class="badge ${done.passed ? 'b-green' : 'b-red'}">${pct(done.percentage)}</span>`
+            : late ? '<span class="badge b-red">Late</span>' : ''}
+          <a href="/portal/take-test.html?id=${t.id}" class="btn ${done ? 'btn-outline' : 'btn-primary'} btn-xs">${done ? 'Try again' : 'Start'}</a>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 async function handIn() {

@@ -722,6 +722,55 @@ CREATE POLICY "attempts_staff_all" ON public.test_attempts
   FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
 
 -- ────────────────────────────────────────
+-- TEST ASSIGNMENTS (a test set to a group, with a deadline)
+-- ────────────────────────────────────────
+-- A test's own open_at / close_at apply to everybody at once. A teacher
+-- running the same course on Sunday and on Tuesday cannot give the two
+-- groups different deadlines without building the paper twice. Setting a
+-- test is its own row: this test, to this group (or to the whole
+-- course), due then.
+--
+-- It ADDS a deadline; it does not gate the test. Whether a student can
+-- open the questions is still the test's own window.
+CREATE TABLE IF NOT EXISTS public.test_assignments (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  test_id    UUID NOT NULL REFERENCES public.practice_tests(id) ON DELETE CASCADE,
+  -- Carried rather than read through the test, so the group it is paired
+  -- with can be checked against the same course by a foreign key.
+  course_id  UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  -- NULL means the whole course.
+  group_id   UUID,
+  due_at     TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT test_assignments_group_fk
+    FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.test_assignments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "test_assignments_staff_all" ON public.test_assignments
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+-- Set to their whole course, or to the group they attend on it — not to
+-- the other group, or they would see a deadline that is not theirs.
+CREATE POLICY "test_assignments_student_read" ON public.test_assignments
+  FOR SELECT USING (
+    public.is_member_of(teacher_id)
+    AND NOT public.student_outside_course(course_id)
+    AND (
+      group_id IS NULL
+      OR public.jwt_role() <> 'student'
+      OR EXISTS (
+        SELECT 1 FROM public.enrollments e
+        WHERE e.student_id = auth.uid()
+          AND e.course_id = test_assignments.course_id
+          AND e.group_id = test_assignments.group_id
+      )
+    )
+  );
+
+-- ────────────────────────────────────────
 -- ASSIGNMENTS
 -- ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.assignments (
@@ -933,6 +982,11 @@ CREATE INDEX IF NOT EXISTS idx_profiles_tenant       ON public.profiles(teacher_
 CREATE INDEX IF NOT EXISTS idx_courses_tenant        ON public.courses(teacher_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_courses_order         ON public.courses(teacher_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_tests_order           ON public.practice_tests(course_id, order_index);
+-- One deadline per test per group, and one for the whole course. Two
+-- partial indexes because a NULL group_id does not collide with itself.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_test_assignment_group  ON public.test_assignments(test_id, group_id) WHERE group_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_test_assignment_course ON public.test_assignments(test_id) WHERE group_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_test_assignments_course       ON public.test_assignments(course_id, due_at);
 CREATE INDEX IF NOT EXISTS idx_modules_course_order  ON public.modules(course_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_lessons_module_order  ON public.lessons(module_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_materials_lesson      ON public.lesson_materials(lesson_id);

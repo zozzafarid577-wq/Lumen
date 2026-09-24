@@ -30,18 +30,70 @@
   </header>
 
   <main class="content">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Set work</span>
-        <span class="small muted" id="count">—</span>
-      </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>Assignment</th><th>Course</th><th>Due</th><th>Handed in</th><th>To mark</th><th></th></tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab on" id="tab-tests" role="tab" onclick="showTab('tests')">Tests</button>
+      <button class="tab" id="tab-work" role="tab" onclick="showTab('work')">Hand-in work</button>
     </div>
+
+    <!-- ── Setting a test ──────────────────────────────────────────
+         A test, who gets it, and when it is due. Three pickers and a
+         button: nothing here is typed. -->
+    <section id="pane-tests">
+      <div class="card mb16">
+        <div class="card-header"><span class="card-title">Set a test</span></div>
+        <div class="card-body">
+          <div class="alert alert-error" id="ta-alert" style="display:none;margin-bottom:14px"></div>
+          <div class="form-row form-row-3">
+            <div class="form-group">
+              <label class="form-label" for="ta-test">Test</label>
+              <select class="form-select" id="ta-test" onchange="onTestPicked()"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ta-group">Give it to</label>
+              <select class="form-select" id="ta-group"><option value="">The whole course</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ta-due">Due</label>
+              <input type="datetime-local" class="form-input" id="ta-due">
+            </div>
+          </div>
+          <div class="row" style="margin-top:4px">
+            <button class="btn btn-primary btn-sm" id="ta-save" onclick="assignTest()">Set it</button>
+            <span class="small muted">Leave the date empty for no deadline.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Set already</span>
+          <span class="small muted" id="ta-count">—</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Test</th><th>Course</th><th>Given to</th><th>Due</th><th>Done</th><th></th></tr></thead>
+            <tbody id="ta-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="pane-work" style="display:none">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Set work</span>
+          <span class="small muted" id="count">—</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Assignment</th><th>Course</th><th>Due</th><th>Handed in</th><th>To mark</th><th></th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -119,6 +171,7 @@
 <script>
 let me = null;
 let courses = [], assignments = [];
+let tests = [], groups = [], setTests = [];
 let editingA = null;
 let markingId = null;
 
@@ -128,11 +181,142 @@ let markingId = null;
   renderShell('teacher', me, { title: 'Assignments' });
 
   document.getElementById('rows').innerHTML = skeletonRows(6, 4);
+  document.getElementById('ta-rows').innerHTML = skeletonRows(6, 3);
   await loadCourses();
-  await loadAssignments();
+  await Promise.all([loadAssignments(), loadTestsAndGroups()]);
+  await loadSetTests();
 
   if (new URLSearchParams(location.search).get('action') === 'new') editAssignment();
 })();
+
+// ── Tests set to a group ──────────────────────────────────────────
+function showTab(which) {
+  const onTests = which === 'tests';
+  document.getElementById('pane-tests').style.display = onTests ? '' : 'none';
+  document.getElementById('pane-work').style.display = onTests ? 'none' : '';
+  document.getElementById('tab-tests').classList.toggle('on', onTests);
+  document.getElementById('tab-work').classList.toggle('on', !onTests);
+}
+
+async function loadTestsAndGroups() {
+  const [{ data: t }, { data: g }] = await Promise.all([
+    sb.from('practice_tests')
+      .select('id, title, course_id, test_sections(name, color)')
+      .eq('teacher_id', me.teacher_id).eq('is_active', true)
+      .order('order_index').order('created_at'),
+    sb.from('groups').select('id, course_id, name, days, start_time')
+      .eq('teacher_id', me.teacher_id).order('name'),
+  ]);
+  tests = t || [];
+  groups = g || [];
+
+  const pick = document.getElementById('ta-test');
+  pick.innerHTML = tests.length
+    ? tests.map(x => {
+        const course = courses.find(c => c.id === x.course_id);
+        return `<option value="${x.id}">${escHtml(x.title)}${course ? ' — ' + escHtml(course.title) : ''}</option>`;
+      }).join('')
+    : '<option value="">No tests yet</option>';
+  onTestPicked();
+}
+
+// The groups offered are the ones on the picked test's course: a group
+// from another course cannot be given this test — the database refuses
+// that pairing, and offering it would be a trap.
+function onTestPicked() {
+  const test = tests.find(x => x.id === document.getElementById('ta-test').value);
+  const mine = test ? groups.filter(g => g.course_id === test.course_id) : [];
+  document.getElementById('ta-group').innerHTML =
+    '<option value="">The whole course</option>'
+    + mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('');
+}
+
+async function loadSetTests() {
+  const { data, error } = await sb.from('test_assignments')
+    .select('id, due_at, group_id, test_id, course_id, groups(name, days, start_time), practice_tests(title, test_sections(name, color), test_attempts(id))')
+    .eq('teacher_id', me.teacher_id).order('due_at', { nullsFirst: false });
+
+  const tbody = document.getElementById('ta-rows');
+  if (error) {
+    // A space that has not run migration v8 has no such table. Say which
+    // update is missing rather than leaving skeleton rows spinning.
+    tbody.innerHTML = emptyRow(6, /relation|schema cache|does not exist/i.test(error.message)
+      ? 'Setting tests needs the latest database update (migration v8).'
+      : friendlyError(error.message));
+    return;
+  }
+
+  setTests = data || [];
+  document.getElementById('ta-count').textContent =
+    setTests.length ? `${setTests.length} set` : 'Nothing set yet';
+
+  if (!setTests.length) { tbody.innerHTML = emptyRow(6, 'No tests set yet — pick one above.'); return; }
+
+  const now = new Date();
+  tbody.innerHTML = setTests.map(a => {
+    const course = courses.find(c => c.id === a.course_id);
+    const done = (a.practice_tests?.test_attempts || []).length;
+    const late = a.due_at && new Date(a.due_at) < now;
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${escHtml(a.practice_tests?.title || '—')}</div>
+        ${sectionBadge(a.practice_tests?.test_sections)}
+      </td>
+      <td class="small muted">${escHtml(course?.title || '—')}</td>
+      <td class="small">${a.groups ? escHtml(groupLabel(a.groups)) : '<span class="badge b-gray">Whole course</span>'}</td>
+      <td class="small ${late ? '' : 'muted'}">${a.due_at
+        ? `${late ? '<span class="badge b-red">Past</span> ' : ''}${fmtDateTime(a.due_at)}`
+        : 'No deadline'}</td>
+      <td class="num muted">${done}</td>
+      <td style="text-align:right">
+        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="unsetTest('${a.id}')">Remove</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function assignTest() {
+  const testId = document.getElementById('ta-test').value;
+  if (!testId) { say('ta-alert', 'Build a test first — there is nothing to set.'); return; }
+
+  const test = tests.find(x => x.id === testId);
+  const due = document.getElementById('ta-due').value;
+
+  const btn = document.getElementById('ta-save');
+  btn.disabled = true;
+  const { error } = await sb.from('test_assignments').insert({
+    teacher_id: me.teacher_id,
+    test_id: testId,
+    course_id: test.course_id,
+    group_id: document.getElementById('ta-group').value || null,
+    due_at: due ? new Date(due).toISOString() : null,
+  });
+  btn.disabled = false;
+
+  if (error) {
+    // The two partial unique indexes are what catch the same test being
+    // set to the same group twice, with two different dates.
+    say('ta-alert', /duplicate|unique/i.test(error.message)
+      ? 'That test is already set to them. Remove the old one first, or pick another group.'
+      : friendlyError(error.message));
+    return;
+  }
+
+  say('ta-alert', '');
+  document.getElementById('ta-due').value = '';
+  await loadSetTests();
+  showToast('Test set.', 'success');
+}
+
+async function unsetTest(id) {
+  const a = setTests.find(x => x.id === id);
+  if (!confirm(`Stop setting "${a?.practice_tests?.title || 'this test'}"? Results already in are kept.`)) return;
+
+  const { error } = await sb.from('test_assignments').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  await loadSetTests();
+  showToast('No longer set.', 'success');
+}
 
 async function loadCourses() {
   const { data } = await sb.from('courses').select('id, title')
