@@ -126,6 +126,15 @@ let enrolmentsBy = new Map();
   document.getElementById('rows').innerHTML = skeletonRows(7, 5);
   await load();
 
+  // Arriving from a student's page: open that student straight away,
+  // rather than making the teacher find the name again in the list.
+  const wanted = new URLSearchParams(location.search).get('student');
+  if (wanted && summary.some(s => s.id === wanted)) {
+    open.add(wanted);
+    render();
+    document.querySelector('tr.open')?.scrollIntoView({ block: 'center' });
+  }
+
   document.getElementById('q').addEventListener('input', render);
   document.getElementById('sort').addEventListener('change', render);
 })();

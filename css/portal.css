@@ -330,6 +330,15 @@ html[data-theme="dark"] .on-dark { display: block; }
 .b-yellow { background: #FBF1E3; color: var(--warning); }
 .b-gray   { background: #F1EEF1; color: var(--muted); }
 
+/* A name in a table that opens the thing it names. It has to be a real
+   button for the keyboard, but it should read as the name it is. */
+.link-name {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; font-weight: 600; color: var(--text);
+  text-align: left; cursor: pointer;
+}
+.link-name:hover { color: var(--primary); text-decoration: underline; }
+
 /* ── BUTTONS ─────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;

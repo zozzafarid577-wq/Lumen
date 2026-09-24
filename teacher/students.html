@@ -168,6 +168,82 @@
   </div>
 </div>
 
+<!-- ── ONE STUDENT ────────────────────────────────────────────── -->
+<!-- Everything a teacher knows about a student, in one place, with the
+     fields editable where they are the teacher's to correct. A row in a
+     table can only ever show a slice; this is the whole account. -->
+<div class="modal-backdrop" id="student-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head">
+      <span class="modal-title" id="sd-title">Student</span>
+      <button class="modal-close" onclick="closeModal('student-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="sd-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:18px" id="sd-badges"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="sd-name">Full name</label>
+          <input type="text" class="form-input" id="sd-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sd-email">Sign-in email</label>
+          <input type="email" class="form-input" id="sd-email">
+          <p class="form-hint">Changing this changes how they sign in. They are emailed about it.</p>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="sd-phone">Student phone</label>
+          <input type="tel" class="form-input" id="sd-phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sd-parent-phone">Parent phone</label>
+          <input type="tel" class="form-input" id="sd-parent-phone">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="sd-parent-email">Parent email</label>
+        <input type="email" class="form-input" id="sd-parent-email">
+        <p class="form-hint">Where a result is sent the moment a test is finished. Leave empty for none.</p>
+      </div>
+
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:4px">
+        <div class="spread" style="margin-bottom:10px">
+          <span class="small muted">Courses &amp; groups</span>
+          <button class="btn btn-ghost btn-xs" id="sd-enrol">Change</button>
+        </div>
+        <div id="sd-courses" class="small" style="margin-bottom:14px"></div>
+
+        <div class="spread" style="margin-bottom:10px">
+          <span class="small muted">Tests done</span>
+          <a class="small" id="sd-progress" style="color:var(--primary);font-weight:600" href="/teacher/progress.html">Full progress →</a>
+        </div>
+        <div id="sd-results" class="small"></div>
+      </div>
+
+      <!-- The account actions live here rather than in the table row, so
+           that reaching for Delete means having the student open in front
+           of you first. -->
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:18px">
+        <button class="btn btn-outline btn-sm" id="sd-reset">Reset password</button>
+        <button class="btn btn-outline btn-sm" id="sd-pause">Pause</button>
+        <button class="btn btn-ghost btn-sm" id="sd-delete" style="color:var(--danger)">Delete</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('student-modal')">Close</button>
+      <button class="btn btn-primary" id="sd-save" onclick="saveStudent()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── COURSES & GROUPS ───────────────────────────────────────── -->
 <!-- Until now enrolments could only be set when the account was made, so
      a student who switched to the Tuesday class could not be moved. -->
@@ -233,6 +309,7 @@ let courses = [];
 let students = [];
 let groups = [];              // every group across every course
 let editingEnrol = null;
+let editingStudent = null;
 let lastCreated = null;
 let lastReset = null;
 let pendingDelete = null;
@@ -276,7 +353,7 @@ async function loadStudents() {
   // Enrolments come back nested so the course column does not need a
   // second round trip per student.
   const { data, error } = await sb.from('profiles')
-    .select('id, full_name, email, phone, parent_phone, is_active, created_at, enrollments(course_id, group_id, courses(title))')
+    .select('id, full_name, email, phone, parent_phone, parent_email, is_active, created_at, must_change_pw, enrollments(course_id, group_id, courses(title))')
     .eq('teacher_id', me.teacher_id).eq('role', 'student')
     .order('created_at', { ascending: false });
 
@@ -455,7 +532,7 @@ function render() {
     }).filter(Boolean);
     return `<tr>
       <td>
-        <div style="font-weight:600">${escHtml(s.full_name)}</div>
+        <button class="link-name" onclick="openStudent('${s.id}')">${escHtml(s.full_name)}</button>
         <div class="small muted">${escHtml(s.email || '')}</div>
       </td>
       <td class="small">${badges.length ? badges.join('') : '<span class="muted">—</span>'}</td>
@@ -463,13 +540,127 @@ function render() {
       <td class="small muted">${fmtDate(s.created_at)}</td>
       <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
       <td style="text-align:right;white-space:nowrap">
-        <button class="btn btn-ghost btn-xs" onclick="openEnrol('${s.id}')">Courses &amp; groups</button>
-        <button class="btn btn-ghost btn-xs" onclick="resetPassword('${s.id}')">Reset password</button>
-        <button class="btn btn-ghost btn-xs" onclick="togglePause('${s.id}')">${s.is_active ? 'Pause' : 'Resume'}</button>
-        <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${s.id}')">Delete</button>
+        <button class="btn btn-outline btn-xs" onclick="openStudent('${s.id}')">Open</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── One student ───────────────────────────────────────────────────
+// Opening a student is meant to answer every question about them at
+// once — who they are, how to reach their parent, what they are on, how
+// they are doing — and let the answers be corrected on the spot.
+function openStudent(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  editingStudent = s;
+
+  document.getElementById('sd-title').textContent = s.full_name;
+  document.getElementById('sd-name').value = s.full_name || '';
+  document.getElementById('sd-email').value = s.email || '';
+  document.getElementById('sd-phone').value = s.phone || '';
+  document.getElementById('sd-parent-phone').value = s.parent_phone || '';
+  document.getElementById('sd-parent-email').value = s.parent_email || '';
+  say('sd-alert', '');
+
+  document.getElementById('sd-badges').innerHTML = [
+    `<span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span>`,
+    s.must_change_pw ? '<span class="badge b-yellow">Has not set a password yet</span>' : '',
+    `<span class="small muted">Added ${fmtDate(s.created_at)}</span>`,
+  ].filter(Boolean).join('');
+
+  document.getElementById('sd-courses').innerHTML = drawEnrolSummary(s);
+  document.getElementById('sd-progress').href = `/teacher/progress.html?student=${s.id}`;
+
+  // The actions carry the id with them rather than being rebuilt as HTML,
+  // so a name with an apostrophe in it cannot break them.
+  document.getElementById('sd-enrol').onclick  = () => { closeModal('student-modal'); openEnrol(s.id); };
+  document.getElementById('sd-reset').onclick  = () => { closeModal('student-modal'); resetPassword(s.id); };
+  document.getElementById('sd-delete').onclick = () => { closeModal('student-modal'); askDelete(s.id); };
+  const pause = document.getElementById('sd-pause');
+  pause.textContent = s.is_active ? 'Pause' : 'Resume';
+  pause.onclick = async () => { closeModal('student-modal'); await togglePause(s.id); };
+
+  const save = document.getElementById('sd-save');
+  save.disabled = false;
+  save.textContent = 'Save changes';
+
+  document.getElementById('sd-results').innerHTML = '<span class="muted">Loading…</span>';
+  openModal('student-modal');
+  loadStudentResults(s.id);
+}
+
+function drawEnrolSummary(s) {
+  const rows = (s.enrollments || []).map(e => {
+    const title = e.courses?.title;
+    if (!title) return '';
+    const g = groups.find(x => x.id === e.group_id);
+    // The schedule is the part a teacher actually recognises a group by,
+    // so it goes in whenever the group has one.
+    const when = g ? groupWhen(g) : '';
+    return `<div style="margin-bottom:2px">${escHtml(title)}${g
+      ? ` · <span class="muted">${escHtml(g.name)}${when ? ' · ' + escHtml(when) : ''}</span>`
+      : ' · <span class="muted">no group set</span>'}</div>`;
+  }).filter(Boolean);
+  return rows.length ? rows.join('') : '<span class="muted">Not on any course yet.</span>';
+}
+
+// Their marks, fetched only when a student is actually opened. The
+// progress page is the place for the full picture; this is the glance
+// that saves going there.
+async function loadStudentResults(id) {
+  const { data, error } = await sb.from('test_attempts')
+    .select('percentage, passed, completed_at, practice_tests(title)')
+    .eq('teacher_id', me.teacher_id).eq('student_id', id)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false }).limit(6);
+
+  // A student opened, then closed, then another opened while this was in
+  // flight would otherwise write the first one's marks into the second.
+  if (!editingStudent || editingStudent.id !== id) return;
+
+  const host = document.getElementById('sd-results');
+  if (error) { host.innerHTML = `<span class="muted">${escHtml(friendlyError(error.message))}</span>`; return; }
+  const list = data || [];
+  if (!list.length) { host.innerHTML = '<span class="muted">No tests done yet.</span>'; return; }
+
+  host.innerHTML = list.map(a => `<div class="spread" style="margin-bottom:3px">
+    <span>${escHtml(a.practice_tests?.title || 'Test')} <span class="muted">· ${fmtDate(a.completed_at)}</span></span>
+    <span class="badge ${a.passed ? 'b-green' : 'b-red'}">${Math.round(parseFloat(a.percentage) || 0)}%</span>
+  </div>`).join('');
+}
+
+async function saveStudent() {
+  const s = editingStudent;
+  if (!s) return;
+  const btn = document.getElementById('sd-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  say('sd-alert', '');
+
+  try {
+    const body = {
+      action: 'update',
+      student_id: s.id,
+      full_name: document.getElementById('sd-name').value.trim(),
+      email: document.getElementById('sd-email').value.trim(),
+      phone: document.getElementById('sd-phone').value.trim(),
+      parent_phone: document.getElementById('sd-parent-phone').value.trim(),
+      parent_email: document.getElementById('sd-parent-email').value.trim(),
+    };
+    if (!body.full_name) throw new Error('A student needs a name.');
+    if (!body.email) throw new Error('A student needs an email to sign in with.');
+
+    const out = await apiPost('/api/students', body);
+    closeModal('student-modal');
+    editingStudent = null;
+    showToast(out.changed?.length ? `Saved · ${out.changed.join(', ')}` : 'Nothing had changed.', 'success');
+    await loadStudents();
+  } catch (err) {
+    say('sd-alert', friendlyError(err.message));
+    btn.disabled = false;
+    btn.textContent = 'Save changes';
+  }
 }
 
 // ── Create ────────────────────────────────────────────────────────

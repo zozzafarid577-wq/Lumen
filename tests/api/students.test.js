@@ -249,6 +249,109 @@ describe('acting on an existing student', () => {
   });
 });
 
+describe('editing a student', () => {
+  const mine = {
+    id: 'stu-1', full_name: 'Sara', email: 'sara@example.com', role: 'student',
+    teacher_id: TEACHER_ID, is_active: true,
+    phone: '0100', parent_phone: '0111', parent_email: 'mum@example.com',
+  };
+
+  beforeEach(() => {
+    asUser(TEACHER_USER, { extraProfiles: { 'stu-1': mine } });
+  });
+
+  it('saves the details a teacher can correct', async () => {
+    const res = await call({
+      action: 'update', student_id: 'stu-1',
+      full_name: 'Sara Ahmed', phone: '0102', parent_phone: '0111',
+      parent_email: 'Dad@Example.com',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [update] = getSupabaseCalls('profiles.update');
+    expect(update.filters.id).toBe('stu-1');
+    expect(update.payload).toEqual({
+      full_name: 'Sara Ahmed', phone: '0102', parent_email: 'dad@example.com',
+    });
+    // The parent phone came back the same, so it is not in the patch.
+    expect(res.body.changed).not.toContain('parent phone');
+  });
+
+  it('lets a parent email that was typed wrong be cleared', async () => {
+    const res = await call({ action: 'update', student_id: 'stu-1', parent_email: '' });
+
+    expect(res.statusCode).toBe(200);
+    const [update] = getSupabaseCalls('profiles.update');
+    expect(update.payload).toEqual({ parent_email: null });
+  });
+
+  it('leaves fields the form did not send alone', async () => {
+    await call({ action: 'update', student_id: 'stu-1', full_name: 'Sara Ahmed' });
+
+    const [update] = getSupabaseCalls('profiles.update');
+    expect(update.payload).toEqual({ full_name: 'Sara Ahmed' });
+  });
+
+  it('writes nothing at all when nothing actually changed', async () => {
+    const res = await call({
+      action: 'update', student_id: 'stu-1',
+      full_name: 'Sara', phone: '0100', parent_phone: '0111',
+      parent_email: 'mum@example.com', email: 'sara@example.com',
+    });
+
+    expect(res.body).toEqual({ ok: true, changed: [] });
+    expect(getSupabaseCalls('profiles.update')).toHaveLength(0);
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+  });
+
+  it('moves the sign-in email in both places and tells the student', async () => {
+    const res = await call({ action: 'update', student_id: 'stu-1', email: 'Sara.New@Example.com' });
+
+    expect(res.statusCode).toBe(200);
+    const [auth] = getSupabaseCalls('auth.admin.updateUserById');
+    expect(auth.payload).toEqual({ id: 'stu-1', email: 'sara.new@example.com', email_confirm: true });
+
+    const [update] = getSupabaseCalls('profiles.update');
+    expect(update.payload).toEqual({ email: 'sara.new@example.com' });
+    expect(res.body.changed).toContain('sign-in email');
+  });
+
+  it('refuses an email that belongs to somebody else', async () => {
+    configureSupabaseMock({ results: {
+      'auth.admin.listUsers': { data: { users: [{ id: 'someone-else', email: 'taken@example.com' }] }, error: null },
+    } });
+
+    const res = await call({ action: 'update', student_id: 'stu-1', email: 'taken@example.com' });
+
+    expect(res.statusCode).toBe(409);
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+    expect(getSupabaseCalls('profiles.update')).toHaveLength(0);
+  });
+
+  it('puts the sign-in back when the profile write then fails', async () => {
+    // Otherwise the student is left signing in with an address their
+    // teacher cannot see on the page in front of them.
+    configureSupabaseMock({ results: {
+      'profiles.update': { data: null, error: { message: 'nope' } },
+    } });
+
+    const res = await call({ action: 'update', student_id: 'stu-1', email: 'sara.new@example.com' });
+
+    expect(res.statusCode).toBe(500);
+    const rollback = getSupabaseCalls('auth.admin.updateUserById');
+    expect(rollback).toHaveLength(2);
+    expect(rollback[1].payload.email).toBe('sara@example.com');
+  });
+
+  it('will not edit a student in another tenant', async () => {
+    asUser(TEACHER_USER, { extraProfiles: { 'stu-2': { ...mine, id: 'stu-2', teacher_id: OTHER_TEACHER_ID } } });
+    const res = await call({ action: 'update', student_id: 'stu-2', full_name: 'Hacked' });
+
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('profiles.update')).toHaveLength(0);
+  });
+});
+
 describe('who may call it', () => {
   it('turns away a request with no token', async () => {
     const res = await call({}, { token: null });
