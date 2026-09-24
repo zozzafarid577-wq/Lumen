@@ -77,12 +77,13 @@
             <input type="tel" id="phone" required autocomplete="tel" placeholder="01x xxxx xxxx">
           </div>
           <div class="field">
-            <label for="parent_phone">Parent's mobile <span style="font-weight:400;opacity:.6">(optional)</span></label>
-            <input type="tel" id="parent_phone" autocomplete="off" placeholder="01x xxxx xxxx">
+            <label for="parent_phone">Parent's mobile</label>
+            <input type="tel" id="parent_phone" required autocomplete="off" placeholder="01x xxxx xxxx">
           </div>
           <div class="field">
-            <label for="parent_email">Parent's email <span style="font-weight:400;opacity:.6">(optional)</span></label>
-            <input type="email" id="parent_email" autocomplete="off" placeholder="parent@example.com">
+            <label for="parent_email">Parent's email</label>
+            <input type="email" id="parent_email" required autocomplete="off" placeholder="parent@example.com">
+            <p style="font-size:.8rem;color:var(--muted);margin:6px 0 0">Your teacher needs a way to reach your family about attendance and results.</p>
           </div>
           <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit">Register</button>
         </form>
@@ -170,8 +171,20 @@ el('join-form').addEventListener('submit', async e => {
     parent_email: el('parent_email').value,
   };
 
-  if (!payload.full_name.trim() || !payload.email.trim() || !payload.phone.trim()) {
-    return say('err', 'Please fill in your name, email and mobile number.');
+  // Named one at a time rather than as "fill everything in": a student
+  // staring at five filled boxes and one empty one should be told which.
+  const missing = [
+    [payload.full_name, 'your full name'],
+    [payload.email, 'your email'],
+    [payload.phone, 'your mobile number'],
+    [payload.parent_phone, "a parent's mobile number"],
+    [payload.parent_email, "a parent's email"],
+  ].filter(([v]) => !String(v || '').trim()).map(([, label]) => label);
+
+  if (missing.length) {
+    return say('err', `Please add ${missing.length > 1
+      ? missing.slice(0, -1).join(', ') + ' and ' + missing[missing.length - 1]
+      : missing[0]}.`);
   }
 
   sent = true;

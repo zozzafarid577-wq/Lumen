@@ -56,11 +56,15 @@ function canMakeAccounts() {
   };
 }
 
+// A parent's number and address are required, so a valid submission
+// carries them.
 const GOOD = {
   action: 'submit',
   full_name: 'Sara Ahmed',
   email: 'Sara@Example.com',
   phone: '+20 101 234 5678',
+  parent_phone: '+20 100 000 1111',
+  parent_email: 'Parent@Example.com',
 };
 
 // The "have we seen this person" queries, as opposed to the head/count
@@ -277,6 +281,49 @@ describe('when the account cannot be made', () => {
     // from ever trying again.
     await call({ ...GOOD, token: TOKEN });
     expect(getSupabaseCalls('student_registrations.delete')).toHaveLength(1);
+  });
+
+  it('insists on a parent’s email', async () => {
+    const res = await call({ ...GOOD, token: TOKEN, parent_email: '' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/parent/i);
+    expect(getSupabaseCalls('student_registrations.insert')).toHaveLength(0);
+  });
+
+  it('insists a parent’s email is a real address', async () => {
+    const res = await call({ ...GOOD, token: TOKEN, parent_email: 'dad' });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('insists on a parent’s mobile number', async () => {
+    const res = await call({ ...GOOD, token: TOKEN, parent_phone: '' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/parent/i);
+    expect(getSupabaseCalls('student_registrations.insert')).toHaveLength(0);
+  });
+
+  it('rejects a parent’s number too short to be one', async () => {
+    const res = await call({ ...GOOD, token: TOKEN, parent_phone: '123' });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('lets two siblings register on the same parent’s number', async () => {
+    // The parent's number is deliberately NOT part of "have we seen this
+    // person". Matching on it would refuse the second child in a family
+    // as a duplicate of the first, which is the commonest household
+    // there is.
+    configureSupabaseMock({ results: {
+      ...withInvite(), ...canMakeAccounts(),
+      'student_registrations.select': { data: [], error: null },
+      'profiles.select': { data: [{
+        full_name: 'Omar Ahmed', email: 'omar@example.com',
+        phone: '+20 102 222 3333', parent_phone: '+20 100 000 1111',
+      }], error: null },
+    } });
+
+    const res = await call({ ...GOOD, token: TOKEN });
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(1);
   });
 
   it('insists on a mobile number', async () => {

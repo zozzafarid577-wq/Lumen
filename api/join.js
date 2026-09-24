@@ -51,13 +51,32 @@ async function submit(res, invite, body, req) {
   const email       = cleanEmail(body.email);
   const phone       = cleanText(body.phone, { max: 40 });
   const parentPhone = cleanText(body.parent_phone, { max: 40 });
-  const parentEmail = body.parent_email ? cleanEmail(body.parent_email) : null;
 
   // Required, not optional, because it is half of what says "this is the
   // same person" — and because a teacher with a class and no numbers for
   // it cannot reach anybody.
   const key = phoneKey(phone);
   if (!key) throw new HttpError(400, 'Please enter your mobile number so your teacher can reach you.');
+
+  // The parent's details are required too. A teacher who needs to talk
+  // to somebody's family about attendance or a result cannot do it
+  // through a teenager's phone, and the moment they need it is never the
+  // moment to start asking for it.
+  //
+  // Checked here and not only in the page, because the page is the half
+  // of this a determined student can skip.
+  if (!body.parent_email) {
+    throw new HttpError(400, 'Please enter a parent’s email address.');
+  }
+  const parentEmail = cleanEmail(body.parent_email);
+
+  if (!phoneKey(parentPhone)) {
+    throw new HttpError(400, 'Please enter a parent’s mobile number.');
+  }
+  // Deliberately not added to the "have we seen this person" check
+  // below. Siblings share a parent, and matching on the parent's number
+  // would refuse the second child in a family as a duplicate of the
+  // first.
 
   await assertNotFlooding(invite.id);
   const { nameFlag } = await screen(invite.teacher_id, { email, key, fullName });

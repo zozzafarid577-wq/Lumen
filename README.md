@@ -294,6 +294,17 @@ A matching **name** is not a block. Two real students called Mohamed Ali
 is ordinary, and refusing the second would turn a common name into a
 locked door, so the registration is flagged and the teacher decides.
 
+A registration asks for **a parent's mobile and email as well as the
+student's own**, and both are required. A teacher who needs to reach
+somebody's family about attendance or a result cannot do it through a
+teenager's phone, and the moment they need it is never the moment to
+start asking for it. `api/result-email.js` sends a finished test's mark
+to exactly that address.
+
+The parent's number is deliberately **not** part of the once-per-person
+check. Siblings share a parent, and matching on it would refuse the
+second child in a family as a duplicate of the first.
+
 ### The account is made there and then
 
 A student who fills the form in gets their account in the same request,
