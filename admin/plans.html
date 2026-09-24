@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plans &amp; pricing | Lumen console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Plans &amp; pricing</span>
+    </div>
+    <div class="topbar-right">
+      <a href="/pricing.html" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View the page</a>
+      <button class="btn btn-primary btn-sm" onclick="openPlan(null)">Add a plan</button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="alert alert-info mb16">
+      These are the prices the website quotes and the figures a new teacher's
+      subscription is opened on. Changing one here changes the site straight away.
+      Teachers already on a plan keep the price they agreed unless you say otherwise.
+    </div>
+
+    <!-- The two listings are different products, not one list sorted two
+         ways: packages are cards on the site, tiers are a table of bands.
+         Reordering only ever happens inside a listing. -->
+    <div class="card mb16">
+      <div class="card-header">
+        <span class="card-title">Packages</span>
+        <span class="small muted">Shown as cards on the home and pricing pages</span>
+      </div>
+      <div class="card-body" id="packages"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">By class size</span>
+        <span class="small muted">The tier table on the pricing page</span>
+      </div>
+      <div class="card-body" id="tiers"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── ONE PLAN ───────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="plan-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head">
+      <span class="modal-title" id="pm-title">Add a plan</span>
+      <button class="modal-close" onclick="closeModal('plan-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="pm-alert" style="display:none;margin-bottom:16px"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="pm-name">Name</label>
+          <input type="text" class="form-input" id="pm-name" placeholder="Up to 100 students">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-code">Code</label>
+          <input type="text" class="form-input" id="pm-code" placeholder="tier-100">
+          <p class="form-hint" id="pm-code-hint">Used in the ?plan= link and on every subscription. It cannot be changed later.</p>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="pm-listing">Where it shows</label>
+          <select class="form-select" id="pm-listing">
+            <option value="package">A package card</option>
+            <option value="tier">A row in the class-size table</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-package">Service level</label>
+          <select class="form-select" id="pm-package">
+            <option value="basic">Platform management only</option>
+            <option value="full">Platform + student support</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="pm-monthly">Monthly fee (EGP)</label>
+          <input type="number" class="form-input" id="pm-monthly" min="0" step="100" placeholder="6000">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-setup">One-time setup fee (EGP)</label>
+          <input type="number" class="form-input" id="pm-setup" min="0" step="100" placeholder="10000">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="pm-limit">Students included</label>
+        <input type="number" class="form-input" id="pm-limit" min="1" step="10" placeholder="60">
+        <p class="form-hint">The cap on active student accounts for a teacher on this plan.</p>
+      </div>
+
+      <!-- Only a package card has room for these two; a tier is one line
+           in a table. Hidden rather than ignored, so nobody types a
+           feature list that will never appear anywhere. -->
+      <div id="pm-card-only">
+        <div class="form-group">
+          <label class="form-label" for="pm-blurb">One-line note under the card</label>
+          <input type="text" class="form-input" id="pm-blurb" placeholder="Best for teachers who…">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-features">What is included</label>
+          <textarea class="form-input" id="pm-features" rows="6" placeholder="One per line"></textarea>
+          <p class="form-hint">One bullet per line.</p>
+        </div>
+      </div>
+
+      <label class="form-check" style="margin-top:4px">
+        <input type="checkbox" id="pm-active" checked>
+        <span>Offer this plan on the website</span>
+      </label>
+
+      <!-- Shown only when a saved plan's money has actually moved, and
+           somebody is on it. Nothing here is ticked by default. -->
+      <div id="pm-holders" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:16px">
+        <p class="small" id="pm-holders-text" style="margin-bottom:10px"></p>
+        <label class="form-check" style="margin:0">
+          <input type="checkbox" id="pm-apply">
+          <span class="small">Also move them to the new figures</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="pm-delete" style="color:var(--danger);margin-right:auto">Delete</button>
+      <button class="btn btn-ghost" onclick="closeModal('plan-modal')">Cancel</button>
+      <button class="btn btn-primary" id="pm-save" onclick="savePlan()">Save plan</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let plans = [];
+let editing = null;          // the plan open in the modal, or null for a new one
+let counts = new Map();      // plan code → how many teachers are on it
+
+(async () => {
+  me = await requireAuth('owner');
+  if (!me) return;
+  renderShell('admin', me, { title: 'Plans & pricing' });
+  await load();
+})();
+
+async function load() {
+  // Both reads are the owner's own: the plans policy lets staff see the
+  // inactive ones too, which is the whole point of this page.
+  const [{ data, error }, { data: subs }] = await Promise.all([
+    sb.from('plans').select('*').order('listing').order('sort_order'),
+    sb.from('subscriptions').select('plan_code'),
+  ]);
+
+  counts = new Map();
+  (subs || []).forEach(s => {
+    if (s.plan_code) counts.set(s.plan_code, (counts.get(s.plan_code) || 0) + 1);
+  });
+
+  if (error) {
+    document.getElementById('packages').innerHTML =
+      `<div class="alert alert-error">${escHtml(friendlyError(error.message))}</div>`;
+    return;
+  }
+  plans = data || [];
+  render();
+}
+
+function render() {
+  drawList('packages', plans.filter(p => p.listing === 'package'), 'No packages yet.');
+  drawList('tiers', plans.filter(p => p.listing === 'tier'), 'No class-size tiers yet.');
+}
+
+function drawList(hostId, list, empty) {
+  const host = document.getElementById(hostId);
+  if (!list.length) { host.innerHTML = `<p class="small muted">${empty}</p>`; return; }
+
+  host.innerHTML = list.map(p => {
+    const on = counts.get(p.code) || 0;
+    return `<div class="plan-row${p.is_active ? '' : ' off'}" data-id="${p.code}">
+      <span class="drag-handle" data-kind="plan" title="Drag to reorder" aria-label="Drag to reorder">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </span>
+      <div style="flex:1;min-width:150px">
+        <div style="font-weight:700">${escHtml(p.name)}</div>
+        <div class="small muted">${escHtml(p.code)} · up to ${p.student_limit} students ·
+          ${p.package === 'full' ? 'with student support' : 'platform only'}</div>
+      </div>
+      <div style="text-align:right;min-width:120px">
+        <div style="font-weight:700">${money(p.monthly_fee_egp)} EGP<span class="small muted"> / month</span></div>
+        <div class="small muted">${p.setup_fee_egp ? money(p.setup_fee_egp) + ' EGP setup' : 'no setup fee'}</div>
+      </div>
+      <div style="min-width:110px;text-align:right">
+        ${p.is_active ? '' : '<span class="badge b-gray">Off the site</span>'}
+        ${on ? `<span class="badge b-brand">${on} teacher${on === 1 ? '' : 's'}</span>` : ''}
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="openPlan('${p.code}')">Edit</button>
+    </div>`;
+  }).join('');
+
+  // Reordering is only ever within one listing, so each list is its own
+  // sortable and a package can never be dragged into the tier table.
+  makeSortable(host, {
+    itemSelector: '.plan-row',
+    handleSelector: '.drag-handle',
+    onReorder: async (codes) => {
+      try {
+        await apiPost('/api/plans', { action: 'reorder', codes });
+        await load();
+      } catch (err) { showToast(friendlyError(err.message), 'error'); }
+    },
+  });
+}
+
+function money(n) { return Number(n || 0).toLocaleString('en-US'); }
+
+// ── One plan ──────────────────────────────────────────────────────
+function openPlan(code) {
+  editing = code ? plans.find(p => p.code === code) : null;
+  const p = editing;
+
+  document.getElementById('pm-title').textContent = p ? p.name : 'Add a plan';
+  document.getElementById('pm-name').value = p?.name || '';
+  document.getElementById('pm-code').value = p?.code || '';
+  document.getElementById('pm-listing').value = p?.listing || 'package';
+  document.getElementById('pm-package').value = p?.package || 'full';
+  document.getElementById('pm-monthly').value = p?.monthly_fee_egp ?? '';
+  document.getElementById('pm-setup').value = p?.setup_fee_egp ?? 0;
+  document.getElementById('pm-limit').value = p?.student_limit ?? '';
+  document.getElementById('pm-blurb').value = p?.blurb || '';
+  document.getElementById('pm-features').value = (p?.features || []).join('\n');
+  document.getElementById('pm-active').checked = p ? p.is_active !== false : true;
+  document.getElementById('pm-apply').checked = false;
+  say('pm-alert', '');
+
+  // The code is the handle every subscription already holds, so it is
+  // typed once and read-only forever after.
+  const codeField = document.getElementById('pm-code');
+  codeField.readOnly = !!p;
+  document.getElementById('pm-code-hint').textContent = p
+    ? 'Set when the plan was created. It cannot be changed.'
+    : 'Used in the ?plan= link and on every subscription. It cannot be changed later.';
+
+  toggleCardFields();
+
+  const del = document.getElementById('pm-delete');
+  del.style.display = p ? 'inline-flex' : 'none';
+  del.onclick = () => deletePlan(p.code);
+
+  updateHolderNote();
+  const save = document.getElementById('pm-save');
+  save.disabled = false;
+  save.textContent = 'Save plan';
+  openModal('plan-modal');
+}
+
+function toggleCardFields() {
+  const isCard = document.getElementById('pm-listing').value === 'package';
+  document.getElementById('pm-card-only').style.display = isCard ? 'block' : 'none';
+}
+
+// Says plainly what a price change does and does not do, and only when
+// there is actually somebody it could affect.
+function updateHolderNote() {
+  const box = document.getElementById('pm-holders');
+  const on = editing ? (counts.get(editing.code) || 0) : 0;
+  const moved = editing && (
+    Number(document.getElementById('pm-monthly').value) !== editing.monthly_fee_egp ||
+    Number(document.getElementById('pm-setup').value) !== editing.setup_fee_egp ||
+    Number(document.getElementById('pm-limit').value) !== editing.student_limit
+  );
+
+  if (!on || !moved) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  document.getElementById('pm-holders-text').textContent =
+    `${on} teacher${on === 1 ? ' is' : 's are'} on this plan. They keep the figures they agreed to — this change is for new ones.`;
+}
+
+async function savePlan() {
+  const btn = document.getElementById('pm-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  say('pm-alert', '');
+
+  try {
+    const out = await apiPost('/api/plans', {
+      action: 'save',
+      code:            document.getElementById('pm-code').value.trim(),
+      name:            document.getElementById('pm-name').value.trim(),
+      listing:         document.getElementById('pm-listing').value,
+      package:         document.getElementById('pm-package').value,
+      monthly_fee_egp: Number(document.getElementById('pm-monthly').value),
+      setup_fee_egp:   Number(document.getElementById('pm-setup').value || 0),
+      student_limit:   Number(document.getElementById('pm-limit').value),
+      blurb:           document.getElementById('pm-blurb').value.trim(),
+      features:        document.getElementById('pm-features').value,
+      is_active:       document.getElementById('pm-active').checked,
+      apply_to_subscriptions: document.getElementById('pm-apply').checked,
+    });
+
+    closeModal('plan-modal');
+    showToast(out.applied
+      ? `Saved · ${out.applied} teacher${out.applied === 1 ? '' : 's'} moved to the new figures.`
+      : out.left_on_old_price
+        ? `Saved · ${out.left_on_old_price} teacher${out.left_on_old_price === 1 ? '' : 's'} kept the old price.`
+        : 'Saved.', 'success');
+    await load();
+  } catch (err) {
+    say('pm-alert', friendlyError(err.message));
+    btn.disabled = false;
+    btn.textContent = 'Save plan';
+  }
+}
+
+async function deletePlan(code) {
+  const on = counts.get(code) || 0;
+  if (on) {
+    // The API refuses this too. Saying it here saves a round trip and
+    // names the thing to do instead.
+    say('pm-alert', `${on} teacher${on === 1 ? ' is' : 's are'} on this plan, so it cannot be deleted. Untick "Offer this plan on the website" instead — it comes off the site and they stay as they are.`);
+    return;
+  }
+  if (!confirm('Delete this plan? Nobody is on it, so nothing else changes.')) return;
+
+  try {
+    await apiPost('/api/plans', { action: 'delete', code });
+    closeModal('plan-modal');
+    showToast('Plan deleted.', 'success');
+    await load();
+  } catch (err) { say('pm-alert', friendlyError(err.message)); }
+}
+
+function say(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+
+document.getElementById('pm-listing').addEventListener('change', toggleCardFields);
+['pm-monthly', 'pm-setup', 'pm-limit'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updateHolderNote));
+</script>
+</body>
+</html>

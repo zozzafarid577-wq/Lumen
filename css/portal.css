@@ -498,6 +498,28 @@ html[data-theme="dark"] .section-badge { background: var(--primary); color: #fff
 .test-row .drag-handle { margin-left: -26px; margin-right: -4px; }
 .dragging { opacity: .4; }
 
+/* A row in the price list. Wide enough on a desktop to read as a line —
+   name, money, who is on it — and stacked on a phone rather than
+   squeezing four columns into 375px. */
+.plan-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px;
+  margin-bottom: 10px; background: var(--card);
+}
+.plan-row:last-child { margin-bottom: 0; }
+.plan-row .drag-handle { opacity: 0; }
+.plan-row:hover .drag-handle, .plan-row .drag-handle:focus-visible { opacity: 1; }
+/* A plan that is off the website should look retired in the list, not
+   deleted: it is still the plan somebody is paying on. */
+.plan-row.off { background: var(--bg); border-style: dashed; }
+.plan-row.off > div:not(:last-child) { opacity: .6; }
+/* Stacked on a phone, the money should read down the left edge like
+   everything above it, not hang off the right of its own row. */
+@media (max-width: 700px) {
+  .plan-row > div { text-align: left !important; min-width: 0 !important; width: 100%; }
+  .plan-row .drag-handle { display: none; }
+}
+
 /* ── A GREETING, NOT A BANNER ────────────────────────────────────
    A student's dashboard opens on their courses. The hello is a line
    above them rather than a slab of gradient pushing them below the

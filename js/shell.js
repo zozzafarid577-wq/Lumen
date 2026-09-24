@@ -22,6 +22,7 @@ const ICON = {
   play:      '<polygon points="5 3 19 12 5 21 5 3"/>',
   award:     '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
   building:  '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="14" y1="8" x2="17" y2="8"/><line x1="14" y1="12" x2="17" y2="12"/>',
+  tag:       '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
   inbox:     '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
 };
 
@@ -62,6 +63,7 @@ const NAVS = {
     { href: '/admin/',                      icon: 'dashboard', label: 'Overview' },
     { href: '/admin/teachers.html',         icon: 'building',  label: 'Teacher spaces' },
     { href: '/admin/billing.html',          icon: 'card',      label: 'Billing' },
+    { href: '/admin/plans.html',            icon: 'tag',       label: 'Plans & pricing' },
     { href: '/admin/leads.html',            icon: 'inbox',     label: 'Leads' },
   ],
 };
