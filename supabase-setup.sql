@@ -396,6 +396,123 @@ CREATE POLICY "groups_student_read" ON public.groups
   );
 
 -- ────────────────────────────────────────
+-- BATCH INVITE LINKS
+-- ────────────────────────────────────────
+-- One link per class. A teacher sends it once to a batch's group chat
+-- and each student fills their own details in, rather than the teacher
+-- typing thirty names and thirty phone numbers they do not have.
+--
+-- Nothing here is readable by an anonymous visitor: the public
+-- registration page never touches these tables, it goes through
+-- api/join.js, which holds the service-role key and checks the token.
+-- So there is deliberately no anon policy on either of them.
+CREATE TABLE IF NOT EXISTS public.invite_links (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  course_id  UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  -- Nullable, and SET NULL below: deleting a group must not delete the
+  -- link students may already be holding.
+  group_id   UUID,
+  -- What goes in the URL. Unique across every tenant, because the public
+  -- page has nothing but this to say which space it is registering into.
+  token      TEXT NOT NULL UNIQUE,
+  -- The teacher's own name for it, shown only to them.
+  label      TEXT,
+  is_open    BOOLEAN NOT NULL DEFAULT true,
+  expires_at TIMESTAMPTZ,
+  max_uses   INTEGER CHECK (max_uses IS NULL OR max_uses > 0),
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- A group named here has to belong to the course named here, or the
+  -- link would enrol its students into a class that meets for something
+  -- else. Same pairing the enrolments table uses.
+  CONSTRAINT invite_links_group_fk FOREIGN KEY (group_id, course_id)
+    REFERENCES public.groups(id, course_id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS invite_links_teacher_idx
+  ON public.invite_links (teacher_id, created_at DESC);
+
+ALTER TABLE public.invite_links ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "invite_links_staff_all" ON public.invite_links
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+CREATE POLICY "invite_links_owner_all" ON public.invite_links
+  FOR ALL USING (public.is_platform_owner()) WITH CHECK (public.is_platform_owner());
+
+-- A submission is not an account. Nobody can sign in from a row here:
+-- the auth user is created when the teacher approves, by the same code
+-- that creates a student typed in by hand. Until then this is a form
+-- somebody filled in, and a place on the plan is not used up.
+CREATE TABLE IF NOT EXISTS public.student_registrations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id   UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  -- All SET NULL rather than CASCADE: closing an intake or retiring a
+  -- course must not quietly erase the students who were waiting on it.
+  invite_id    UUID REFERENCES public.invite_links(id) ON DELETE SET NULL,
+  course_id    UUID REFERENCES public.courses(id) ON DELETE SET NULL,
+  group_id     UUID REFERENCES public.groups(id) ON DELETE SET NULL,
+
+  full_name    TEXT NOT NULL,
+  email        TEXT NOT NULL,
+  phone        TEXT,
+  parent_phone TEXT,
+  parent_email TEXT,
+
+  -- The two "this is the same person" keys, generated here so a handler
+  -- that forgets to normalise cannot slip a duplicate past the indexes.
+  -- The phone key is the last 9 digits, which is what makes
+  -- +201012345678 and 01012345678 the same number; anything shorter than
+  -- 7 digits is not a number worth matching on and keys as NULL.
+  email_key    TEXT GENERATED ALWAYS AS (LOWER(BTRIM(email))) STORED,
+  phone_key    TEXT GENERATED ALWAYS AS (
+    NULLIF(
+      CASE WHEN LENGTH(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g')) >= 7
+           THEN RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 9)
+           ELSE '' END,
+      '')
+  ) STORED,
+
+  status       TEXT NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'approved', 'rejected')),
+  -- Someone already here has this name. Not a block: two real students
+  -- share a name often enough that refusing the second one would turn a
+  -- common name into a locked door. The teacher decides.
+  name_flag    BOOLEAN NOT NULL DEFAULT false,
+
+  student_id   UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reviewed_by  UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reviewed_at  TIMESTAMPTZ,
+  review_note  TEXT,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS student_registrations_teacher_idx
+  ON public.student_registrations (teacher_id, status, submitted_at DESC);
+
+-- Registering once, enforced rather than checked. Two taps on a slow
+-- connection are two requests that both get past any "have we seen this
+-- email" lookup before either has written a row; only a unique index
+-- settles that. Partial, so a rejected row releases the email and the
+-- number again — which is the repair for a mistyped address.
+CREATE UNIQUE INDEX IF NOT EXISTS student_registrations_email_once
+  ON public.student_registrations (teacher_id, email_key)
+  WHERE status <> 'rejected';
+
+CREATE UNIQUE INDEX IF NOT EXISTS student_registrations_phone_once
+  ON public.student_registrations (teacher_id, phone_key)
+  WHERE phone_key IS NOT NULL AND status <> 'rejected';
+
+ALTER TABLE public.student_registrations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "student_registrations_staff_all" ON public.student_registrations
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+CREATE POLICY "student_registrations_owner_all" ON public.student_registrations
+  FOR ALL USING (public.is_platform_owner()) WITH CHECK (public.is_platform_owner());
+
+-- ────────────────────────────────────────
 -- MODULES (units inside a course)
 -- ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.modules (
@@ -622,6 +739,43 @@ CREATE POLICY "bank_staff_all" ON public.question_bank
 -- `correct` off every option before sending, and marks each answer
 -- server-side. This table stays closed to the browser either way.
 
+-- One spelling of a question, whatever it was pasted out of.
+--
+-- A bank row is identified by md5 of its text, so a single invisible
+-- character files a second copy of a question a teacher reads as
+-- identical — and these are pasted out of Word, which is full of
+-- non-breaking spaces. This must match normalizeQuestionText() in
+-- api/_lib/questions.js character for character.
+--
+-- chr(160) is the non-breaking space, spelled this way so it survives
+-- being opened in any editor: Postgres's [[:space:]] does not include
+-- it, JavaScript's \s does, which is why both sides say it out loud.
+--
+-- Case is left alone. Upper/lower-casing is the one operation the two
+-- languages disagree about across locales, and a dedup that is wrong is
+-- worse than one that is narrow.
+CREATE OR REPLACE FUNCTION public.normalize_question_text(t TEXT)
+RETURNS TEXT
+LANGUAGE SQL IMMUTABLE AS $$
+  SELECT btrim(regexp_replace(replace(t, chr(160), ' '), '[[:space:]]+', ' ', 'g'))
+$$;
+
+CREATE OR REPLACE FUNCTION public.question_bank_normalize()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.question_text := public.normalize_question_text(NEW.question_text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- On the table rather than in api/, because the bank page inserts and
+-- updates question_bank straight from the browser through row-level
+-- security. A rule only api/ obeyed would be half a rule.
+DROP TRIGGER IF EXISTS question_bank_normalize_text ON public.question_bank;
+CREATE TRIGGER question_bank_normalize_text
+  BEFORE INSERT OR UPDATE OF question_text ON public.question_bank
+  FOR EACH ROW EXECUTE FUNCTION public.question_bank_normalize();
+
 -- ────────────────────────────────────────
 -- PRACTICE TESTS
 -- ────────────────────────────────────────
@@ -712,7 +866,13 @@ CREATE TABLE IF NOT EXISTS public.test_attempts (
   passed         BOOLEAN,
   time_taken_sec INTEGER,
   started_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at   TIMESTAMPTZ
+  completed_at   TIMESTAMPTZ,
+  -- When the parent was told this mark, and what stops them being told
+  -- twice. The attempt is written by the browser, so the email is asked
+  -- for by the browser too — and a refreshed results page, or a retry
+  -- after a dropped connection, would otherwise send again. Only the
+  -- server writes this stamp.
+  parent_emailed_at TIMESTAMPTZ
 );
 
 ALTER TABLE public.test_attempts ENABLE ROW LEVEL SECURITY;
@@ -1012,11 +1172,21 @@ CREATE INDEX IF NOT EXISTS idx_support_open          ON public.support_requests(
   WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS idx_sections_tenant       ON public.test_sections(teacher_id, order_index);
 -- The lookup that keeps saving a test from filing the same question twice.
-CREATE INDEX IF NOT EXISTS idx_bank_text_key         ON public.question_bank(teacher_id, text_key);
+-- UNIQUE, not merely fast. Until this existed the only thing stopping a
+-- duplicate was api/save-test.js reading the bank and deciding what was
+-- new — a check two saves in the same second both pass before either has
+-- written. An index is the only thing that settles that, and it covers
+-- the bank page too, which writes here straight from the browser.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_text_key_unique ON public.question_bank(teacher_id, text_key);
 CREATE INDEX IF NOT EXISTS idx_tests_tenant          ON public.practice_tests(teacher_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_test_questions_test   ON public.test_questions(test_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_attempts_student      ON public.test_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_tenant_time  ON public.test_attempts(teacher_id, completed_at DESC);
+-- The lookup api/result-email.js makes: this student's newest finished
+-- attempt at this test that nobody has been told about yet.
+CREATE INDEX IF NOT EXISTS idx_attempts_unsent
+  ON public.test_attempts (student_id, test_id, completed_at DESC)
+  WHERE parent_emailed_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_assignments_tenant    ON public.assignments(teacher_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_student   ON public.assignment_submissions(student_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_pending   ON public.assignment_submissions(teacher_id) WHERE score IS NULL;

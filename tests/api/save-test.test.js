@@ -182,7 +182,7 @@ describe('the section', () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
       ...ownedSection(TEACHER_ID),
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-9', section_id: null }], error: null },
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-9', section_id: null }], error: null },
     } });
 
     const res = await call({
@@ -197,7 +197,7 @@ describe('the section', () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
       ...ownedSection(TEACHER_ID),
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: 'sec-9' }], error: null },
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: 'sec-9' }], error: null },
     } });
 
     const res = await call({
@@ -213,7 +213,7 @@ describe('the section', () => {
     const rows = [Q(), { ...Q(), question_text: 'Second?' }, { ...Q(), question_text: 'Third?' }];
     const banked = rows.map((q, i) => ({
       id: `bank-${i}`,
-      text_key: createHash('md5').update(q.question_text).digest('hex'),
+      text_key: createHash('md5').update(q.question_text).digest('hex'), course_id: COURSE,
       module_id: null, section_id: null,
     }));
     configureSupabaseMock({ results: {
@@ -313,7 +313,7 @@ describe('filing the questions into the bank', () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
       'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
         // The bank has the WRONG option marked.
         options: [{ text: 'Ribosome', correct: true }, { text: 'Mitochondrion', correct: false }],
         explanation: null,
@@ -335,7 +335,7 @@ describe('filing the questions into the bank', () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
       'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
         options: Q().options, explanation: null,
       }], error: null },
     } });
@@ -352,7 +352,7 @@ describe('filing the questions into the bank', () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
       'question_bank.select': { data: [{
-        id: 'bank-1', text_key: key, module_id: 'unit-1', section_id: null,
+        id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1', section_id: null,
         options: Q().options, explanation: null,
       }], error: null },
     } });
@@ -371,7 +371,7 @@ describe('filing the questions into the bank', () => {
     // question picked onto three tests must not become three copies.
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-1' }], error: null },
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1' }], error: null },
     } });
 
     const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
@@ -384,7 +384,7 @@ describe('filing the questions into the bank', () => {
   it('gives a question that was never placed the test’s unit', async () => {
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: null }], error: null },
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: null }], error: null },
     } });
 
     const res = await call({
@@ -401,13 +401,109 @@ describe('filing the questions into the bank', () => {
     // to use it does not get to overwrite where it was filed.
     const key = createHash('md5').update(Q().question_text).digest('hex');
     configureSupabaseMock({ results: {
-      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, module_id: 'unit-9' }], error: null },
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-9' }], error: null },
     } });
 
     const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
 
     expect(res.statusCode).toBe(200);
     expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
+  });
+
+  it('gives a question with a unit but no course the test’s course', async () => {
+    // What made the bank's unit filter lie. The unit list only appears
+    // once a course is picked, so both filters are live together — and a
+    // question filed with a unit and no course matched the unit, failed
+    // the course, and could not be found by either.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: null, module_id: 'unit-9' }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    // Its unit is still its own — only the blank is filled.
+    expect(getSupabaseCalls('question_bank.update')[0].payload).toEqual({ course_id: COURSE });
+  });
+
+  it('never moves a question that already has a course', async () => {
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: 'course-9', module_id: 'unit-9' }], error: null },
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, module_id: 'unit-1', questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('question_bank.update')).toHaveLength(0);
+  });
+
+  it('matches a question the bank already holds despite Word’s spacing', async () => {
+    // The everyday cause of duplicates: these are pasted out of Word,
+    // and a non-breaking space or a double space made a question a
+    // person reads as identical hash to something else entirely.
+    const key = createHash('md5').update(Q().question_text).digest('hex');
+    configureSupabaseMock({ results: {
+      'question_bank.select': { data: [{ id: 'bank-1', text_key: key, course_id: COURSE, module_id: 'unit-1' }], error: null },
+    } });
+
+    const messy = Q().question_text.replace(/ /g, '  ');
+    const res = await call({
+      title: 'Quiz', course_id: COURSE, module_id: 'unit-1',
+      questions: [{ ...Q(), question_text: `  ${messy}\t` }],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.banked).toBe(0);
+    expect(getSupabaseCalls('question_bank.insert')).toHaveLength(0);
+  });
+
+  it('stores the tidied text, so the hash it looked up is the one filed', async () => {
+    const res = await call({
+      title: 'Quiz', course_id: COURSE,
+      questions: [{ ...Q(), question_text: '  What  is   2 + 2?  ' }],
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [insert] = getSupabaseCalls('question_bank.insert');
+    expect(insert.payload[0].question_text).toBe('What is 2 + 2?');
+  });
+
+  it('files the rest of the paper when one question is already there', async () => {
+    // The unique index added in migration v13 refuses a question filed
+    // by a save a moment earlier. Losing the other questions over it
+    // would have the teacher paste the whole batch again.
+    configureSupabaseMock({ results: {
+      'question_bank.insert': [
+        { data: null, error: { code: '23505', message: 'duplicate key' } },  // the batch
+        { data: null, error: { code: '23505', message: 'duplicate key' } },  // retried: this one is known
+        { data: null, error: null },                                          // retried: this one is new
+      ],
+    } });
+
+    const res = await call({
+      title: 'Quiz', course_id: COURSE,
+      questions: [Q(), { ...Q(), question_text: 'Second?' }],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.banked).toBe(1);          // the one that was genuinely new
+    expect(res.body.bank_error).toBeNull();   // and no alarm raised over the other
+  });
+
+  it('still reports a write failure that is not a duplicate', async () => {
+    configureSupabaseMock({ results: {
+      'question_bank.insert': [
+        { data: null, error: { code: '23505', message: 'duplicate key' } },
+        { data: null, error: { code: '08006', message: 'connection failure' } },
+      ],
+    } });
+
+    const res = await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
+
+    expect(res.statusCode).toBe(200);         // the test itself still saved
+    expect(res.body.bank_error).toMatch(/not added to your question bank/i);
   });
 
   it('saves the test even when the bank write fails', async () => {

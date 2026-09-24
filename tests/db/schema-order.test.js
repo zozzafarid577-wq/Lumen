@@ -111,6 +111,55 @@ describe('supabase-setup.sql runs top to bottom', () => {
   });
 });
 
+// The README promises that a fresh project needs supabase-setup.sql and
+// nothing else: "A fresh project does not: the setup file already
+// contains what they add." That is an invariant somebody has to keep by
+// hand on every migration, and forgetting it is invisible — the running
+// project is fine, and only a rebuilt one comes up missing a table.
+describe('supabase-setup.sql absorbs every migration', () => {
+  const migrations = sqlFiles().filter(f => /^supabase-migration-v\d+\.sql$/.test(f.name));
+
+  it('finds the migrations', () => {
+    expect(migrations.length).toBeGreaterThan(5);
+  });
+
+  it.each(migrations)('$name — every table it creates is in the setup file', ({ sql }) => {
+    for (const m of sql.matchAll(/CREATE TABLE(?:\s+IF NOT EXISTS)?\s+public\.(\w+)/gi)) {
+      expect(tables.has(m[1].toLowerCase()), `public.${m[1]} is created by a migration but not by setup`).toBe(true);
+    }
+  });
+
+  it.each(migrations)('$name — every function it defines is in the setup file', ({ sql }) => {
+    for (const m of sql.matchAll(/CREATE OR REPLACE FUNCTION\s+public\.(\w+)/gi)) {
+      expect(functions.has(m[1].toLowerCase()), `public.${m[1]}() is defined by a migration but not by setup`).toBe(true);
+    }
+  });
+
+  it.each(migrations)('$name — every column it adds is in the setup file', ({ sql }) => {
+    for (const m of sql.matchAll(/ADD COLUMN(?:\s+IF NOT EXISTS)?\s+(\w+)/gi)) {
+      expect(SETUP, `column ${m[1]} is added by a migration but not by setup`)
+        .toMatch(new RegExp(`\\b${m[1]}\\b`));
+    }
+  });
+
+  it.each(migrations)('$name — every trigger it creates is in the setup file', ({ sql }) => {
+    for (const m of sql.matchAll(/CREATE TRIGGER\s+(\w+)/gi)) {
+      expect(SETUP, `trigger ${m[1]} is created by a migration but not by setup`)
+        .toMatch(new RegExp(`CREATE TRIGGER\\s+${m[1]}\\b`, 'i'));
+    }
+  });
+
+  it.each(migrations)('$name — every unique index it creates is in the setup file', ({ sql }) => {
+    // The ones that enforce a rule rather than speed a lookup. A rebuilt
+    // project missing one of these collects exactly the duplicates the
+    // migration existed to stop.
+    for (const m of sql.matchAll(/CREATE UNIQUE INDEX(?:\s+IF NOT EXISTS)?\s+(\w+)/gi)) {
+      expect(SETUP, `unique index ${m[1]} is created by a migration but not by setup`)
+        .toMatch(new RegExp(`\\b${m[1]}\\b`));
+    }
+  });
+});
+
 describe('every supabase-*.sql file', () => {
   it.each(sqlFiles())('$name has balanced dollar-quoted blocks', ({ sql }) => {
     // An odd number of $$ means a function body or DO block was left

@@ -214,7 +214,17 @@ async function loadTestsAndGroups() {
   pick.innerHTML = tests.length
     ? tests.map(x => {
         const course = courses.find(c => c.id === x.course_id);
-        return `<option value="${x.id}">${escHtml(x.title)}${course ? ' — ' + escHtml(course.title) : ''}</option>`;
+        // The section is the whole reason two of these are told apart. A
+        // language teacher sets a vocabulary paper and a grammar paper on
+        // the same lesson, and without this the list offers the same
+        // title twice and the teacher picks by guessing.
+        //
+        // As text, not a badge: an <option> renders no markup, so the
+        // colour that carries this everywhere else cannot come along.
+        const section = x.test_sections?.name;
+        return `<option value="${x.id}">${escHtml(x.title)}`
+          + `${section ? ' · ' + escHtml(section) : ''}`
+          + `${course ? ' — ' + escHtml(course.title) : ''}</option>`;
       }).join('')
     : '<option value="">No tests yet</option>';
   onTestPicked();

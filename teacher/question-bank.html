@@ -321,13 +321,40 @@ async function loadSections() {
   document.getElementById('im-section').innerHTML = '<option value="">No section</option>' + opts;
 }
 
+// The whole bank, not the first page of it.
+//
+// This used to end in .limit(500), which did not fail or warn — it just
+// stopped. A teacher past five hundred questions searched for one they
+// had written last week, got nothing, and had no way to tell that the
+// search had been given only part of the bank to look through.
+//
+// Supabase caps a single response at 1000 rows whatever you ask for, so
+// a plain .limit(10000) would have moved the cliff rather than removed
+// it. This walks the pages until one comes back short.
+const BANK_PAGE = 1000;
+
 async function loadBank() {
-  const { data, error } = await sb.from('question_bank')
-    .select('*, courses(title), modules(title), lessons(title), test_sections(name, color)')
-    .eq('teacher_id', me.teacher_id)
-    .order('created_at', { ascending: false }).limit(500);
-  if (error) { document.getElementById('list').innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
-  bank = data || [];
+  const rows = [];
+  for (let from = 0; ; from += BANK_PAGE) {
+    const { data, error } = await sb.from('question_bank')
+      .select('*, courses(title), modules(title), lessons(title), test_sections(name, color)')
+      .eq('teacher_id', me.teacher_id)
+      // created_at alone is not a total order — a pasted batch shares a
+      // timestamp to the microsecond, and rows that tie can come back in
+      // a different order per page, which drops some and repeats others.
+      // id breaks the tie so every row is seen exactly once.
+      .order('created_at', { ascending: false }).order('id')
+      .range(from, from + BANK_PAGE - 1);
+
+    if (error) {
+      document.getElementById('list').innerHTML =
+        `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`;
+      return;
+    }
+    rows.push(...(data || []));
+    if ((data || []).length < BANK_PAGE) break;
+  }
+  bank = rows;
   render();
 }
 
@@ -340,7 +367,14 @@ function render() {
   const diff = document.getElementById('diff-filter').value;
 
   const list = bank.filter(b =>
-    (!courseId || b.course_id === courseId) &&
+    // A unit belongs to one course, so a question matching the unit is
+    // on that course whatever its own course_id says. Testing both used
+    // to hide any question that had been filed with a unit and no
+    // course — and since the unit list only appears once a course is
+    // picked, both filters are always live together, so those questions
+    // could not be found by unit at all. Migration v12 backfills the
+    // column; this keeps the filter honest regardless.
+    (!courseId || unitId || b.course_id === courseId) &&
     (!unitId || b.module_id === unitId) &&
     (!lessonId || b.lesson_id === lessonId) &&
     (!sectionId || b.section_id === sectionId) &&

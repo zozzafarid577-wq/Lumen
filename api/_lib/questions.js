@@ -102,10 +102,38 @@ function validate(q) {
 
 function toRow(q) {
   return {
-    question_text: q.question_text.slice(0, 2000),
+    question_text: normalizeQuestionText(q.question_text).slice(0, 2000),
     options: q.options.map(o => ({ text: o.text.slice(0, 600), correct: o.correct })),
     explanation: q.explanation ? q.explanation.slice(0, 2000) : null,
   };
+}
+
+// What makes two questions the same question.
+//
+// The bank identifies a row by md5 of its text, so anything that changes
+// the text by one invisible character files a second copy of a question
+// a teacher would read as identical. That is not hypothetical: these are
+// pasted out of Word and PDFs, which are full of non-breaking spaces,
+// and a batch re-pasted after a small edit arrives with different
+// spacing throughout.
+//
+// The same normalising runs in Postgres — public.normalize_question_text()
+// in supabase-migration-v12.sql, on a trigger — and that one is
+// authoritative, because the bank page writes to the table directly
+// without passing through here. The two must agree, so this deliberately
+// does NOT use JavaScript's \s: it matches more characters than
+// Postgres's does (U+2028, U+205F, U+FEFF and friends), and a class that
+// means something different in each language is exactly how the stored
+// text and the hash drift apart.
+//
+// Case is left alone on purpose. "What is a noun?" and "what is a noun?"
+// are the same question to a person, but upper- and lower-casing is the
+// one operation Postgres and JavaScript genuinely disagree about across
+// locales, and a dedup that is wrong is worse than one that is narrow.
+const SPACE_CHARS = /[ \t\n\r\f\v ]+/g;
+
+export function normalizeQuestionText(text) {
+  return String(text ?? '').replace(SPACE_CHARS, ' ').trim();
 }
 
 function truncate(text, n = 60) {

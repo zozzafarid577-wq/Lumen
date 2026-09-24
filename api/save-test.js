@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, assertTenant, logActivity } from './_lib/auth.js';
 import { cleanName, cleanText } from './_lib/util.js';
+import { normalizeQuestionText } from './_lib/questions.js';
 
 // Saving a test means writing the test row and replacing its whole
 // question list. Doing that from the browser is two calls with a window
@@ -117,10 +118,18 @@ const BANK_LOOKUP_CHUNK = 100;
 
 async function fileIntoBank(teacherId, questions, tags) {
   // The same question can appear twice in one paste. The bank gets one.
+  //
+  // Hashed after normalising, and stored normalised, so the two agree:
+  // question_bank.text_key is md5 of whatever text the row ends up
+  // holding, and a trigger normalises that on the way in. Hashing the
+  // raw text here would look up a hash the table never stores, decide
+  // every question was new, and file the bank full of near-copies —
+  // which is exactly what it used to do.
   const wanted = new Map();
   for (const q of questions) {
-    const key = createHash('md5').update(q.question_text).digest('hex');
-    if (!wanted.has(key)) wanted.set(key, q);
+    const text = normalizeQuestionText(q.question_text);
+    const key = createHash('md5').update(text).digest('hex');
+    if (!wanted.has(key)) wanted.set(key, { ...q, question_text: text });
   }
 
   try {
@@ -128,7 +137,7 @@ async function fileIntoBank(teacherId, questions, tags) {
     const keys = [...wanted.keys()];
     for (let i = 0; i < keys.length; i += BANK_LOOKUP_CHUNK) {
       const { data, error } = await admin
-        .from('question_bank').select('id, text_key, module_id, section_id, options, explanation')
+        .from('question_bank').select('id, text_key, course_id, module_id, section_id, options, explanation')
         .eq('teacher_id', teacherId).in('text_key', keys.slice(i, i + BANK_LOOKUP_CHUNK));
       if (error) throw new Error(error.message);
       existing.push(...(data || []));
@@ -137,8 +146,9 @@ async function fileIntoBank(teacherId, questions, tags) {
     const known = new Set(existing.map(r => r.text_key));
     const fresh = [...wanted].filter(([key]) => !known.has(key)).map(([, q]) => q);
 
+    let filed = 0;
     if (fresh.length) {
-      const { error } = await admin.from('question_bank').insert(fresh.map(q => ({
+      const row = (q) => ({
         teacher_id: teacherId,
         course_id: tags.course_id,
         module_id: tags.module_id,
@@ -155,8 +165,28 @@ async function fileIntoBank(teacherId, questions, tags) {
         // by the students about to sit it. The teacher can let it into
         // practice from the bank whenever the test is behind them.
         practice_ok: false,
-      })));
-      if (error) throw new Error(error.message);
+      });
+
+      const { error } = await admin.from('question_bank').insert(fresh.map(row));
+      filed = fresh.length;
+
+      // 23505 is the unique index on (teacher_id, text_key) refusing a
+      // question that was already there — either because a save a moment
+      // ago filed it between the lookup above and this insert, or
+      // because Postgres normalised the text to something the hash here
+      // did not predict. Neither is a reason to lose the other
+      // forty-nine questions, so they go in one at a time and the ones
+      // already present are simply not counted.
+      if (error?.code === '23505') {
+        filed = 0;
+        for (const q of fresh) {
+          const { error: one } = await admin.from('question_bank').insert(row(q));
+          if (!one) filed++;
+          else if (one.code !== '23505') throw new Error(one.message);
+        }
+      } else if (error) {
+        throw new Error(error.message);
+      }
     }
 
     // A question already filed keeps the labels it has: the same question
@@ -177,6 +207,13 @@ async function fileIntoBank(teacherId, questions, tags) {
         patch.lesson_id = tags.lesson_id;
       }
       if (tags.section_id && !row.section_id) patch.section_id = tags.section_id;
+      // The course goes with the unit. Setting one and not the other is
+      // what left questions holding a unit and no course — and the bank
+      // only offers its unit filter once a course is picked, so both
+      // filters are live together and such a question matched the unit,
+      // failed the course, and disappeared from a search that should
+      // have found it.
+      if (tags.course_id && !row.course_id) patch.course_id = tags.course_id;
       if (!Object.keys(patch).length) continue;
 
       // Rows wanting the same patch are updated together rather than one
@@ -217,7 +254,7 @@ async function fileIntoBank(teacherId, questions, tags) {
       if (!error) corrected++;
     }
 
-    return { filed: fresh.length, corrected };
+    return { filed, corrected };
   } catch (err) {
     console.error('Filing questions into the bank failed:', err);
     return { filed: 0, corrected: 0, error: 'Those questions were not added to your question bank.' };

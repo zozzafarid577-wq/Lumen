@@ -375,16 +375,34 @@ it into the bank**, tagged with that test's course, unit and lesson.
 Two things make that safe to do on every save:
 
 - **`question_bank.text_key`** — md5 of the question text, generated in
-  Postgres. The server hashes what it is about to file and asks which
-  hashes are already there, so a question picked onto three tests stays
-  one row. It compares hashes rather than texts because these go out as
-  a query string: 300 questions of 2000 characters is a URL no proxy
-  will carry.
+  Postgres, with a **unique** index on `(teacher_id, text_key)`. The
+  server hashes what it is about to file and asks which hashes are
+  already there, so a question picked onto three tests stays one row —
+  but that lookup is an optimisation, not the guarantee. Two saves in
+  the same second both pass it before either has written, and the bank
+  page writes to the table straight from the browser without passing
+  through `api/` at all. The index is what actually decides. It compares
+  hashes rather than texts because these go out as a query string: 300
+  questions of 2000 characters is a URL no proxy will carry.
+- **The text is normalised before it is stored**, by a trigger calling
+  `public.normalize_question_text()` — non-breaking spaces to ordinary
+  ones, runs of whitespace collapsed, ends trimmed. Without it a single
+  invisible character files a second copy of a question a teacher reads
+  as identical, which is not hypothetical: these are pasted out of Word.
+  `normalizeQuestionText()` in `api/_lib/questions.js` is the same rule
+  in JavaScript, and a test reads the SQL to check the two still agree.
+  Case is deliberately left alone — case folding is the one operation
+  the two languages disagree about across locales, and a dedup that is
+  wrong is worse than one that is narrow.
 - **A question already filed keeps its unit.** The same question can be
   right for two lessons, and the last test to use it does not get to
   overwrite where it was filed. One that was never placed adopts the
   test's, which is what makes the unit filter worth anything on a bank
-  filled before any of this existed.
+  filled before any of this existed. **The course is filled in with the
+  unit**, never separately: a question holding a unit and no course
+  matched the unit filter, failed the course filter and vanished from
+  both, because the bank only offers its unit list once a course is
+  picked, so the two are always live together.
 
 Filing is deliberately not fatal. The test exists by that point, and
 reporting it as failed would have the teacher build it a second time —

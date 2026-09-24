@@ -1,5 +1,71 @@
 import { describe, it, expect } from 'vitest';
-import { parseQuestionText } from '../../api/_lib/questions.js';
+import { readFileSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseQuestionText, normalizeQuestionText } from '../../api/_lib/questions.js';
+
+// How the bank decides two questions are the same question. A row is
+// identified by md5 of its text, so anything this gets wrong becomes a
+// duplicate in somebody's bank.
+describe('normalizeQuestionText', () => {
+  it('reads one question however Word spaced it', () => {
+    const same = [
+      'What is a noun?',
+      '  What is a noun?  ',
+      'What  is   a noun?',
+      'What is a noun?',          // non-breaking space, the Word special
+      'What\tis a\nnoun?',
+      'What   is a noun?',
+    ];
+    const out = new Set(same.map(normalizeQuestionText));
+    expect(out.size, [...out].join(' | ')).toBe(1);
+    expect([...out][0]).toBe('What is a noun?');
+  });
+
+  it('keeps genuinely different questions different', () => {
+    expect(normalizeQuestionText('What is a noun?'))
+      .not.toBe(normalizeQuestionText('What is a verb?'));
+  });
+
+  it('leaves case alone', () => {
+    // Deliberate. Upper/lower-casing is the one operation Postgres and
+    // JavaScript disagree about across locales, and these two sides must
+    // agree exactly or the hash stops matching the stored row.
+    expect(normalizeQuestionText('What Is A Noun?')).toBe('What Is A Noun?');
+  });
+
+  it('survives nothing at all', () => {
+    for (const empty of ['', '   ', null, undefined]) {
+      expect(normalizeQuestionText(empty)).toBe('');
+    }
+  });
+
+  // The trigger in migration v12 is authoritative — the bank page writes
+  // to question_bank straight from the browser, never through this file.
+  // If the two spellings drift, this side computes a hash the table does
+  // not hold, decides every question is new, and fills the bank with
+  // near-copies. That is the bug this whole change exists to fix, so the
+  // agreement is asserted rather than trusted.
+  it('is spelled the same way in the migration', () => {
+    const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+    const sql = readFileSync(join(ROOT, 'supabase-migration-v12.sql'), 'utf8');
+
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.normalize_question_text/);
+    // The same three steps, in the same order: the non-breaking space
+    // named explicitly, a run of whitespace collapsed to one, then trim.
+    expect(sql).toMatch(/replace\(t, chr\(160\), ' '\)/);
+    expect(sql).toMatch(/'\[\[:space:\]\]\+', ' ', 'g'/);
+    expect(sql).toMatch(/btrim\(/);
+    // And no case folding on either side.
+    expect(sql).not.toMatch(/lower\(t\)|upper\(t\)/);
+  });
+
+  it('is applied to what the parser hands back', () => {
+    const { questions } = parseQuestionText(
+      'What  is   2 + 2?\nA) 3\n*B) 4');
+    expect(questions[0].question_text).toBe('What is 2 + 2?');
+  });
+});
 
 // The shapes teachers actually paste in. Each of these came from a real
 // habit — numbered lists out of Word, dashes out of a phone, an answer
