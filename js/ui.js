@@ -86,6 +86,26 @@ function groupLabel(group) {
   return when ? `${group.name} · ${when}` : group.name;
 }
 
+// A–Z the way a person reads a list, which is not the way Postgres
+// sorts one. `.order('name')` compares text by the database's collation:
+// "Group 10" lands before "Group 2" because 1 comes before 2, and a
+// group typed in lower case can sort after every capitalised one. A
+// teacher looking for Sunday among fifteen groups reads that as the list
+// being in no order at all.
+//
+// numeric reads a run of digits as a number, so 2 comes before 10.
+// sensitivity 'base' ignores case and accents, so "sunday" files with
+// "Sunday" rather than after it.
+function compareNames(a, b) {
+  return String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+// Sorted copy, never in place: the array handed in is usually the page's
+// own state and something else is probably rendering from it.
+function sortByName(list, name = (x) => x?.name) {
+  return [...(list || [])].sort((a, b) => compareNames(name(a), name(b)));
+}
+
 // Egyptian pounds, the currency every price in Lumen is quoted in.
 function egp(amount) {
   if (amount == null) return '—';

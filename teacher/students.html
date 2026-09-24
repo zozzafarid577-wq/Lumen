@@ -576,7 +576,11 @@ function renderNewCourses() {
 async function loadGroups() {
   const { data } = await sb.from('groups')
     .select('id, course_id, name, days, start_time').eq('teacher_id', me.teacher_id).order('name');
-  groups = data || [];
+  // Ordered again here, not just in the query: Postgres compares text by
+  // collation, so "Group 10" comes back before "Group 2". Sorted once on
+  // the way in, because the filter, the modal, the enrolment editor and
+  // the invite picker all read this array and must agree.
+  groups = sortByName(data);
 }
 
 function groupsFor(courseId) { return groups.filter(g => g.course_id === courseId); }
@@ -692,17 +696,45 @@ async function saveGroup() {
   showToast('Group saved.', 'success');
 }
 
+// Deleting a group takes its students off that course with it. The
+// database on its own would only forget the timetable and leave them
+// enrolled — that is still the right thing for the constraint to do,
+// because a group vanishing for any other reason must not quietly
+// unenrol anybody. Here it is deliberate, so it is done deliberately,
+// and the students are named in the confirmation rather than counted.
+//
+// It takes the ENROLMENT, never the account: they keep their sign-in,
+// their other courses and every mark they have. Nothing in the database
+// points at an enrolment row, so enrolling them again restores exactly
+// what they had.
 async function deleteGroup(id) {
   const g = groups.find(x => x.id === id);
-  const n = students.filter(s => (s.enrollments || []).some(e => e.group_id === id)).length;
+  const inIt = students.filter(s => (s.enrollments || []).some(e => e.group_id === id));
+  const n = inIt.length;
+
+  const names = inIt.slice(0, 6).map(s => `· ${s.full_name}`).join('\n');
   if (!confirm(n
-    ? `Delete "${g?.name}"? Its ${n} student${n === 1 ? ' stays' : 's stay'} on the course — they just stop being in a group.`
+    ? `Delete "${g?.name}" and take ${n === 1 ? 'its student' : `its ${n} students`} off the course?\n\n`
+      + `${names}${n > 6 ? `\n· …and ${n - 6} more` : ''}\n\n`
+      + 'They keep their account, their other courses and their marks. '
+      + 'You can enrol them again from Courses & groups.'
     : `Delete "${g?.name}"?`)) return;
+
+  // The enrolments go first. Deleting the group nulls group_id on them,
+  // and after that nothing says who was in it — so a failure here leaves
+  // a group the same button can simply be clicked on again, rather than
+  // students no one can find.
+  if (n) {
+    const { error: eErr } = await sb.from('enrollments').delete().eq('group_id', id);
+    if (eErr) { say('gm-alert', friendlyError(eErr.message)); return; }
+  }
 
   const { error } = await sb.from('groups').delete().eq('id', id);
   if (error) { say('gm-alert', friendlyError(error.message)); return; }
   await afterGroupsChanged();
-  showToast('Group deleted.', 'success');
+  showToast(n
+    ? `Group deleted · ${n} student${n === 1 ? '' : 's'} taken off the course.`
+    : 'Group deleted.', 'success');
 }
 
 // A group that was just renamed or deleted is on the badges behind the
@@ -719,16 +751,12 @@ async function afterGroupsChanged() {
 // nested select comes back in no particular order — so the badges on
 // one row and the badges on the next listed the same two courses two
 // different ways, and the modal disagreed with the row it was opened
-// from. Sorted by course, then by group within a course.
-//
-// numeric so "Group 10" follows "Group 2" rather than "Group 1", and
-// base sensitivity so a group typed in lower case files with the rest
-// instead of after all of them.
+// from. Sorted by course, then by group within a course, through the
+// same compareNames() every other list of names on this page uses.
 function enrolmentsSorted(student) {
-  const cmp = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
   const groupName = e => groups.find(x => x.id === e.group_id)?.name || '';
   return [...(student.enrollments || [])].sort((a, b) =>
-    cmp(a.courses?.title || '', b.courses?.title || '') || cmp(groupName(a), groupName(b)));
+    compareNames(a.courses?.title, b.courses?.title) || compareNames(groupName(a), groupName(b)));
 }
 
 function fillGroupFilter() {

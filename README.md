@@ -211,8 +211,27 @@ an existing student's enrolments can be changed. Both are on the same
 page on purpose: a teacher who finds a student with no group should not
 have to leave the list they are working through to make the group. The
 modal carries its own course picker, opening on whatever the list is
-filtered to. Deleting a group sets its enrolments back to no group —
-students keep the course.
+filtered to.
+
+**Deleting a group takes its students off that course with it.** The
+confirmation names them rather than counting them, and the enrolments
+are deleted before the group is — once the group is gone, `group_id` is
+null and nothing says who was in it. It is the **enrolment** that goes,
+never the account: they keep their sign-in, their other courses and
+every mark, and nothing in the database points at an enrolment row, so
+enrolling them again restores exactly what they had.
+
+The foreign key still says `ON DELETE SET NULL (group_id)`, and that is
+not a contradiction — it is the floor under every other way a group can
+disappear. A group vanishing on its own must not quietly unenrol
+anybody; the page unenrols them because a teacher asked it to, in front
+of a dialog that says so.
+
+Group names are ordered with `compareNames()` from `js/ui.js`, not by
+the query's `order('name')`. Postgres compares by collation, which puts
+"Group 10" before "Group 2" and a lower-case name after every
+capitalised one — which a teacher scanning fifteen groups reads as no
+order at all.
 
 ## Batch invites — registering once
 

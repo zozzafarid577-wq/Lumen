@@ -208,7 +208,9 @@ async function loadTestsAndGroups() {
       .eq('teacher_id', me.teacher_id).order('name'),
   ]);
   tests = t || [];
-  groups = g || [];
+  // order('name') is the database's collation, which puts "Group 10"
+  // before "Group 2". Put in a person's order before anything reads it.
+  groups = sortByName(g);
 
   const pick = document.getElementById('ta-test');
   pick.innerHTML = tests.length
