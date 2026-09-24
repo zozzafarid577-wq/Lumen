@@ -1,6 +1,7 @@
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanText, phoneKey } from './_lib/util.js';
+import { createStudentAccount } from './_lib/students.js';
 
 // The one endpoint in api/ with no signed-in caller: a student opening
 // their teacher's batch link has no account yet, which is the whole
@@ -16,16 +17,23 @@ import { cleanEmail, cleanName, cleanText, phoneKey } from './_lib/util.js';
 //     know — the space name, the course, the class time. No student
 //     list, no counts, no ids.
 //
-// The registration this writes is not an account. Nobody can sign in
-// from it. It becomes an account in api/invites.js when the teacher
-// approves, and it takes up a place on their plan only then.
+// A student who fills this in gets their account straight away: no
+// queue, no approval, their sign-in on the screen in front of them.
+// What stands between a stranger and an account is the link itself —
+// closed, expired, used up or flooded are all refused above — plus the
+// once-per-person rules below and the teacher's plan, which is checked
+// before the account is made and not after.
+//
+// The registration row is still written. It is what makes "register
+// once" enforceable rather than merely checked, and it is the record of
+// who came in through which link. It is simply born approved now.
 
 export default handler(async (req, res) => {
   const body = req.body || {};
   const action = body.action === 'submit' ? 'submit' : 'info';
   const invite = await openInvite(body.token);
 
-  return action === 'submit' ? submit(res, invite, body) : info(res, invite);
+  return action === 'submit' ? submit(res, invite, body, req) : info(res, invite);
 });
 
 // ── What the student is looking at ────────────────────────────────
@@ -38,7 +46,7 @@ async function info(res, invite) {
 }
 
 // ── Registering ───────────────────────────────────────────────────
-async function submit(res, invite, body) {
+async function submit(res, invite, body, req) {
   const fullName    = cleanName(body.full_name, 'Your name');
   const email       = cleanEmail(body.email);
   const phone       = cleanText(body.phone, { max: 40 });
@@ -54,7 +62,11 @@ async function submit(res, invite, body) {
   await assertNotFlooding(invite.id);
   const { nameFlag } = await screen(invite.teacher_id, { email, key, fullName });
 
-  const { error } = await admin.from('student_registrations').insert({
+  // Written before the account, not after, because this row is the lock.
+  // The unique index on it is the only thing that stops two taps on a
+  // slow connection becoming two accounts, and a check made in JavaScript
+  // cannot do that job — both requests pass it before either has written.
+  const { data: reg, error } = await admin.from('student_registrations').insert({
     teacher_id: invite.teacher_id,
     invite_id:  invite.id,
     course_id:  invite.course_id,
@@ -65,23 +77,72 @@ async function submit(res, invite, body) {
     parent_phone: parentPhone,
     parent_email: parentEmail,
     name_flag:  nameFlag,
-  });
+    // Nobody reviewed it, so reviewed_by stays null. The row is the
+    // record of a student who came in, not of a decision somebody made.
+    status:     'approved',
+    reviewed_at: new Date().toISOString(),
+  }).select('id').single();
 
   if (error) {
-    // 23505 is the unique index in migration v11 doing the job the check
-    // above cannot: two taps on a slow connection are two requests that
-    // both got past `assertNotRegistered` before either had written a
-    // row. Only one of them lands, and the loser is told the same thing
-    // it would have been told a moment earlier.
+    // 23505 is that index doing its job. Only one request lands, and the
+    // loser is told the same thing it would have been told a moment
+    // earlier.
     if (error.code === '23505') throw alreadyRegistered();
     throw new HttpError(500, 'Something went wrong saving your details. Please try again.');
   }
 
+  // The plan limit, the account, the enrolment and the welcome email are
+  // all in here, and it is the same call the teacher's own "Add student"
+  // makes — so a student who registers themselves is the same student,
+  // made the same way.
+  let made;
+  try {
+    made = await createStudentAccount({
+      teacherId:   invite.teacher_id,
+      fullName,
+      email,
+      phone,
+      parentPhone,
+      parentEmail,
+      courseIds:   [invite.course_id],
+      groupIds:    invite.group_id ? { [invite.course_id]: invite.group_id } : {},
+      req,
+    });
+  } catch (err) {
+    // The row was a lock, not a record of anything that happened. It goes
+    // again, or the student is barred from retrying by their own
+    // abandoned attempt.
+    await admin.from('student_registrations').delete().eq('id', reg.id);
+    throw forStudent(err);
+  }
+
+  await admin.from('student_registrations')
+    .update({ student_id: made.studentId }).eq('id', reg.id);
+
+  // The password comes back to the page as well as going out by email. A
+  // student standing there with a phone is the one moment they are
+  // certainly reachable — a mail provider having a bad afternoon must
+  // not be the difference between having an account and not.
   return res.status(200).json({
     ok: true,
-    space_name: invite.space_name,
+    space_name:   invite.space_name,
     course_title: invite.course_title,
+    email:        made.email,
+    password:     made.password,
+    email_sent:   made.emailSent,
   });
+}
+
+// Why an account could not be made is, with one exception, the teacher's
+// business: a plan that is full, a subscription past due, a space with no
+// subscription at all. None of that is for a stranger holding a link, so
+// it is logged and the student is told to go and tell their teacher.
+function forStudent(err) {
+  if (err?.status === 409) return hasAccount();
+  console.error('Join could not create an account:', err);
+  return new HttpError(503,
+    'Your teacher’s space cannot take new registrations right now. '
+    + 'Please tell them you tried to register.');
 }
 
 // ── The token ─────────────────────────────────────────────────────

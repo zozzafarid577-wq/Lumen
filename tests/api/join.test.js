@@ -5,6 +5,7 @@ vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 import {
   resetSupabaseMock, configureSupabaseMock, getSupabaseCalls, TEACHER_ID, OTHER_TEACHER_ID,
 } from '../helpers/supabase-mock.js';
+import { withSubscription } from '../helpers/as.js';
 import { makeReq, makeRes } from '../helpers/http.js';
 import handler from '../../api/join.js';
 
@@ -26,12 +27,32 @@ function emptySpace() {
   };
 }
 
+// Registering now makes the account in the same request, so a submit
+// reads courses and groups TWICE and wants a different shape each time:
+// once to name the class on the page, once to check the enrolment is
+// this teacher's own. The mock consumes a list in call order, so both
+// shapes are queued. An info request only ever takes the first.
 function withInvite(overrides = {}) {
   return {
     'invite_links.select': { data: { ...INVITE, ...overrides }, error: null },
     'teachers.select': { data: { display_name: 'Miss Noura' }, error: null },
-    'courses.select':  { data: { title: 'SAT Math' }, error: null },
-    'groups.select':   { data: { name: 'Saturday 4pm', days: [6], start_time: '16:00' }, error: null },
+    'courses.select': [
+      { data: { title: 'SAT Math' }, error: null },                       // for the page
+      { data: [{ id: INVITE.course_id }], error: null },                  // for the enrolment
+    ],
+    'groups.select': [
+      { data: { name: 'Saturday 4pm', days: [6], start_time: '16:00' }, error: null },
+      { data: [{ id: INVITE.group_id, course_id: INVITE.course_id }], error: null },
+    ],
+  };
+}
+
+// The registration row is written before the account and read back for
+// its id, and the account itself needs a plan with room on it.
+function canMakeAccounts() {
+  return {
+    ...withSubscription(),
+    'student_registrations.insert': { data: { id: 'reg-1' }, error: null },
   };
 }
 
@@ -57,7 +78,7 @@ async function call(body) {
 
 beforeEach(() => {
   resetSupabaseMock();
-  configureSupabaseMock({ results: { ...withInvite(), ...emptySpace() } });
+  configureSupabaseMock({ results: { ...withInvite(), ...emptySpace(), ...canMakeAccounts() } });
 });
 
 describe('what the link shows before anything is typed', () => {
@@ -173,20 +194,89 @@ describe('registering', () => {
     // it, the link would enrol people anywhere.
     await call({
       ...GOOD, token: TOKEN,
-      teacher_id: OTHER_TEACHER_ID, course_id: 'course-9', group_id: 'grp-9', status: 'approved',
+      teacher_id: OTHER_TEACHER_ID, course_id: 'course-9', group_id: 'grp-9', status: 'rejected',
     });
 
     const [saved] = getSupabaseCalls('student_registrations.insert');
     expect(saved.payload.teacher_id).toBe(TEACHER_ID);
     expect(saved.payload.course_id).toBe('course-1');
     expect(saved.payload.group_id).toBe('grp-1');
-    expect(saved.payload.status).toBeUndefined();
+    // The handler decides the status, so a body asking to be rejected —
+    // or approved — changes nothing.
+    expect(saved.payload.status).toBe('approved');
   });
 
-  it('creates no account and no profile — a form is not a sign-in', async () => {
+  it('creates the account there and then', async () => {
+    const res = await call({ ...GOOD, token: TOKEN });
+
+    expect(res.statusCode).toBe(200);
+    const [created] = getSupabaseCalls('auth.admin.createUser');
+    // The two claims row-level security reads. Wrong here and the new
+    // student can see another teacher's space.
+    expect(created.payload.app_metadata).toEqual({ role: 'student', teacher_id: TEACHER_ID });
+
+    const [profile] = getSupabaseCalls('profiles.insert');
+    expect(profile.payload).toMatchObject({ teacher_id: TEACHER_ID, role: 'student', must_change_pw: true });
+  });
+
+  it('enrols them on the invite\u2019s own course and group', async () => {
+    await call({ ...GOOD, token: TOKEN, course_id: 'course-9', group_id: 'grp-9' });
+
+    const [enrol] = getSupabaseCalls('enrollments.insert');
+    expect(enrol.payload).toEqual([{
+      teacher_id: TEACHER_ID, student_id: 'new-uid', course_id: 'course-1', group_id: 'grp-1',
+    }]);
+  });
+
+  it('hands the sign-in straight back to the student', async () => {
+    // They are holding a phone at this moment and may never open the
+    // email. The password goes on the screen as well as into the inbox.
+    const res = await call({ ...GOOD, token: TOKEN });
+
+    expect(res.body.email).toBe('sara@example.com');
+    expect(res.body.password).toHaveLength(12);
+    expect(res.body).toHaveProperty('email_sent');
+  });
+
+  it('records which account the registration became', async () => {
     await call({ ...GOOD, token: TOKEN });
-    expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
-    expect(getSupabaseCalls('profiles.insert')).toHaveLength(0);
+    const [update] = getSupabaseCalls('student_registrations.update');
+    expect(update.payload).toEqual({ student_id: 'new-uid' });
+  });
+
+  it('nobody reviewed it, so nobody is recorded as having', async () => {
+    await call({ ...GOOD, token: TOKEN });
+    const [saved] = getSupabaseCalls('student_registrations.insert');
+    expect(saved.payload.reviewed_by).toBeUndefined();
+    expect(saved.payload.reviewed_at).toEqual(expect.any(String));
+  });
+});
+
+describe('when the account cannot be made', () => {
+  // A plan that is full, a subscription past due, a space with no
+  // subscription at all: every one of those is the teacher's business,
+  // and the person reading the answer is a stranger holding a link.
+  beforeEach(() => {
+    configureSupabaseMock({ results: {
+      ...withInvite(), ...emptySpace(), ...canMakeAccounts(),
+      ...withSubscription({ status: 'past_due' }),
+    } });
+  });
+
+  it('tells the student nothing about the teacher\u2019s billing', async () => {
+    const res = await call({ ...GOOD, token: TOKEN });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body.error).toMatch(/tell them you tried to register/i);
+    expect(res.body.error).not.toMatch(/subscription|invoice|past due|plan|limit/i);
+  });
+
+  it('takes the registration row back out', async () => {
+    // It was the lock that stops two taps becoming two accounts, not a
+    // record of anything that happened. Leaving it would bar the student
+    // from ever trying again.
+    await call({ ...GOOD, token: TOKEN });
+    expect(getSupabaseCalls('student_registrations.delete')).toHaveLength(1);
   });
 
   it('insists on a mobile number', async () => {

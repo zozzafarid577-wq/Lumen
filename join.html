@@ -55,9 +55,9 @@
              filling anything in, not after. -->
         <div class="form-msg" id="once-note" role="note"
              style="display:block;background:#FBF3E4;color:#6B4E10;border:1px solid #EFDDB8">
-          Fill this in <strong>once only</strong>. If you have already registered, you are on the
-          list — your teacher will send your sign-in details. Filling it in again does not make
-          it faster.
+          Fill this in <strong>once only</strong>. Your account is made straight away and your
+          sign-in shown on the next screen. If you have registered before, you already have an
+          account — use <a href="/login.html">sign in</a> rather than this form.
         </div>
 
         <div class="form-msg" id="msg" style="display:none" role="alert"></div>
@@ -92,14 +92,24 @@
         </p>
       </div>
 
+      <!-- The account already exists by the time this is on screen, so
+           this is the sign-in, not a promise of one. It is the one
+           moment the student is certainly there to read it: the same
+           details go out by email, but an inbox they cannot open on the
+           bus is no use to them now. -->
       <div id="done" style="display:none">
-        <h1>You're on the list</h1>
+        <h1>You're in</h1>
         <p class="lead" id="done-text"></p>
         <div class="form-msg ok" style="display:block">
-          <strong>Nothing more to do.</strong> Your teacher will confirm you and send your email
-          and password. Please do not fill the form in again — you are already registered.
+          <strong>Write these down before you close this page.</strong>
+          <div style="margin-top:10px;line-height:1.9">
+            Email: <strong id="done-email" style="word-break:break-all"></strong><br>
+            Password: <strong id="done-pw" style="font-family:ui-monospace,Menlo,monospace"></strong>
+          </div>
         </div>
-        <p class="auth-foot" style="margin-top:22px">When your details arrive, sign in at <a href="/login.html">lumen · sign in</a>.</p>
+        <button class="btn btn-outline" id="copy-creds" onclick="copyCreds()" style="margin-top:14px">Copy my sign-in details</button>
+        <p class="small muted" id="done-mail" style="margin-top:14px"></p>
+        <p class="auth-foot" style="margin-top:22px">Sign in at <a href="/login.html">lumen · sign in</a>. You will be asked to change this password.</p>
       </div>
 
     </div>
@@ -172,8 +182,16 @@ el('join-form').addEventListener('submit', async e => {
   try {
     const out = await post(payload);
     el('done-text').textContent = out.space_name
-      ? `${out.space_name} has your details${out.course_title ? ` for ${out.course_title}` : ''}.`
-      : 'Your teacher has your details.';
+      ? `You have an account with ${out.space_name}${out.course_title ? ` for ${out.course_title}` : ''}.`
+      : 'Your account is ready.';
+    el('done-email').textContent = out.email || payload.email.trim();
+    el('done-pw').textContent = out.password || '';
+    // Said either way. "Check your email" to somebody whose email never
+    // arrived is how a student decides the password on screen was not
+    // the real one and waits for a better one.
+    el('done-mail').textContent = out.email_sent
+      ? 'We have emailed these to you as well.'
+      : 'We could not email these to you, so keep the password above safe.';
     show('done');
   } catch (err) {
     // 409 is "you are already here" — a finished state, not a failed
@@ -185,6 +203,35 @@ el('join-form').addEventListener('submit', async e => {
     say('err', err.message);
   }
 });
+
+// A phone keyboard and a generated password are a bad combination, so
+// the details can be taken in one tap. execCommand is the fallback
+// because clipboard.writeText needs a secure context and a permission
+// some in-app browsers — the ones a WhatsApp link opens in — refuse.
+async function copyCreds() {
+  const text = `Lumen sign-in: ${location.origin}/login.html\n`
+    + `Email: ${el('done-email').textContent}\n`
+    + `Password: ${el('done-pw').textContent}`;
+  const btn = el('copy-creds');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.style.position = 'fixed';
+    box.style.opacity = '0';
+    document.body.appendChild(box);
+    box.select();
+    try { document.execCommand('copy'); } catch (__) {
+      btn.textContent = 'Press and hold the password to copy it';
+      document.body.removeChild(box);
+      return;
+    }
+    document.body.removeChild(box);
+  }
+  btn.textContent = 'Copied';
+  setTimeout(() => { btn.textContent = 'Copy my sign-in details'; }, 2500);
+}
 
 // ── Plumbing ──────────────────────────────────────────────────────
 async function post(body) {

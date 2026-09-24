@@ -273,17 +273,49 @@ A matching **name** is not a block. Two real students called Mohamed Ali
 is ordinary, and refusing the second would turn a common name into a
 locked door, so the registration is flagged and the teacher decides.
 
-### Nothing exists until the teacher approves
+### The account is made there and then
 
-A registration is a filled-in form, not an account. Nobody can sign in
-from one, and **no place on the plan is used** until it is approved.
-Approving calls the same `createStudentAccount()` in `api/_lib/students.js`
-that **Add student** does — same plan check, same one-time password, same
-welcome email — so the two routes cannot drift apart.
+A student who fills the form in gets their account in the same request,
+and their email and password on the next screen. There is no queue and
+nothing to approve.
 
-Turning one down also frees that email and number to register again,
-which is the repair for a student who mistyped their address: the partial
-unique indexes exclude rejected rows on purpose.
+`api/join.js` calls the same `createStudentAccount()` in
+`api/_lib/students.js` that **Add student** does — same plan check, same
+one-time password, same welcome email — so a student who registers
+themselves is the same student, made the same way.
+
+What stands between a stranger and an account is the **link**: closed,
+expired, used past `max_uses` or flooded are all refused before anything
+is written, and every one of those refusals reads the same so that
+probing tokens teaches nothing. Then the once-per-person rules above,
+then the teacher's plan.
+
+**The registration row is still written**, before the account rather than
+instead of it. It is the lock — the unique index on it is the only thing
+that stops two taps on a slow connection becoming two accounts, which no
+check written in JavaScript can do — and afterwards it is the record of
+who came in through which link. It is simply born `approved`, with
+`reviewed_by` null because nobody reviewed it. If the account cannot be
+made, the row is deleted again: it was a lock, not a record of something
+that happened, and leaving it would bar that student from ever retrying.
+
+**Why the account could not be made is not the student's business.** A
+plan that is full, a subscription past due, a space with no subscription
+at all — those messages are written for the teacher and name their
+billing. A stranger holding a link gets one neutral 503 telling them to
+go and tell their teacher, and the real reason goes to the log.
+
+The password comes back to the page as well as going out by email. The
+student is standing there with a phone at that moment, which is the one
+time they are certainly reachable; a mail provider having a bad
+afternoon must not be the difference between having an account and not.
+
+The teacher's **Waiting for you** queue and its approve / turn-down
+actions in `api/invites.js` are still there for anything registered
+before this changed. Turning one of those down frees that email and
+number to register again, which is the repair for a student who mistyped
+their address: the partial unique indexes exclude rejected rows on
+purpose.
 
 ## Roles
 
