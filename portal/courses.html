@@ -10,10 +10,19 @@
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <style>
   /* ── The hello ────────────────────────────────────────────────
-     The same banner the dashboard opens with, carrying this course
-     rather than the space: a student lands on their own name, what
-     they are studying, and how far through it they are. */
-  .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; position: relative; z-index: 1; }
+     There is no student dashboard in front of this page, so the top of
+     it does that job: their own name, their own course, and how far
+     through it they are. Flat brand purple rather than the dark gradient
+     the teacher's side wears — this is the front of the brand. */
+  .welcome-banner {
+    background: var(--primary);
+    border-radius: 20px; padding: 46px 48px; min-height: 210px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .welcome-banner::before, .welcome-banner::after { display: none; }
+  @media (max-width: 700px) { .welcome-banner { padding: 30px 24px; min-height: 0; } }
+
+  .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; position: relative; z-index: 1; }
   .hero-chip {
     display: inline-flex; align-items: center; gap: 6px;
     background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16);
@@ -25,6 +34,68 @@
   .hero-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.18); overflow: hidden; }
   .hero-fill { height: 100%; border-radius: 4px; background: #fff; transition: width .8s cubic-bezier(.4,0,.2,1); }
   .hero-prog-label { font-size: .71rem; color: rgba(255,255,255,.72); margin-top: 7px; font-weight: 500; }
+
+  /* The greeting itself, said big. A student's own name and their own
+     course, at a size that reads as a welcome rather than a header —
+     this page is the whole of their Lumen, so it opens on them. */
+  .hero-hi {
+    font-family: 'Manrope', sans-serif; font-weight: 800; color: #fff;
+    font-size: clamp(1.6rem, 4.6vw, 2.9rem); line-height: 1.16;
+    letter-spacing: -.03em; position: relative; z-index: 1; max-width: 22ch;
+  }
+  .hero-hi .thin { font-weight: 700; opacity: .92; }
+  /* The sparkle. Big, cropped by the banner's own overflow, and behind
+     everything else so a long course title runs straight over it. */
+  .hero-spark {
+    position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+    width: 210px; height: 210px; color: #FFD24A; opacity: .95;
+    pointer-events: none; z-index: 0;
+  }
+  /* On a phone the greeting fills the banner, so the sparkle steps back
+     to being a texture behind it rather than a shape beside it. */
+  @media (max-width: 700px) {
+    .hero-spark { width: 120px; height: 120px; right: -30px; opacity: .5; }
+  }
+
+  /* ── The units, with their name down the side ────────────────── */
+  .courses-rail { display: flex; align-items: stretch; gap: 18px; }
+  .rail-label { display: flex; align-items: flex-start; gap: 12px; flex-shrink: 0; padding-top: 4px; }
+  /* The purple line the label sits against. It runs the height of the
+     list, so the units read as one group rather than three cards. */
+  .rail-label::after {
+    content: ''; width: 3px; border-radius: 2px; background: var(--primary);
+    opacity: .55; align-self: stretch;
+  }
+  .rail-label span {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 1.05rem;
+    letter-spacing: .02em; color: var(--primary); white-space: nowrap;
+  }
+  /* On a phone the label costs width the units need more, so it lies
+     down above them instead of standing beside them. */
+  @media (max-width: 700px) {
+    .courses-rail { flex-direction: column; gap: 10px; }
+    .rail-label { padding-top: 0; }
+    .rail-label::after { display: none; }
+    .rail-label span { writing-mode: horizontal-tb; transform: none; font-size: .95rem; }
+  }
+
+  /* ── How to use this page ─────────────────────────────────────
+     Only drawn when the teacher has actually recorded something. */
+  .help-panel {
+    background: var(--primary-soft); border: 1px solid var(--primary-line);
+    border-radius: 20px; padding: 24px 26px; margin-top: 26px;
+  }
+  .help-panel h2 {
+    font-family: 'Manrope', sans-serif; font-weight: 800; color: var(--primary);
+    font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 16px;
+  }
+  .help-video {
+    position: relative; width: 100%; max-width: 560px; aspect-ratio: 16 / 9;
+    border-radius: 14px; overflow: hidden; background: #1B1519;
+    border: 1px solid var(--primary-line);
+  }
+  .help-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 
   /* ── A unit ───────────────────────────────────────────────────
      Numbered, because "Unit 3" is how a student and their teacher
@@ -125,7 +196,14 @@
 
   <main class="content">
     <div id="course-card"></div>
-    <div id="units"><div class="skel" style="height:120px;margin-bottom:16px"></div><div class="skel" style="height:120px"></div></div>
+    <!-- The units, with their own name written down the side of them.
+         The label is decoration, not information, so it is hidden from
+         anything that reads the page aloud. -->
+    <div class="courses-rail">
+      <div class="rail-label" aria-hidden="true"><span>your courses</span></div>
+      <div id="units" style="flex:1;min-width:0"><div class="skel" style="height:120px;margin-bottom:16px"></div><div class="skel" style="height:120px"></div></div>
+    </div>
+    <div id="help-panel"></div>
   </main>
 </div>
 
@@ -328,10 +406,10 @@ function drawCourseCard(c, units, openTests) {
 
   document.getElementById('course-card').innerHTML = `
     <div class="welcome-banner" style="display:block">
-      <div class="welcome-text">
-        <div class="welcome-sub">${escHtml(c.subject || 'My course')}</div>
-        <div class="welcome-name">Hello, ${escHtml(first || 'there')}</div>
-        <p class="welcome-note">${escHtml(c.title)}${c.description ? ' — ' + escHtml(c.description) : ''}</p>
+      ${SPARK}
+      <div class="hero-hi">
+        Hi ${escHtml(first || 'there')},<br>
+        <span class="thin">Welcome to</span> ${escHtml(c.title)}&nbsp;!
       </div>
       <div class="hero-chips">${chips}</div>
       ${all.length ? `
@@ -340,6 +418,61 @@ function drawCourseCard(c, units, openTests) {
           <div class="hero-prog-label">${percent}% of this course behind you</div>
         </div>` : ''}
     </div>`;
+
+  drawHelpPanel();
+}
+
+// The four-point star in the corner of the banner. Drawn rather than
+// loaded, so it takes the theme's own gold and costs no request.
+const SPARK = `<svg class="hero-spark" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+  <path d="M50 0c2 26 22 48 50 50-28 2-48 24-50 50-2-26-22-48-50-50C28 48 48 26 50 0z"/>
+</svg>`;
+
+// ── How to use this page ──────────────────────────────────────────
+// A teacher explaining the page once, on video, instead of explaining
+// it to thirty students one at a time. Nothing is drawn until they have
+// actually set a link in Settings.
+function drawHelpPanel() {
+  const host = document.getElementById('help-panel');
+  const url = (me.teacher?.intro_video_url || '').trim();
+  if (!url) { host.innerHTML = ''; return; }
+
+  const embed = embedUrl(url);
+  host.innerHTML = `<div class="help-panel">
+    <h2>How to use this dashboard</h2>
+    ${embed
+      ? `<div class="help-video"><iframe src="${escHtml(embed)}" title="How to use this dashboard"
+           allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+           referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="lazy"></iframe></div>`
+      : `<a class="btn btn-primary btn-sm" href="${escHtml(url)}" target="_blank" rel="noopener">Watch the walkthrough</a>`}
+  </div>`;
+}
+
+// Only these three are ever put in a frame. Anything else becomes a link
+// the student clicks, because embedding a URL nobody has vouched for
+// puts someone else's page inside this one.
+function embedUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (_) { return null; }
+  const host = u.hostname.replace(/^www\./, '');
+
+  if (host === 'youtu.be') {
+    const id = u.pathname.slice(1);
+    return /^[\w-]{6,}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+  }
+  if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+    const id = u.searchParams.get('v') || (u.pathname.startsWith('/embed/') ? u.pathname.slice(7) : '');
+    return /^[\w-]{6,}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+  }
+  if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+    const id = (u.pathname.match(/(\d{6,})/) || [])[1];
+    return id ? `https://player.vimeo.com/video/${id}` : null;
+  }
+  if (host === 'drive.google.com') {
+    const id = (u.pathname.match(/\/d\/([\w-]{10,})/) || [])[1];
+    return id ? `https://drive.google.com/file/d/${id}/preview` : null;
+  }
+  return null;
 }
 
 const ICONS = {

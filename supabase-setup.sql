@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS public.teachers (
   contact_email  TEXT,
   contact_phone  TEXT,
   whatsapp       TEXT,
+  -- A "how to use this" video the teacher records once. The panel on the
+  -- student's courses page only appears when this is filled in.
+  intro_video_url TEXT,
   is_active      BOOLEAN NOT NULL DEFAULT true,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()

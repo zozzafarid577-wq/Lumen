@@ -104,6 +104,15 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label" for="sp-video">"How to use this" video</label>
+          <input type="url" class="form-input" id="sp-video" placeholder="https://youtu.be/…">
+          <p class="form-hint">
+            A short walkthrough of the student page. Paste a YouTube, Vimeo or
+            Drive link and it appears on your students' courses page. Leave it
+            empty and the panel does not show at all.
+          </p>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="sp-bio">About you</label>
           <textarea class="form-textarea" id="sp-bio" placeholder="Shown to your students."></textarea>
         </div>
@@ -177,6 +186,7 @@ let me = null;
     document.getElementById('sp-tagline').value = me.teacher.tagline || '';
     document.getElementById('sp-phone').value = me.teacher.contact_phone || '';
     document.getElementById('sp-whatsapp').value = me.teacher.whatsapp || '';
+    document.getElementById('sp-video').value = me.teacher.intro_video_url || '';
     document.getElementById('sp-bio').value = me.teacher.bio || '';
   }
 })();
@@ -245,6 +255,7 @@ async function saveSpace() {
     tagline: document.getElementById('sp-tagline').value.trim() || null,
     contact_phone: document.getElementById('sp-phone').value.trim() || null,
     whatsapp: document.getElementById('sp-whatsapp').value.replace(/\D/g, '') || null,
+    intro_video_url: document.getElementById('sp-video').value.trim() || null,
     bio: document.getElementById('sp-bio').value.trim() || null,
   }).eq('id', me.teacher_id);
   btn.disabled = false;
