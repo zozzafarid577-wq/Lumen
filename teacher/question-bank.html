@@ -52,15 +52,6 @@
             <option value="medium">Medium</option>
             <option value="hard">Hard</option>
           </select>
-          <!-- practice_ok, which is also the fingerprint of a question
-               filed by the old save-a-test behaviour: those arrived held
-               back, everything written in the bank arrives practisable
-               unless the teacher says otherwise. -->
-          <select class="form-select" id="practice-filter" style="max-width:165px" aria-label="Filter by practice">
-            <option value="">Practice: any</option>
-            <option value="held">Tests only</option>
-            <option value="ok">Practisable</option>
-          </select>
         </div>
         <span class="small muted" id="count">—</span>
       </div>
@@ -265,8 +256,7 @@ let selected = new Set();
   // picking, not the button that would bounce them off the tests page.
   if (!staffHasPerm(me, 'tests')) document.getElementById('sel-make').style.display = 'none';
 
-  ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter', 'section-filter',
-   'practice-filter'].forEach(id =>
+  ['q', 'course-filter', 'diff-filter', 'unit-filter', 'lesson-filter', 'section-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
 
   // Each of the three course pickers drives its own pair of unit and
@@ -407,13 +397,8 @@ function shownQuestions() {
   const lessonId = document.getElementById('lesson-filter').value;
   const sectionId = document.getElementById('section-filter').value;
   const diff = document.getElementById('diff-filter').value;
-  const practice = document.getElementById('practice-filter').value;
 
   return bank.filter(b =>
-    // practice_ok defaults true, and a row written before the column
-    // existed reads as null — so "held back" is the explicit false, not
-    // merely the absence of a true.
-    (!practice || (practice === 'held' ? b.practice_ok === false : b.practice_ok !== false)) &&
     // A unit belongs to one course, so a question matching the unit is
     // on that course whatever its own course_id says. Testing both used
     // to hide any question that had been filed with a unit and no

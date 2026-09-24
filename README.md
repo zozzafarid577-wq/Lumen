@@ -455,14 +455,6 @@ quietly lose a question for a reason nobody can see. A test caps at 300
 questions in `api/save-test.js`, and the bank says so before the click
 rather than after it.
 
-The **Practice** filter — *Tests only* / *Practisable* — reads
-`practice_ok`, which doubles as the fingerprint of the old behaviour:
-questions filed by saving a test arrived held back, and anything written
-in the bank arrives practisable unless the teacher says otherwise. So
-*Tests only* is, on an existing space, very close to "everything the
-bank collected on its own". Held back is the explicit `false`, never a
-null — a row written before the column existed is practisable.
-
 **Delete selected** is the same selection pointed the other way, for a
 bank that needs clearing out — the one filled by the old behaviour where
 saving a test filed all of its questions. It cannot reach a test:
