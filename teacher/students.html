@@ -527,6 +527,22 @@ async function loadGroups() {
 
 function groupsFor(courseId) { return groups.filter(g => g.course_id === courseId); }
 
+// A student's enrolments arrive nested inside the profile row, and a
+// nested select comes back in no particular order — so the badges on
+// one row and the badges on the next listed the same two courses two
+// different ways, and the modal disagreed with the row it was opened
+// from. Sorted by course, then by group within a course.
+//
+// numeric so "Group 10" follows "Group 2" rather than "Group 1", and
+// base sensitivity so a group typed in lower case files with the rest
+// instead of after all of them.
+function enrolmentsSorted(student) {
+  const cmp = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  const groupName = e => groups.find(x => x.id === e.group_id)?.name || '';
+  return [...(student.enrollments || [])].sort((a, b) =>
+    cmp(a.courses?.title || '', b.courses?.title || '') || cmp(groupName(a), groupName(b)));
+}
+
 function fillGroupFilter() {
   const courseId = document.getElementById('course-filter').value;
   const pick = document.getElementById('group-filter');
@@ -886,7 +902,7 @@ function render() {
     // Course and group read as one thing, because that is how a teacher
     // says it: "Biology, Sunday". A course with no group set yet shows
     // the course alone rather than an apologetic blank.
-    const badges = (s.enrollments || []).map(e => {
+    const badges = enrolmentsSorted(s).map(e => {
       const title = e.courses?.title;
       if (!title) return '';
       const g = groups.find(x => x.id === e.group_id);
@@ -953,7 +969,7 @@ function openStudent(id) {
 }
 
 function drawEnrolSummary(s) {
-  const rows = (s.enrollments || []).map(e => {
+  const rows = enrolmentsSorted(s).map(e => {
     const title = e.courses?.title;
     if (!title) return '';
     const g = groups.find(x => x.id === e.group_id);
