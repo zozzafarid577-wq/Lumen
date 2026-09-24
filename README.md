@@ -226,6 +226,16 @@ Biology and the Tuesday group for Chemistry" expressible. The foreign key
 is on the pair `(group_id, course_id)`, so an enrolment naming a group
 from a different course is refused by the database, not just by the page.
 
+The student list carries **Course** and **Group** as separate columns,
+one line each per enrolment and in the same order, so row two of one is
+row two of the other. They used to be a single "Biology · Sunday" badge,
+which is how a teacher says it but not how they read a list: the
+question this table is actually asked is *who is not in a class yet*,
+and that cannot be scanned for when the answer is the absence of half a
+badge. A student with no group on a course now says **No group** in
+yellow, and the group filter's "Not in a group" narrows to exactly
+those.
+
 Groups are written under **Students → Groups**, and a student is put in
 one under **Students → Courses & groups**, which is also the only place
 an existing student's enrolments can be changed. Both are on the same

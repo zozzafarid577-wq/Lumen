@@ -371,3 +371,30 @@ describe('links a teacher hands to somebody else', () => {
     expect(forgot).toMatch(/redirectTo: location\.origin/);
   });
 });
+
+// Adding a column to a table means changing the <th> row and every
+// colspan that spans it — the "no rows yet" message and the loading
+// skeleton. Miss one and the table looks right until it is empty or
+// still loading, which is exactly when nobody is looking closely.
+describe('table colspans match a real column count', () => {
+  const withTables = PAGES.filter(p => /<th>/.test(p.html));
+
+  it('finds pages with tables', () => {
+    expect(withTables.length).toBeGreaterThan(3);
+  });
+
+  it.each(withTables)('$rel', ({ rel, html }) => {
+    // Every header row on the page, as a count of its columns.
+    const counts = new Set(
+      [...html.matchAll(/<tr>\s*(<th[\s\S]*?)<\/tr>/g)]
+        .map(m => (m[1].match(/<th[\s>]/g) || []).length)
+        .filter(Boolean));
+    if (!counts.size) return;
+
+    for (const m of html.matchAll(/\b(emptyRow|skeletonRows)\(\s*(\d+)/g)) {
+      expect(counts.has(Number(m[2])),
+        `${rel}: ${m[1]}(${m[2]}, …) spans ${m[2]} columns, but this page's tables have `
+        + `${[...counts].sort((a, b) => a - b).join(' or ')}`).toBe(true);
+    }
+  });
+});

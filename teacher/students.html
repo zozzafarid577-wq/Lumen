@@ -87,7 +87,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th>Courses &amp; groups</th><th>Contact</th><th>Added</th><th>Status</th><th></th></tr>
+            <tr><th>Student</th><th>Course</th><th>Group</th><th>Contact</th><th>Added</th><th>Status</th><th></th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -507,7 +507,7 @@ let editingInvite = null;     // the link the form above the list is editing
   if (!me) return;
   renderShell('teacher', me, { title: 'Students' });
 
-  document.getElementById('rows').innerHTML = skeletonRows(6, 5);
+  document.getElementById('rows').innerHTML = skeletonRows(7, 5);
 
   // One wave rather than five. These are five independent queries, and
   // awaiting them one after another spent four round trips waiting for
@@ -557,7 +557,7 @@ async function loadStudents() {
     .eq('teacher_id', me.teacher_id).eq('role', 'student')
     .order('created_at', { ascending: false });
 
-  if (error) { document.getElementById('rows').innerHTML = emptyRow(6, friendlyError(error.message)); return; }
+  if (error) { document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(error.message)); return; }
   students = data || [];
   render();
 }
@@ -1173,28 +1173,47 @@ function render() {
 
   const tbody = document.getElementById('rows');
   if (!list.length) {
-    tbody.innerHTML = emptyRow(6, students.length
+    tbody.innerHTML = emptyRow(7, students.length
       ? 'No students match those filters.'
       : 'No students yet — use "Add student" to create the first account.');
     return;
   }
 
   tbody.innerHTML = list.map(s => {
-    // Course and group read as one thing, because that is how a teacher
-    // says it: "Biology, Sunday". A course with no group set yet shows
-    // the course alone rather than an apologetic blank.
-    const badges = enrolmentsSorted(s).map(e => {
-      const title = e.courses?.title;
-      if (!title) return '';
-      const g = groups.find(x => x.id === e.group_id);
-      return `<span class="badge b-brand" style="margin:1px 2px 1px 0">${escHtml(title)}${g ? ' · ' + escHtml(g.name) : ''}</span>`;
-    }).filter(Boolean);
+    // Course and group used to read as one badge, because that is how a
+    // teacher says it — "Biology, Sunday". Two columns instead, because
+    // the question actually being asked of this table is "who is not in
+    // a class yet", and that cannot be scanned for when the answer is
+    // the absence of half a badge.
+    //
+    // One line per enrolment in BOTH columns, in the same order, so row
+    // two of Course is row two of Group. enrolmentsSorted() is what
+    // makes that true rather than hoped for.
+    const rows = enrolmentsSorted(s).filter(e => e.courses?.title);
+
+    const courseCell = rows.length
+      ? rows.map(e => `<div style="margin-bottom:2px"><span class="badge b-brand">${escHtml(e.courses.title)}</span></div>`).join('')
+      : '<span class="muted">—</span>';
+
+    // A group that is missing says so, rather than leaving a blank that
+    // reads the same as a student nobody has got to yet.
+    const groupCell = rows.length
+      ? rows.map(e => {
+          const g = groups.find(x => x.id === e.group_id);
+          if (!g) return '<div style="margin-bottom:2px"><span class="badge b-yellow">No group</span></div>';
+          const when = groupWhen(g);
+          return `<div style="margin-bottom:2px">${escHtml(g.name)}`
+            + `${when ? `<span class="muted"> · ${escHtml(when)}</span>` : ''}</div>`;
+        }).join('')
+      : '<span class="muted">—</span>';
+
     return `<tr>
       <td>
         <button class="link-name" onclick="openStudent('${s.id}')">${escHtml(s.full_name)}</button>
         <div class="small muted">${escHtml(s.email || '')}</div>
       </td>
-      <td class="small">${badges.length ? badges.join('') : '<span class="muted">—</span>'}</td>
+      <td class="small">${courseCell}</td>
+      <td class="small">${groupCell}</td>
       <td class="small muted">${escHtml(s.phone || s.parent_phone || '—')}</td>
       <td class="small muted">${fmtDate(s.created_at)}</td>
       <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
