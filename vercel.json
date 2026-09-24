@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/join/:token",
-      "destination": "/join.html"
+      "destination": "/join"
     }
   ],
   "redirects": [

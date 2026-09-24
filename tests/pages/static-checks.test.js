@@ -194,6 +194,43 @@ describe('js/config.js', () => {
   });
 });
 
+describe('vercel.json', () => {
+  const config = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
+
+  // This one shipped broken. With cleanUrls on, Vercel serves join.html at
+  // /join and turns /join.html into a 308 *redirect* — so /join.html stops
+  // being a path anything can be rewritten to, and a rewrite aimed at it
+  // 404s. The page was live and reachable at /join the whole time; only
+  // the pretty /join/<token> link every student is sent was dead.
+  it('never points a rewrite at a .html path while cleanUrls is on', () => {
+    if (!config.cleanUrls) return;
+    for (const r of config.rewrites || []) {
+      expect(r.destination, `${r.source} → ${r.destination}`).not.toMatch(/\.html$/);
+    }
+  });
+
+  it('rewrites and redirects only to somewhere that exists', () => {
+    for (const r of [...(config.rewrites || []), ...(config.redirects || [])]) {
+      const dest = r.destination.split(/[?#]/)[0];
+      if (dest.includes(':')) continue;                     // carries a parameter through
+      const candidates = [
+        join(ROOT, dest),                                   // exactly as written
+        join(ROOT, `${dest}.html`),                         // what cleanUrls resolves
+        join(ROOT, dest, 'index.html'),                     // a directory
+      ];
+      expect(candidates.some(existsSync), `${r.source} → ${r.destination}`).toBe(true);
+    }
+  });
+
+  it('gives every invite link a route to land on', () => {
+    // The token goes in the path, so without this rule the link a teacher
+    // pastes into WhatsApp is a 404 for the whole class.
+    const joinRule = (config.rewrites || []).find(r => r.source.startsWith('/join/'));
+    expect(joinRule, 'no rewrite for /join/<token>').toBeTruthy();
+    expect(existsSync(join(ROOT, 'join.html'))).toBe(true);
+  });
+});
+
 describe('the pages as a whole', () => {
   it('never carries a hard-coded Supabase key', () => {
     // A JWT pasted into a page is how a project key ends up in git.
