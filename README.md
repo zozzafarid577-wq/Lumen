@@ -160,10 +160,10 @@ questions are served and again when one is marked.
 
 ## What a student sees
 
-Their dashboard opens on **their courses**, with the counts under them and
-"what's waiting" and announcements as glances beside each other.
+There is no student dashboard. **My courses** is where they land and
+where the work is — a dashboard in front of it was a page to click past.
 
-The work itself is on one page: **My courses**. It holds the units their
+That one page holds it all. It holds the units their
 teacher has opened, and under each unit the lessons, the handouts on each
 lesson, and the papers set on them. Units start collapsed — a term's worth
 open at once is a page nobody can find anything in.
@@ -216,7 +216,7 @@ enrolments back to no group — students keep the course.
 | `owner`     | `/admin/`   | Lumen staff: open spaces, set plans, raise invoices, read leads |
 | `teacher`   | `/teacher/` | Everything inside their own space                            |
 | `assistant` | `/teacher/` | Only the parts of their teacher's space they were given      |
-| `student`   | `/portal/`  | Their own courses, tests, assignments and results            |
+| `student`   | `/portal/courses` | Their own courses, tests, assignments and results      |
 
 An assistant's permissions live in `profiles.staff_perms`. Hiding a nav
 link is presentation — the page's own `requireAuth(…, { perm })` and the

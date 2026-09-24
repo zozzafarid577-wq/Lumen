@@ -45,11 +45,10 @@ const NAVS = {
   ],
   // A student has one place to work from: their course. The units, the
   // handouts on each lesson and the papers set on them are all on that
-  // page, so there is no separate Lessons or Tests tab to keep in step
-  // with it — those pages now send you here.
+  // page — which is why there is no Lessons tab, no Tests tab, and no
+  // dashboard in front of it. Those pages all send you here.
   student: [
     { section: 'Learn' },
-    { href: '/portal/',                     icon: 'dashboard', label: 'Dashboard' },
     { href: '/portal/courses.html',         icon: 'courses',   label: 'My courses' },
     { section: 'Work' },
     { href: '/portal/assignments.html',     icon: 'tasks',     label: 'Assignments' },
@@ -245,7 +244,7 @@ function sidebarHtml(which, profile) {
        </a>`).join('');
 
   return `
-    <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/'}" aria-label="Lumen">
+    <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/courses.html'}" aria-label="Lumen">
       <span class="b-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none">
         <path d="M17 7v24a15 15 0 0 0 30 0V7" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
         <rect x="12" y="53" width="40" height="8" rx="4" fill="currentColor"/>

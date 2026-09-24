@@ -85,7 +85,9 @@ const HOME_FOR = {
   owner:     '/admin/',
   teacher:   '/teacher/',
   assistant: '/teacher/',
-  student:   '/portal/',
+  // Their courses, not a dashboard: everything a student does is on
+  // that one page, so it is the page they land on.
+  student:   '/portal/courses.html',
 };
 function homeFor(role) { return HOME_FOR[role] || '/login.html'; }
 

@@ -152,7 +152,7 @@ async function savePassword() {
   showToast('Password changed.', 'success');
 
   if (new URLSearchParams(location.search).get('first') === '1') {
-    setTimeout(() => location.replace('/portal/'), 900);
+    setTimeout(() => location.replace('/portal/courses.html'), 900);
   }
 }
 
