@@ -378,9 +378,16 @@ CREATE TABLE IF NOT EXISTS public.groups (
 
 -- ON DELETE SET NULL: deleting a group a teacher no longer runs must not
 -- unenrol its students. They lose a timetable, not their course.
+--
+-- The column list is load-bearing, not decoration (Postgres 15+). Plain
+-- SET NULL nulls every column of the key, course_id included, and
+-- course_id is NOT NULL — so deleting a group with anyone in it would
+-- fail with "null value in column course_id". Name the column and only
+-- the group is forgotten.
 ALTER TABLE public.enrollments DROP CONSTRAINT IF EXISTS enrollments_group_fk;
 ALTER TABLE public.enrollments ADD CONSTRAINT enrollments_group_fk
-  FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id) ON DELETE SET NULL;
+  FOREIGN KEY (group_id, course_id) REFERENCES public.groups(id, course_id)
+  ON DELETE SET NULL (group_id);
 
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 
@@ -425,9 +432,11 @@ CREATE TABLE IF NOT EXISTS public.invite_links (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   -- A group named here has to belong to the course named here, or the
   -- link would enrol its students into a class that meets for something
-  -- else. Same pairing the enrolments table uses.
+  -- else. Same pairing the enrolments table uses — including the column
+  -- list on SET NULL, without which deleting a group would fail on this
+  -- table's NOT NULL course_id instead of forgetting the group.
   CONSTRAINT invite_links_group_fk FOREIGN KEY (group_id, course_id)
-    REFERENCES public.groups(id, course_id) ON DELETE SET NULL
+    REFERENCES public.groups(id, course_id) ON DELETE SET NULL (group_id)
 );
 
 CREATE INDEX IF NOT EXISTS invite_links_teacher_idx

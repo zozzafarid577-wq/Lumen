@@ -100,6 +100,22 @@ describe('supabase-setup.sql runs top to bottom', () => {
     }
   });
 
+  // Plain ON DELETE SET NULL nulls every column of the referencing key,
+  // not just the one that pointed at the deleted row. On a composite key
+  // that pairs a child with its parent — (group_id, course_id) — that
+  // means deleting a group asks to null course_id too, and course_id is
+  // NOT NULL, so the delete is refused with an error naming a column
+  // nobody touched. Postgres 15's column list is the fix, and it is
+  // invisible when missing until someone deletes a group.
+  it('names the column on every composite ON DELETE SET NULL', () => {
+    const composite = /FOREIGN KEY\s*\(\s*\w+\s*,[^)]*\)\s*REFERENCES\s+public\.\w+\s*\([^)]*\)\s*ON DELETE SET NULL\s*(\()?/gi;
+    for (const m of SETUP.matchAll(composite)) {
+      expect(m[1], `a composite foreign key at ${m.index} uses bare ON DELETE SET NULL, `
+        + 'which nulls every column of the key — name the nullable one, e.g. SET NULL (group_id)')
+        .toBe('(');
+    }
+  });
+
   it('enables row-level security on every table it creates', () => {
     // A table with policies but no ENABLE ROW LEVEL SECURITY is wide
     // open, and looks locked down at a glance.
