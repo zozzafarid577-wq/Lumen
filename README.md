@@ -71,6 +71,16 @@ Environment Variables):
 | `SUPABASE_ANON_KEY`         | Project Settings → API                    |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API (keep it secret)   |
 
+Mail is optional but needed for two things: the password handed to a new
+student, and the help requests students send through Lumi.
+
+| Variable              | What it does                                              |
+| --------------------- | --------------------------------------------------------- |
+| `BREVO_API_KEY`       | Brevo → SMTP & API → API keys                              |
+| `BREVO_SENDER_EMAIL`  | A sender address **verified in Brevo**, or it refuses      |
+| `BREVO_SENDER_NAME`   | Optional; defaults to "Lumen"                              |
+| `SUPPORT_EMAIL`       | Where Lumi's help requests go; defaults to `lumenacademy21@gmail.com` |
+
 ### 4. The first Lumen account
 
 Row-level security has no back door, so the very first account has to be
@@ -164,11 +174,16 @@ all — setting the Unit and Lesson fields in the test builder is what puts a
 paper in front of them.
 
 **Lumi**, the character in the corner, is on every student page and is
-mounted by `renderShell()`. What a student writes to it lands in
-`support_requests` (migration v4) and shows on their teacher's dashboard
-until the teacher marks it done. It is a row rather than an email on
-purpose: a button that silently drops what a child typed is worse than no
-button at all.
+mounted by `renderShell()`. What a student writes to it goes through
+`POST /api/support`, which emails it to `SUPPORT_EMAIL` (defaulting to
+`lumenacademy21@gmail.com`) with the student as the reply-to, **and**
+files it in `support_requests` (migration v4) for the teacher's
+dashboard.
+
+Neither half is allowed to sink the other: a space that has not run v4
+still gets the email, a mail provider that is down still leaves the row,
+and the request only fails when both fail — which is the only case where
+what the student typed has gone nowhere.
 
 There is deliberately no separate Lessons or Tests tab — `/portal/lessons`
 and `/portal/tests` redirect to `/portal/courses` (see `vercel.json`), so
@@ -234,6 +249,7 @@ already have one: the teacher's payment is not the class's problem.
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |
 | `POST /api/questions` | teacher, assistant*    | Parse and import a pasted batch of questions   |
 | `POST /api/practice`  | student                | Serve bank questions with the answers stripped, and mark one at a time |
+| `POST /api/support`   | anyone signed in       | Email a help request written to Lumi, and file it when the table is there |
 | `POST /api/teachers`  | owner                  | Open, edit and delete spaces, set plans, raise and settle invoices |
 
 \* with the matching permission.

@@ -93,8 +93,9 @@ function renderShell(which, profile, { title } = {}) {
 // A student who cannot open a PDF, or whose test will not load, has
 // nowhere to say so. They will not email, and they should not have to
 // find their teacher's phone number to report that a page is broken. So
-// there is a face in the corner, and what they type lands in
-// support_requests where their teacher sees it.
+// there is a face in the corner, and what they type goes through
+// POST /api/support — on to Lumen's inbox, and into support_requests
+// as well when that table is there.
 // ─────────────────────────────────────────────────────────────────
 
 // The lamp from the logo, given eyes. The "u" is its body and the bar
@@ -142,7 +143,7 @@ function mountHelper(profile) {
       <div class="lumi-head">
         <div>
           <div class="lumi-name">Hi, I'm Lumi</div>
-          <div class="lumi-sub">Tell your teacher what is wrong and they will see it.</div>
+          <div class="lumi-sub">Tell us what is wrong and we will look into it.</div>
         </div>
         <button class="modal-close" type="button" onclick="toggleHelp(false)" aria-label="Close">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -183,7 +184,6 @@ function toggleHelp(force) {
 }
 
 async function sendHelp() {
-  const profile = window.__lumiProfile || {};
   const name = document.getElementById('lumi-name').value.trim();
   const message = document.getElementById('lumi-msg').value.trim();
   const alert = document.getElementById('lumi-alert');
@@ -197,27 +197,32 @@ async function sendHelp() {
   btn.textContent = 'Sending…';
   say('');
 
-  const { error } = await sb.from('support_requests').insert({
-    teacher_id: profile.teacher_id,
-    student_id: profile.id,
-    name,
-    email: profile.email || null,
-    kind: document.getElementById('lumi-kind').value,
-    message,
-  });
+  // Through the API rather than straight at the table: the server sends
+  // it on as an email, which is what makes it arrive in something
+  // somebody already watches, and files the row as well when it can.
+  try {
+    await apiPost('/api/support', {
+      name,
+      message,
+      kind: document.getElementById('lumi-kind').value,
+    });
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Send to my teacher';
+    say(err.message);
+    return;
+  }
 
   btn.disabled = false;
   btn.textContent = 'Send to my teacher';
-
-  if (error) { say(friendlyError(error.message)); return; }
 
   // The panel becomes the receipt rather than closing on them — a form
   // that empties itself and vanishes leaves a child wondering whether
   // anything happened at all.
   document.querySelector('.lumi-body').innerHTML = `
     <div style="text-align:center;padding:14px 6px">
-      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">Sent to your teacher</div>
-      <p class="small muted">They will see it next time they open Lumen. You can close this now.</p>
+      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">Sent</div>
+      <p class="small muted">Your message is on its way to Lumen. You can close this now.</p>
     </div>`;
   document.querySelector('.lumi-foot').innerHTML =
     '<button class="btn btn-ghost btn-sm" type="button" onclick="toggleHelp(false)">Close</button>';
