@@ -502,12 +502,23 @@ let lastInvite = null;        // the link just made, for Copy and WhatsApp
   renderShell('teacher', me, { title: 'Students' });
 
   document.getElementById('rows').innerHTML = skeletonRows(6, 5);
-  await loadGroups();
-  await loadCourses();
-  await loadStudents();
-  await loadPending();
 
-  const allow = await studentAllowance();
+  // One wave rather than five. These are five independent queries, and
+  // awaiting them one after another spent four round trips waiting for
+  // answers that had nothing to do with each other — on a phone on
+  // mobile data that is most of the time the page takes to appear.
+  //
+  // Three of them draw something that reads another's data: a student's
+  // badges need the group names, the add-student picker needs courses
+  // and groups both, the pending rows need groups. So those three are
+  // drawn once at the end rather than in whatever order the answers
+  // happened to come back in.
+  const [, , , , allow] = await Promise.all([
+    loadGroups(), loadCourses(), loadStudents(), loadPending(), studentAllowance(),
+  ]);
+  render();
+  renderNewCourses();
+  renderPending();
   if (allow) renderSubscriptionNotice(allow);
 
   ['q', 'course-filter', 'status-filter', 'group-filter'].forEach(id =>

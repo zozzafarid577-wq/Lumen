@@ -96,8 +96,11 @@ let editingAnn = null;
   me = await requireAuth(['teacher', 'assistant'], { perm: 'announcements' });
   if (!me) return;
   renderShell('teacher', me, { title: 'Announcements' });
-  await loadCourses();
-  await loadAnns();
+  // Independent of each other: the posts carry their course's title in
+  // the query itself rather than looking it up in what loadCourses()
+  // fetched, so waiting for one before starting the other bought
+  // nothing but a second round trip.
+  await Promise.all([loadCourses(), loadAnns()]);
   if (new URLSearchParams(location.search).get('action') === 'new') editAnn();
 })();
 
