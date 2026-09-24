@@ -183,6 +183,121 @@ describe('who may use this at all', () => {
   });
 });
 
+describe('editing a link', () => {
+  const LINK = {
+    id: 'inv-1', teacher_id: TEACHER_ID, token: 'tok', label: 'Sat 4pm',
+    course_id: COURSE, group_id: GROUP,
+  };
+
+  beforeEach(() => {
+    configureSupabaseMock({ results: {
+      'invite_links.select': { data: LINK, error: null },
+      'courses.select': { data: { id: COURSE, title: 'SAT Math' }, error: null },
+      'groups.select':  { data: { id: GROUP, course_id: COURSE }, error: null },
+    } });
+  });
+
+  it('never writes the token', async () => {
+    // The URL is already in a class WhatsApp group. A teacher fixing a
+    // typo in a label must not silently break it, and that is the one
+    // thing about a link that cannot be taken back.
+    const res = await call({
+      action: 'update', invite_id: 'inv-1', label: 'Sunday 6pm',
+      course_id: COURSE, group_id: GROUP,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [update] = getSupabaseCalls('invite_links.update');
+    expect(update.payload).not.toHaveProperty('token');
+    expect(update.payload.label).toBe('Sunday 6pm');
+  });
+
+  it('moves it to another course and group together', async () => {
+    configureSupabaseMock({ results: {
+      'courses.select': { data: { id: 'course-2', title: 'Physics' }, error: null },
+      'groups.select':  { data: { id: 'grp-2', course_id: 'course-2' }, error: null },
+    } });
+
+    const res = await call({ action: 'update', invite_id: 'inv-1', course_id: 'course-2', group_id: 'grp-2' });
+
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('invite_links.update')[0].payload)
+      .toMatchObject({ course_id: 'course-2', group_id: 'grp-2' });
+  });
+
+  it('refuses a group that belongs to a different course', async () => {
+    // Otherwise the link enrols its next student into a class that meets
+    // for something else. The composite foreign key would refuse it too;
+    // this says which half was wrong.
+    configureSupabaseMock({ results: {
+      'courses.select': { data: { id: 'course-2', title: 'Physics' }, error: null },
+      'groups.select':  { data: { id: GROUP, course_id: COURSE }, error: null },
+    } });
+
+    const res = await call({ action: 'update', invite_id: 'inv-1', course_id: 'course-2', group_id: GROUP });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/different course/i);
+    expect(getSupabaseCalls('invite_links.update')).toHaveLength(0);
+  });
+
+  it('validates the pair even when only the course was sent', async () => {
+    // "Keep the group, change the course" is exactly how a link ends up
+    // pointing at a class for another subject.
+    configureSupabaseMock({ results: {
+      'courses.select': { data: { id: 'course-2', title: 'Physics' }, error: null },
+      'groups.select':  { data: { id: GROUP, course_id: COURSE }, error: null },
+    } });
+
+    const res = await call({ action: 'update', invite_id: 'inv-1', course_id: 'course-2' });
+
+    expect(res.statusCode).toBe(400);
+    expect(getSupabaseCalls('invite_links.update')).toHaveLength(0);
+  });
+
+  it('takes the group off', async () => {
+    const res = await call({ action: 'update', invite_id: 'inv-1', group_id: null });
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('invite_links.update')[0].payload.group_id).toBeNull();
+  });
+
+  it('leaves alone what was not sent', async () => {
+    const res = await call({ action: 'update', invite_id: 'inv-1' });
+    expect(res.statusCode).toBe(200);
+    const [update] = getSupabaseCalls('invite_links.update');
+    expect(update.payload).not.toHaveProperty('label');
+    expect(update.payload).not.toHaveProperty('max_uses');
+    expect(update.payload).toMatchObject({ course_id: COURSE, group_id: GROUP });
+  });
+
+  it('clears a limit that is sent as nothing', async () => {
+    const res = await call({ action: 'update', invite_id: 'inv-1', max_uses: null });
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('invite_links.update')[0].payload.max_uses).toBeNull();
+  });
+
+  it('refuses a link in another teacher\u2019s space', async () => {
+    configureSupabaseMock({ results: {
+      'invite_links.select': { data: { ...LINK, teacher_id: OTHER_TEACHER_ID }, error: null },
+    } });
+    const res = await call({ action: 'update', invite_id: 'inv-1', label: 'Mine now' });
+    expect(res.statusCode).toBe(403);
+    expect(getSupabaseCalls('invite_links.update')).toHaveLength(0);
+  });
+
+  it('refuses a course in another teacher\u2019s space', async () => {
+    configureSupabaseMock({ results: { 'courses.select': { data: null, error: null } } });
+    const res = await call({ action: 'update', invite_id: 'inv-1', course_id: 'course-9' });
+    expect(res.statusCode).toBe(400);
+    expect(getSupabaseCalls('invite_links.update')).toHaveLength(0);
+  });
+
+  it('refuses a closing date that is not a date', async () => {
+    const res = await call({ action: 'update', invite_id: 'inv-1', expires_at: 'next Tuesdayish' });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('opening, closing and deleting a link', () => {
   beforeEach(() => {
     configureSupabaseMock({ results: {

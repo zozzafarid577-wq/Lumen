@@ -262,6 +262,19 @@ they make one link per batch under **Students → Invite a batch**, send it
 once to that class's WhatsApp group, and each student fills their own
 details in.
 
+A link can be **edited** after it is sent — its course, its group, its
+label, its limit. The token is never rewritten, so the URL already
+sitting in a class WhatsApp group keeps working; what changes is where
+the *next* student who uses it lands. The ones who already registered
+keep the enrolment they were given, because that is where they actually
+are, and the modal says so before the change rather than after.
+
+The course and the group are validated **as a pair** even when only one
+of them was sent. "Keep the group, change the course" is exactly how a
+link ends up enrolling students into a class that meets for another
+subject; the composite foreign key on `(group_id, course_id)` refuses it
+too, but the handler says which half was wrong.
+
 A link is tied to **one course and one group**, so every student who uses
 it lands in the right class without being asked to pick. It stays usable
 until the teacher closes it, it expires, or it hits the limit they set.
@@ -393,7 +406,7 @@ already have one: the teacher's payment is not the class's problem.
 | Endpoint              | Who may call it        | What it does                                   |
 | --------------------- | ---------------------- | ---------------------------------------------- |
 | `POST /api/students`  | teacher, assistant*    | Create, reset password, pause, delete          |
-| `POST /api/invites`   | teacher, assistant*    | Make and close batch invite links; approve or turn down what they bring in |
+| `POST /api/invites`   | teacher, assistant*    | Make, edit and close batch invite links; approve or turn down what they bring in |
 | `POST /api/join`      | **anyone**             | Read what an invite link is for, and register once against it |
 | `POST /api/staff`     | teacher                | Add, re-permission, suspend, remove assistants |
 | `POST /api/save-test` | teacher, assistant*    | Write a test and replace its questions in one call |

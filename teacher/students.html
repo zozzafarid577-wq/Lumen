@@ -263,7 +263,11 @@
         </div>
       </div>
 
-      <button class="btn btn-primary btn-sm mb16" id="iv-create" onclick="createInvite()">Create link</button>
+      <div class="row mb16">
+        <button class="btn btn-primary btn-sm" id="iv-create" onclick="saveInvite()">Create link</button>
+        <button class="btn btn-ghost btn-sm" id="iv-cancel" onclick="resetInviteForm()" style="display:none">Cancel edit</button>
+      </div>
+      <p class="form-hint" id="iv-editing" style="display:none;margin-top:-10px;margin-bottom:14px"></p>
 
       <!-- The link, the moment it exists. A teacher came here to send
            something, so the two buttons that send it come before the
@@ -496,6 +500,7 @@ let pendingDelete = null;
 let invites = [];             // this teacher's batch links
 let pending = [];             // registrations waiting to be approved
 let lastInvite = null;        // the link just made, for Copy and WhatsApp
+let editingInvite = null;     // the link the form above the list is editing
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'students' });
@@ -875,10 +880,9 @@ async function rejectReg(id) {
 
 // ── Batch invites: the links ──────────────────────────────────────
 function openInvites() {
-  say('iv-alert', '');
   document.getElementById('iv-fresh').style.display = 'none';
-  document.getElementById('iv-label').value = '';
-  document.getElementById('iv-max').value = '';
+  // Never opens half way through editing something from last time.
+  resetInviteForm();
 
   const course = document.getElementById('iv-course');
   course.innerHTML = courses.length
@@ -941,6 +945,7 @@ function renderInvites(used) {
         </div>
         <div style="white-space:nowrap">
           <button class="btn btn-outline btn-xs" onclick="copyInvite('${v.token}')">Copy</button>
+          <button class="btn btn-ghost btn-xs" onclick="editInvite('${v.id}')">Edit</button>
           <button class="btn btn-ghost btn-xs" onclick="toggleInvite('${v.id}', ${v.is_open ? 'false' : 'true'})">${v.is_open ? 'Close' : 'Reopen'}</button>
           <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteInvite('${v.id}')">Delete</button>
         </div>
@@ -949,35 +954,83 @@ function renderInvites(used) {
   }).join('');
 }
 
-async function createInvite() {
+// One form, two jobs — the same shape the group editor uses. A teacher
+// who has just realised the Saturday link says Sunday wants to fix that
+// link, not make a second one and remember which is which.
+function editInvite(id) {
+  const v = invites.find(x => x.id === id);
+  if (!v) return;
+  editingInvite = v;
+
+  document.getElementById('iv-course').value = v.course_id;
+  fillInviteGroups();
+  document.getElementById('iv-group').value = v.group_id || '';
+  document.getElementById('iv-label').value = v.label || '';
+  document.getElementById('iv-max').value = v.max_uses || '';
+
+  document.getElementById('iv-create').textContent = 'Save changes';
+  document.getElementById('iv-cancel').style.display = '';
+  document.getElementById('iv-fresh').style.display = 'none';
+  say('iv-alert', '');
+
+  // Said before the change, not after: moving a link is not retroactive,
+  // and a teacher expecting it to be would go looking for students who
+  // never moved.
+  const note = document.getElementById('iv-editing');
+  note.textContent = 'Editing this link. The link itself does not change, so anything already sent '
+    + 'keeps working — and students who registered through it stay where they are. '
+    + 'This decides where the next one lands.';
+  note.style.display = '';
+}
+
+function resetInviteForm() {
+  editingInvite = null;
+  document.getElementById('iv-label').value = '';
+  document.getElementById('iv-max').value = '';
+  document.getElementById('iv-create').textContent = 'Create link';
+  document.getElementById('iv-cancel').style.display = 'none';
+  document.getElementById('iv-editing').style.display = 'none';
+  say('iv-alert', '');
+}
+
+async function saveInvite() {
   const courseId = document.getElementById('iv-course').value;
   if (!courseId) { say('iv-alert', 'Create a course first, then a link to enrol students onto it.'); return; }
 
   const max = parseInt(document.getElementById('iv-max').value, 10);
+  const editing = editingInvite;
   const btn = document.getElementById('iv-create');
   btn.disabled = true;
-  btn.textContent = 'Creating…';
+  btn.textContent = editing ? 'Saving…' : 'Creating…';
   say('iv-alert', '');
 
   try {
-    const data = await apiPost('/api/invites', {
-      action: 'create',
+    const payload = {
       course_id: courseId,
       group_id: document.getElementById('iv-group').value || null,
       label: document.getElementById('iv-label').value,
       max_uses: Number.isInteger(max) && max > 0 ? max : null,
-    });
-    lastInvite = data.url;
-    document.getElementById('iv-url').textContent = data.url;
-    document.getElementById('iv-fresh').style.display = 'block';
-    document.getElementById('iv-label').value = '';
-    document.getElementById('iv-max').value = '';
-    await loadInvites();
+    };
+
+    if (editing) {
+      await apiPost('/api/invites', { action: 'update', invite_id: editing.id, ...payload });
+      resetInviteForm();
+      await loadInvites();
+      showToast('Link saved.', 'success');
+    } else {
+      const data = await apiPost('/api/invites', { action: 'create', ...payload });
+      lastInvite = data.url;
+      document.getElementById('iv-url').textContent = data.url;
+      document.getElementById('iv-fresh').style.display = 'block';
+      document.getElementById('iv-label').value = '';
+      document.getElementById('iv-max').value = '';
+      await loadInvites();
+    }
   } catch (err) {
     say('iv-alert', err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Create link';
+    btn.textContent = editingInvite ? 'Save changes' : 'Create link';
   }
 }
 

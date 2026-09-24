@@ -24,6 +24,7 @@ export default handler(async (req, res) => {
 
   switch (action) {
     case 'create':   return createLink(res, profile, teacherId, body, req);
+    case 'update':   return updateLink(res, profile, teacherId, body);
     case 'set_open': return setOpen(res, profile, teacherId, body);
     case 'delete':   return deleteLink(res, profile, teacherId, body);
     case 'approve':  return approve(res, profile, teacherId, body, req);
@@ -86,6 +87,62 @@ async function createLink(res, actor, teacherId, body, req) {
     token: inserted.token,
     url: siteUrlFor(req, `/join/${inserted.token}`),
   });
+}
+
+// ── Editing one ───────────────────────────────────────────────────
+// Everything about a link except the link itself. The token is never
+// written here: a teacher fixing a typo in a label must not silently
+// break the URL already sitting in a class WhatsApp group, which is the
+// one thing about a link that cannot be taken back.
+//
+// Moving a link to another course changes where the NEXT student who
+// uses it lands. The ones who already registered keep the enrolment they
+// were given, because that is where they actually are.
+async function updateLink(res, actor, teacherId, body) {
+  const link = await getLink(body.invite_id, teacherId);
+
+  // The pair is validated together even when only one of them was sent,
+  // because "keep the group, change the course" is the way to end up
+  // with a link enrolling students into a class that meets for something
+  // else. The database refuses that too — the foreign key is on
+  // (group_id, course_id) — but a 400 here says which half was wrong.
+  const courseId = body.course_id || link.course_id;
+  const groupId  = body.group_id === undefined ? link.group_id : (body.group_id || null);
+
+  const { data: course } = await admin
+    .from('courses').select('id, title').eq('id', courseId).eq('teacher_id', teacherId).maybeSingle();
+  if (!course) throw new HttpError(400, 'That course is not in your space.');
+
+  if (groupId) {
+    const { data: group } = await admin
+      .from('groups').select('id, course_id').eq('id', groupId).eq('teacher_id', teacherId).maybeSingle();
+    if (!group) throw new HttpError(400, 'That group is not in your space.');
+    if (group.course_id !== courseId) throw new HttpError(400, 'That group belongs to a different course.');
+  }
+
+  const patch = { course_id: courseId, group_id: groupId };
+
+  if ('label' in body) patch.label = cleanText(body.label, { max: 80 });
+
+  if ('max_uses' in body) {
+    patch.max_uses = Number.isInteger(body.max_uses) && body.max_uses > 0 ? body.max_uses : null;
+  }
+
+  if ('expires_at' in body) {
+    const expires = body.expires_at ? new Date(body.expires_at) : null;
+    if (expires && Number.isNaN(expires.getTime())) {
+      throw new HttpError(400, 'That closing date is not a real date.');
+    }
+    patch.expires_at = expires ? expires.toISOString() : null;
+  }
+
+  const { error } = await admin.from('invite_links').update(patch).eq('id', link.id);
+  if (error) throw new HttpError(500, 'Could not save that link.');
+
+  await logActivity(teacherId, actor, 'invite_link_updated',
+    `${course.title}${patch.label ? ` · ${patch.label}` : ''}`);
+
+  return res.status(200).json({ ok: true });
 }
 
 // ── Opening and closing ───────────────────────────────────────────
@@ -207,7 +264,8 @@ async function reject(res, actor, teacherId, body) {
 async function getLink(id, teacherId) {
   if (!id) throw new HttpError(400, 'No link was named.');
   const { data } = await admin
-    .from('invite_links').select('id, teacher_id, token, label').eq('id', id).maybeSingle();
+    .from('invite_links').select('id, teacher_id, token, label, course_id, group_id')
+    .eq('id', id).maybeSingle();
   if (!data) throw new HttpError(404, 'That link no longer exists.');
   if (data.teacher_id !== teacherId) throw new HttpError(403, 'That link is not in your space.');
   return data;
