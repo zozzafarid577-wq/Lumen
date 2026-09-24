@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
@@ -404,5 +405,20 @@ describe('the method', () => {
     const res = makeRes();
     await handler(makeReq({ method: 'GET' }), res);
     expect(res.statusCode).toBe(405);
+  });
+});
+
+// Parent details became required on a student a teacher types in, and on
+// one registering through a link today. A registration taken BEFORE that
+// has neither, and it is sitting in a queue the teacher cannot empty any
+// other way — so the rule lives in api/students.js and api/join.js, not
+// in the createStudentAccount() all three share. Approving an old one
+// has to keep working.
+describe('approving a registration taken before parent details were asked for', () => {
+  it('still creates the account', async () => {
+    const src = readFileSync(new URL('../../api/_lib/students.js', import.meta.url), 'utf8');
+    expect(src, 'createStudentAccount() now refuses a student with no parent details, '
+      + 'which strands every registration taken before they were asked for')
+      .not.toMatch(/parent.{0,40}(is required|required\.)/i);
   });
 });

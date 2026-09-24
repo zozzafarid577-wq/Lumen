@@ -294,8 +294,9 @@ A matching **name** is not a block. Two real students called Mohamed Ali
 is ordinary, and refusing the second would turn a common name into a
 locked door, so the registration is flagged and the teacher decides.
 
-A registration asks for **a parent's mobile and email as well as the
-student's own**, and both are required. A teacher who needs to reach
+A parent's mobile and email are **required on every new student**, both
+on the batch-invite form a student fills in and on the teacher's own
+**Add student**. A teacher who needs to reach
 somebody's family about attendance or a result cannot do it through a
 teenager's phone, and the moment they need it is never the moment to
 start asking for it. `api/result-email.js` sends a finished test's mark
@@ -304,6 +305,13 @@ to exactly that address.
 The parent's number is deliberately **not** part of the once-per-person
 check. Siblings share a parent, and matching on it would refuse the
 second child in a family as a duplicate of the first.
+
+The rule lives in `api/students.js` and `api/join.js` rather than in the
+`createStudentAccount()` both call, because **approving a registration
+taken before this was asked for** has to keep working — those rows have
+no parent details, and refusing them would strand a queue the teacher
+cannot empty any other way. A test reads the shared file to check the
+rule has not migrated into it.
 
 ### The account is made there and then
 

@@ -12,6 +12,10 @@ import handler from '../../api/students.js';
 
 const COURSE = 'course-1';
 
+// A parent's phone and email are required on a new student, the same as
+// on one who registers themselves through a batch link.
+const PARENT = { parent_phone: '+20 100 000 1111', parent_email: 'parent@example.com' };
+
 function courseLookup(ids = [COURSE]) {
   return { 'courses.select': { data: ids.map(id => ({ id })), error: null } };
 }
@@ -33,7 +37,7 @@ describe('creating a student', () => {
   });
 
   it('creates the account inside the caller’s own tenant', async () => {
-    const res = await call({ full_name: 'Sara Ahmed', email: 'Sara@Example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara Ahmed', email: 'Sara@Example.com', course_ids: [COURSE] });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.password).toHaveLength(12);
@@ -57,7 +61,7 @@ describe('creating a student', () => {
     } });
 
     const res = await call({
-      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      ...PARENT, full_name: 'Sara Ahmed', email: 'sara@example.com',
       course_ids: [COURSE], group_ids: { [COURSE]: 'grp-1' },
     });
 
@@ -74,7 +78,7 @@ describe('creating a student', () => {
     } });
 
     const res = await call({
-      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      ...PARENT, full_name: 'Sara Ahmed', email: 'sara@example.com',
       course_ids: [COURSE], group_ids: { [COURSE]: 'grp-1' },
     });
 
@@ -87,7 +91,7 @@ describe('creating a student', () => {
     configureSupabaseMock({ results: { 'groups.select': { data: [], error: null } } });
 
     const res = await call({
-      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      ...PARENT, full_name: 'Sara Ahmed', email: 'sara@example.com',
       course_ids: [COURSE], group_ids: { [COURSE]: 'grp-elsewhere' },
     });
 
@@ -97,7 +101,7 @@ describe('creating a student', () => {
 
   it('ignores a group named for a course they are not being enrolled on', async () => {
     const res = await call({
-      full_name: 'Sara Ahmed', email: 'sara@example.com',
+      ...PARENT, full_name: 'Sara Ahmed', email: 'sara@example.com',
       course_ids: [COURSE], group_ids: { 'course-9': 'grp-9' },
     });
 
@@ -116,20 +120,48 @@ describe('creating a student', () => {
     expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
   });
 
+  it('insists on a parent’s phone', async () => {
+    const res = await call({
+      ...PARENT, parent_phone: '',
+      full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/parent/i);
+    expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
+  });
+
+  it('insists on a parent’s email', async () => {
+    const res = await call({
+      ...PARENT, parent_email: '',
+      full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/parent/i);
+    expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
+  });
+
+  it('insists a parent’s email is a real address', async () => {
+    const res = await call({
+      ...PARENT, parent_email: 'dad',
+      full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE],
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('refuses a course that belongs to someone else', async () => {
     configureSupabaseMock({ results: courseLookup([]) });   // the tenant filter finds nothing
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: ['someone-elses-course'] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: ['someone-elses-course'] });
     expect(res.statusCode).toBe(400);
     expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
   });
 
   it('needs at least one course', async () => {
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [] });
     expect(res.statusCode).toBe(400);
   });
 
   it('rejects an email that is not one', async () => {
-    const res = await call({ full_name: 'Sara', email: 'not-an-email', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'not-an-email', course_ids: [COURSE] });
     expect(res.statusCode).toBe(400);
   });
 
@@ -137,14 +169,14 @@ describe('creating a student', () => {
     configureSupabaseMock({
       results: { 'auth.admin.listUsers': { data: { users: [{ email: 'sara@example.com' }] }, error: null } },
     });
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(409);
     expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
   });
 
   it('deletes the auth user again when the profile insert fails', async () => {
     configureSupabaseMock({ results: { 'profiles.insert': { data: null, error: { message: 'boom' } } } });
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
 
     expect(res.statusCode).toBe(500);
     // A student who can sign in but has no profile cannot be helped by
@@ -154,7 +186,7 @@ describe('creating a student', () => {
 
   it('deletes the auth user again when the enrolment fails', async () => {
     configureSupabaseMock({ results: { 'enrollments.insert': { data: null, error: { message: 'boom' } } } });
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
 
     expect(res.statusCode).toBe(500);
     expect(getSupabaseCalls('auth.admin.deleteUser')).toHaveLength(1);
@@ -168,7 +200,7 @@ describe('the plan limit', () => {
     asUser(TEACHER_USER, { studentCount: 60 });
     configureSupabaseMock({ results: withSubscription({ student_limit: 60 }) });
 
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(402);
     expect(res.body.error).toMatch(/60 students/);
     expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
@@ -178,20 +210,20 @@ describe('the plan limit', () => {
     asUser(TEACHER_USER, { studentCount: 59 });
     configureSupabaseMock({ results: withSubscription({ student_limit: 60 }) });
 
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(200);
   });
 
   it('pauses new accounts while a subscription is past due', async () => {
     configureSupabaseMock({ results: withSubscription({ status: 'past_due' }) });
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(402);
     expect(res.body.error).toMatch(/past due/i);
   });
 
   it('refuses when there is no subscription at all', async () => {
     configureSupabaseMock({ results: { 'subscriptions.select': { data: null, error: null } } });
-    const res = await call({ full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(402);
   });
 });
@@ -373,7 +405,7 @@ describe('who may call it', () => {
   it('lets an assistant with the students permission through', async () => {
     asUser(ASSISTANT_USER, { profile: { staff_perms: ['students'] } });
     configureSupabaseMock({ results: { ...withSubscription(), ...courseLookup() } });
-    const res = await call({ full_name: 'Nour Hassan', email: 'nour@example.com', course_ids: [COURSE] });
+    const res = await call({ ...PARENT, full_name: 'Nour Hassan', email: 'nour@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(200);
   });
 

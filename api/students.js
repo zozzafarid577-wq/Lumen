@@ -34,7 +34,20 @@ async function createStudent(res, actor, teacherId, body, req) {
   const email    = cleanEmail(body.email);
   const phone    = cleanText(body.phone, { max: 40 });
   const parentPhone = cleanText(body.parent_phone, { max: 40 });
-  const parentEmail = body.parent_email ? cleanEmail(body.parent_email) : null;
+
+  // A parent's details are required on a student a teacher types in, the
+  // same as on one who registers themselves. A finished test's mark goes
+  // to that address (api/result-email.js), and a teacher chasing
+  // attendance cannot do it through a teenager's phone.
+  //
+  // Required here rather than inside createStudentAccount(), which the
+  // batch-invite approval also calls: registrations taken before this
+  // was asked for have no parent details, and refusing them would strand
+  // a queue the teacher cannot empty any other way.
+  if (!parentPhone) throw new HttpError(400, 'A parent’s phone number is required.');
+  if (!body.parent_email) throw new HttpError(400, 'A parent’s email address is required.');
+  const parentEmail = cleanEmail(body.parent_email);
+
   const courseIds = Array.isArray(body.course_ids) ? body.course_ids.filter(Boolean) : [];
   // { course_id: group_id } for the courses where a group was chosen.
   const groupIds = (body.group_ids && typeof body.group_ids === 'object') ? body.group_ids : {};

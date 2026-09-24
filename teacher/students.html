@@ -176,13 +176,14 @@
             <input type="tel" class="form-input" id="ns-phone" placeholder="+20 1xx xxx xxxx">
           </div>
           <div class="form-group">
-            <label class="form-label" for="ns-parent-phone">Parent phone</label>
-            <input type="tel" class="form-input" id="ns-parent-phone" placeholder="For results and reports">
+            <label class="form-label" for="ns-parent-phone">Parent phone *</label>
+            <input type="tel" class="form-input" id="ns-parent-phone" placeholder="+20 1xx xxx xxxx">
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="ns-parent-email">Parent email</label>
-          <input type="email" class="form-input" id="ns-parent-email" placeholder="Optional">
+          <label class="form-label" for="ns-parent-email">Parent email *</label>
+          <input type="email" class="form-input" id="ns-parent-email" placeholder="parent@example.com">
+          <p class="form-hint">Where a finished test's mark is sent, and how you reach the family about attendance.</p>
         </div>
         <div class="form-group">
           <label class="form-label">Courses *</label>
@@ -1304,7 +1305,21 @@ async function createStudent() {
     group_ids,
   };
 
-  if (!payload.full_name.trim() || !payload.email.trim()) { alertNew('Name and email are both needed.'); return; }
+  // Named one at a time rather than as "fill it in": a teacher looking
+  // at a form with one empty box should be told which.
+  const missing = [
+    [payload.full_name, 'a name'],
+    [payload.email, 'an email'],
+    [payload.parent_phone, "the parent's phone"],
+    [payload.parent_email, "the parent's email"],
+  ].filter(([v]) => !String(v || '').trim()).map(([, label]) => label);
+
+  if (missing.length) {
+    alertNew(`Still needed: ${missing.length > 1
+      ? missing.slice(0, -1).join(', ') + ' and ' + missing[missing.length - 1]
+      : missing[0]}.`);
+    return;
+  }
   if (!course_ids.length) { alertNew('Tick at least one course.'); return; }
 
   const btn = document.getElementById('create-btn');
