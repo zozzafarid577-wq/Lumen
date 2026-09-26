@@ -120,7 +120,10 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 .hero h1 { font-size: clamp(2.3rem, 5.2vw, 3.55rem); font-weight: 800; margin-bottom: 20px; }
 .hero h1 em { font-style: normal; color: var(--primary); }
 .hero-lead { font-size: 1.06rem; max-width: 52ch; margin-bottom: 30px; color: var(--ink-2); }
-.hero-actions { display: flex; gap: 13px; flex-wrap: wrap; margin-bottom: 28px; }
+.hero-actions { display: flex; gap: 13px; flex-wrap: wrap; margin-bottom: 18px; }
+/* The line under a set of buttons that says who each one is for. */
+.hero-note { font-size: .84rem; color: var(--muted); max-width: 52ch; margin-bottom: 26px; }
+.hero-note a { color: var(--primary); font-weight: 600; }
 .hero-trust { display: flex; gap: 26px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
 .hero-trust span { display: flex; align-items: center; gap: 7px; }
 .hero-trust svg { width: 15px; height: 15px; color: var(--primary); flex-shrink: 0; }
