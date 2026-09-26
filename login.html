@@ -21,22 +21,26 @@
            page and nothing takes a student away from the form: they can
            watch with one hand and type with the other.
 
-           The frame is empty until the poster is pressed, so a student
-           who signs in every day never downloads a video they are not
-           going to watch. Hidden altogether when no URL is configured.
-           On a narrow screen this whole aside is hidden, so the script
-           moves this block down into the card instead. -->
+           An ordinary <video>, served from this site, rather than an
+           embedded player from somewhere else: one tap on the browser's
+           own play button, its own controls, and the whole frame rather
+           than a letterboxed crop of it. preload="none" means the file
+           is fetched when it is played and not before, so a student who
+           signs in every day never downloads it at all.
+
+           On a narrow screen this aside is hidden, so the script moves
+           this block down into the card instead. -->
       <div id="guide-slot">
         <div class="guide" id="guide" hidden>
           <div class="guide-label">New here? Watch how it works</div>
           <div class="vid-frame">
-            <button type="button" class="guide-poster" id="guide-play">
-              <span class="guide-play" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><polygon points="6 3 21 12 6 21 6 3" fill="currentColor"/></svg>
-              </span>
-              <span class="guide-poster-text">How to sign in and find your lessons and tests</span>
-            </button>
+            <video id="guide-video" controls playsinline preload="none"
+                   poster="/assets/student-guide-poster.jpg">
+              <source src="/assets/student-guide.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
           </div>
+          <p class="guide-caption">How to sign in, and where to find your lessons and tests.</p>
         </div>
       </div>
 
@@ -82,6 +86,13 @@
       <p class="auth-foot" style="margin-top:14px;color:var(--muted)">
         No account yet? Your teacher makes it for you, or sends your class a registration link.
       </p>
+      <!-- The number belongs on this page more than on any other: a
+           student who cannot get in is not going to go looking for the
+           contact page to say so. -->
+      <p class="auth-foot" style="margin-top:18px;font-size:.8rem;color:var(--muted)">
+        Still stuck? <a href="https://wa.me/201130052584" target="_blank" rel="noopener">WhatsApp technical support</a>
+        or call <a href="tel:+201130052584">+20 113 005 2584</a>
+      </p>
     </div>
   </main>
 </div>
@@ -97,33 +108,28 @@ const params = new URLSearchParams(location.search);
 const msg = document.getElementById('msg');
 
 // ── The walkthrough ───────────────────────────────────────────────
-// Shown only when one is configured, so an empty STUDENT_GUIDE_URL
+// Shown only when a video is configured, so clearing STUDENT_GUIDE_URL
 // leaves a clean page rather than a player with nothing behind it.
 const GUIDE_URL = (window.LUMEN_CONFIG || {}).STUDENT_GUIDE_URL || '';
 const guide = document.getElementById('guide');
+const guideVideo = document.getElementById('guide-video');
 
 if (GUIDE_URL) {
   guide.hidden = false;
-
-  // Pressing the poster swaps it for the player, in the same box, at the
-  // same size. Nothing moves on the page and nothing opens over it.
-  document.getElementById('guide-play').addEventListener('click', () => {
-    const frame = document.createElement('iframe');
-    frame.title = 'How to use Lumen';
-    // `allow` covers fullscreen on its own; adding allowfullscreen too
-    // only makes the browser warn that one overrides the other.
-    frame.allow = 'autoplay; fullscreen';
-    frame.src = GUIDE_URL;
-    guide.querySelector('.vid-frame').replaceChildren(frame);
-  });
+  // The <source> in the markup is the default; a configured URL wins, so
+  // the video can be swapped for a new one without touching this page.
+  if (GUIDE_URL !== guideVideo.querySelector('source').src) {
+    guideVideo.querySelector('source').src = GUIDE_URL;
+    guideVideo.load();
+  }
 
   // The aside is hidden below 960px, so on a narrow screen the block
-  // moves down into the card. Moving an iframe reloads it, so once it
-  // is playing it stays where it is — a student who rotates their phone
-  // mid-video should not have it start again.
+  // moves down into the card. Moving a <video> in the DOM stops it, so
+  // once it is playing it stays where it is — a student who rotates
+  // their phone mid-sentence should not have it start again.
   const narrow = matchMedia('(max-width: 960px)');
   const place = () => {
-    if (guide.querySelector('iframe')) return;
+    if (!guideVideo.paused) return;
     const host = narrow.matches
       ? document.getElementById('guide-home')
       : document.getElementById('guide-slot');

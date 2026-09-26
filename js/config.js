@@ -33,15 +33,16 @@ window.LUMEN_CONFIG = {
   // The walkthrough a student can watch from the sign-in page: how to
   // get in, and where the lessons and tests are once they have.
   //
-  // A Google Drive file's *preview* URL, not its /view one — /view
-  // refuses to be framed, and an iframe pointed at it comes up blank.
-  // Take the id out of the sharing link and put it here:
-  //   https://drive.google.com/file/d/<id>/preview
+  // A video file this site serves, played by the browser's own player —
+  // not an embed from anywhere else. An embedded player brings its own
+  // look, its own buttons and, for a recording that is not exactly 16:9,
+  // its own black bars.
   //
-  // The file has to be shared as "anyone with the link", or every
-  // student meets a Google sign-in box instead of the video. Leave this
-  // empty and the button simply does not appear.
-  STUDENT_GUIDE_URL: 'https://drive.google.com/file/d/1tQoOSJE7aUduLAp6ULuCVr6g_cWd4HLg/preview',
+  // To change the video: put the new file in /assets and name it here.
+  // It wants to be an MP4 (H.264) — what every browser and phone plays
+  // without being asked twice. Leave this empty and the player does not
+  // appear at all.
+  STUDENT_GUIDE_URL: '/assets/student-guide.mp4',
   SUPABASE_URL: 'https://ivguwplraowoelewroxw.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2Z3V3cGxyYW93b2VsZXdyb3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDAzOTAsImV4cCI6MjEwNTY3NjM5MH0.gk2qncKT0qU20gpnFvyzvLPrXQetOecyjHDXEDSM15w',
 };
