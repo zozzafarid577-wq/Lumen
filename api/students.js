@@ -3,7 +3,7 @@ import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor,
 import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
 import { createStudentAccount } from './_lib/students.js';
-import { sendEmail, passwordReset, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { sendEmail, passwordReset, passwordReminder, signInEmailChanged, loginUrlFor } from './_lib/email.js';
 
 // Everything a teacher does to a student account. Creating an auth user,
 // setting a password and deleting an account all need the service-role
@@ -22,6 +22,7 @@ export default handler(async (req, res) => {
     case 'create':         return createStudent(res, profile, teacherId, body, req);
     case 'update':         return updateStudent(res, profile, teacherId, body, req);
     case 'reset_password': return resetPassword(res, profile, teacherId, body, req);
+    case 'remind_password': return remindPassword(res, profile, teacherId, body, req);
     case 'set_active':     return setActive(res, profile, teacherId, body);
     case 'delete':         return deleteStudent(res, profile, teacherId, body);
     default: throw new HttpError(400, 'Unknown action.');
@@ -174,12 +175,90 @@ async function resetPassword(res, actor, teacherId, body, req) {
   await admin.from('profiles').update({ must_change_pw: true }).eq('id', student.id);
   await logActivity(teacherId, actor, 'student_password_reset', student.full_name);
 
+  // Named the same way the welcome email is: the student was enrolled by
+  // a person, and the message should say whose space it is about.
+  const { data: space } = await admin
+    .from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
+
   const mail = await sendEmail({
     to: student.email, toName: student.full_name,
-    ...passwordReset({ name: student.full_name, email: student.email, password, loginUrl: loginUrlFor(req) }),
+    ...passwordReset({
+      name: student.full_name, email: student.email, password,
+      spaceName: space?.display_name || null, loginUrl: loginUrlFor(req),
+    }),
   });
 
   return res.status(200).json({ email: student.email, password, email_sent: mail.sent, email_error: mail.error || null });
+}
+
+// ── Remind them to set their own password ─────────────────────────
+// A student still on the password their teacher handed them has one
+// job left, and no way of being told about it from inside a portal they
+// are not visiting. This is the nudge.
+//
+// It cannot resend the password: nothing stores it in a form anyone can
+// read back, which is the point. A student who has lost theirs needs a
+// reset, and the email says so.
+//
+// Takes one student or a whole list, because the question a teacher
+// actually asks is "who still has not done this?" and the answer is
+// usually several names at once. One student who cannot be reminded —
+// already done, or a mail provider refusing — does not stop the rest.
+async function remindPassword(res, actor, teacherId, body, req) {
+  // One named student is answered strictly: a student who is not theirs
+  // is a 403, exactly as it is everywhere else in this file. A list is
+  // answered leniently, because one bad id in sixty must not throw the
+  // other fifty-nine away.
+  const bulk = Array.isArray(body.student_ids);
+  const ids = bulk
+    ? body.student_ids.filter(Boolean).slice(0, 200)
+    : [body.student_id].filter(Boolean);
+  if (!ids.length) throw new HttpError(400, 'No student was named.');
+
+  const { data: space } = await admin
+    .from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
+  const loginUrl = loginUrlFor(req);
+
+  const sent = [];
+  const skipped = [];
+
+  for (const id of ids) {
+    let student;
+    try {
+      student = await getStudent(id, teacherId);
+    } catch (err) {
+      if (!bulk) throw err;
+      skipped.push({ name: 'A student', why: err.message });
+      continue;
+    }
+
+    if (!student.must_change_pw) {
+      skipped.push({ name: student.full_name, why: 'has already chosen their own password' });
+      continue;
+    }
+    if (!student.email) {
+      skipped.push({ name: student.full_name, why: 'has no email address on file' });
+      continue;
+    }
+
+    const mail = await sendEmail({
+      to: student.email, toName: student.full_name,
+      ...passwordReminder({
+        name: student.full_name, email: student.email,
+        spaceName: space?.display_name || null, loginUrl,
+      }),
+    });
+
+    if (mail.sent) sent.push(student.full_name);
+    else skipped.push({ name: student.full_name, why: mail.error || 'the email could not be sent' });
+  }
+
+  if (sent.length) {
+    await logActivity(teacherId, actor, 'student_password_reminded',
+      sent.length === 1 ? sent[0] : `${sent.length} students`);
+  }
+
+  return res.status(200).json({ sent: sent.length, skipped });
 }
 
 // ── Activate / deactivate ─────────────────────────────────────────
@@ -221,7 +300,7 @@ async function deleteStudent(res, actor, teacherId, body) {
 async function getStudent(studentId, teacherId) {
   if (!studentId) throw new HttpError(400, 'No student was named.');
   const { data, error } = await admin
-    .from('profiles').select('id, full_name, email, role, teacher_id, is_active, phone, parent_phone, parent_email')
+    .from('profiles').select('id, full_name, email, role, teacher_id, is_active, phone, parent_phone, parent_email, must_change_pw')
     .eq('id', studentId).single();
   if (error || !data) throw new HttpError(404, 'That student no longer exists.');
   if (data.teacher_id !== teacherId) throw new HttpError(403, 'That student is not in your space.');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { emailStatus, sendEmail, studentWelcome, passwordReset, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
+import { emailStatus, sendEmail, studentWelcome, passwordReset, passwordReminder, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
 
 const ORIGINAL = { ...process.env };
 
@@ -107,6 +107,35 @@ describe('templates', () => {
     expect(studentWelcome(args).subject).toContain('Advanced Biology');
     // With no space name it still has to read as a sentence.
     expect(studentWelcome({ ...args, spaceName: null }).subject).toContain('Lumen');
+  });
+
+  it('leave the password out of the reminder — there is none to send', () => {
+    // The reminder goes to a student still using the password they were
+    // handed. Nothing stores that password in a form anyone can read
+    // back, so the message can only point them at the sign-in page.
+    const { subject, html } = passwordReminder({
+      name: 'Sara Ahmed', email: 'sara@example.com',
+      spaceName: 'Advanced Biology', loginUrl: 'https://lumen.test/login.html',
+    });
+
+    expect(subject).toMatch(/password/i);
+    expect(html).toContain('sara@example.com');
+    expect(html).toContain('https://lumen.test/login.html');
+    expect(html).not.toContain('Abc!2345');
+    // And it says what to do when the handed-over details are lost.
+    expect(html).toMatch(/ask your teacher/i);
+  });
+
+  it('carry the Lumen header on every message', () => {
+    // A gradient no client is obliged to honour, over a background colour
+    // every client does: the band must never render as a white gap.
+    for (const html of [
+      studentWelcome(args).html,
+      passwordReminder({ ...args, password: undefined }).html,
+    ]) {
+      expect(html).toMatch(/bgcolor="#A2509F"/);
+      expect(html).toContain('Educate with Excellence');
+    }
   });
 
   it('show both addresses when the sign-in email changes', () => {

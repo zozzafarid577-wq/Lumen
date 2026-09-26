@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
@@ -247,7 +247,7 @@ describe('acting on an existing student', () => {
   });
 
   it('will not touch a student in another tenant', async () => {
-    for (const action of ['reset_password', 'set_active', 'delete']) {
+    for (const action of ['reset_password', 'remind_password', 'set_active', 'delete']) {
       resetSupabaseMock();
       asUser(TEACHER_USER, { extraProfiles: { 'stu-2': theirs } });
       const res = await call({ action, student_id: 'stu-2' });
@@ -270,6 +270,86 @@ describe('acting on an existing student', () => {
 
     const res = await call({ action: 'set_active', student_id: 'stu-1', is_active: false });
     expect(res.statusCode).toBe(200);
+  });
+
+  // A student who never sets their own password is still signing in with
+  // the one that was handed to them. The reminder is the only nudge there
+  // is, and it cannot carry a password — none is stored to send.
+  describe('reminding them to set their own password', () => {
+    const waiting = { ...mine, must_change_pw: true };
+    const done    = { ...mine, id: 'stu-3', must_change_pw: false };
+
+    function withMail() {
+      process.env.BREVO_API_KEY = 'xkeysib-test';
+      process.env.BREVO_SENDER_EMAIL = 'hello@example.com';
+      const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ messageId: '1' }) }));
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+
+    afterEach(() => {
+      delete process.env.BREVO_API_KEY;
+      delete process.env.BREVO_SENDER_EMAIL;
+      vi.unstubAllGlobals();
+    });
+
+    it('emails one student, without a password in it', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': waiting } });
+      const fetchMock = withMail();
+
+      const res = await call({ action: 'remind_password', student_id: 'stu-1' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({ sent: 1, skipped: [] });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.to).toEqual([{ email: 'sara@example.com', name: 'Sara' }]);
+      // Nothing can send the password: it is not stored anywhere readable.
+      // The message exists to get them to choose one.
+      expect(body.htmlContent).toMatch(/login\.html/);
+      expect(body.htmlContent).toMatch(/temporary/i);
+    });
+
+    it('leaves alone a student who has already chosen one', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-3': done } });
+      const fetchMock = withMail();
+
+      const res = await call({ action: 'remind_password', student_id: 'stu-3' });
+
+      expect(res.body.sent).toBe(0);
+      expect(res.body.skipped[0].why).toMatch(/already chosen/i);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('reminds a whole list, and says who was left out', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': waiting, 'stu-3': done, 'stu-2': theirs } });
+      const fetchMock = withMail();
+
+      const res = await call({
+        action: 'remind_password', student_ids: ['stu-1', 'stu-3', 'stu-2'],
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.sent).toBe(1);
+      // One has done it already; one is not this teacher's to email. A bad
+      // id in the list must not throw the rest of the class away.
+      expect(res.body.skipped).toHaveLength(2);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports a mail provider that refuses, rather than claiming a send', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': waiting } });
+      process.env.BREVO_API_KEY = 'xkeysib-test';
+      process.env.BREVO_SENDER_EMAIL = 'hello@example.com';
+      vi.stubGlobal('fetch', async () => ({ ok: false, status: 400, json: async () => ({ message: 'sender not verified' }) }));
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await call({ action: 'remind_password', student_id: 'stu-1' });
+
+      expect(res.body.sent).toBe(0);
+      expect(res.body.skipped[0].why).toMatch(/sender not verified/);
+      quiet.mockRestore();
+    });
   });
 
   it('refuses an account that is not a student', async () => {
