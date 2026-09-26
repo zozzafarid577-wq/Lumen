@@ -3,6 +3,7 @@ import { HttpError } from './auth.js';
 import { generatePassword, findUserByEmail } from './util.js';
 import { assertCanAddStudent } from './subscription.js';
 import { sendEmail, studentWelcome, loginUrlFor } from './email.js';
+import { sendPasswordInvite } from './invite.js';
 
 // Creating a student account, from either direction: a teacher typing one
 // in on the students page, or a teacher approving a registration that
@@ -18,9 +19,14 @@ import { sendEmail, studentWelcome, loginUrlFor } from './email.js';
 // Everything here runs with the service-role key, which ignores row-level
 // security, so `teacherId` must always come from `tenantFor` in the
 // caller and never from the request body.
+// `password` is the student's own, typed by them on the registration
+// page. When it is absent — a teacher typing a student in, who has no
+// business choosing somebody else's password — the account is made with
+// a random one that is never shown to anybody, and the student gets a
+// link to set their own instead.
 export async function createStudentAccount({
   teacherId, fullName, email, phone = null, parentPhone = null, parentEmail = null,
-  courseIds = [], groupIds = {}, req = null,
+  courseIds = [], groupIds = {}, password = null, createdBy = null, req = null,
 }) {
   if (!courseIds.length) throw new HttpError(400, 'Choose at least one course to enrol them on.');
 
@@ -35,10 +41,13 @@ export async function createStudentAccount({
     throw new HttpError(409, 'An account already exists for that email address.');
   }
 
-  const password = generatePassword();
+  // Theirs if they chose one; otherwise a random string that exists only
+  // so the auth user has something in the column. Nobody is ever told
+  // it, and the link they are sent replaces it before it is used.
+  const chosen = Boolean(password);
   const { data: created, error: uErr } = await admin.auth.admin.createUser({
     email,
-    password,
+    password: password || generatePassword(32),
     email_confirm: true,
     app_metadata: { role: 'student', teacher_id: teacherId },
     user_metadata: { full_name: fullName },
@@ -56,7 +65,10 @@ export async function createStudentAccount({
       phone,
       parent_phone: parentPhone,
       parent_email: parentEmail,
-      must_change_pw: true,
+      // Not "we gave them a password they must change" any more, but the
+      // same question either way: is the password on this account one
+      // they chose themselves?
+      must_change_pw: !chosen,
     });
     if (pErr) throw new HttpError(500, 'Could not save that student’s profile.');
 
@@ -74,24 +86,34 @@ export async function createStudentAccount({
     throw err;
   }
 
-  // Email is a convenience on top of the handover, never a replacement
-  // for it: the password comes back either way, and a mail provider
-  // having a bad afternoon must not undo a student who now exists.
   // The student should see whose space this is, not "Lumen" — they were
   // enrolled by a person, not by us.
   const { data: space } = await admin
     .from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
+  const spaceName = space?.display_name || null;
 
-  const mail = await sendEmail({
-    to: email, toName: fullName,
-    ...studentWelcome({
-      name: fullName, email, password,
-      spaceName: space?.display_name || null,
-      loginUrl: loginUrlFor(req),
-    }),
+  // A student who chose their own password on the way in needs nothing
+  // but a note of where the door is. One typed in by a teacher needs the
+  // link, which comes back to the caller as well as going by email: mail
+  // is the convenience, and a provider having a bad afternoon must not
+  // leave a teacher with no way to let their student in.
+  if (chosen) {
+    const mail = await sendEmail({
+      to: email, toName: fullName,
+      ...studentWelcome({ name: fullName, email, spaceName, loginUrl: loginUrlFor(req) }),
+    });
+    return { studentId, email, inviteUrl: null, emailSent: mail.sent, emailError: mail.error || null };
+  }
+
+  const invite = await sendPasswordInvite({
+    student: { id: studentId, email, full_name: fullName },
+    teacherId, createdBy, spaceName, req, kind: 'welcome',
   });
 
-  return { studentId, email, password, emailSent: mail.sent, emailError: mail.error || null };
+  return {
+    studentId, email, inviteUrl: invite.url, inviteExpiresAt: invite.expiresAt,
+    emailSent: invite.emailSent, emailError: invite.emailError,
+  };
 }
 
 // Courses named in a request must be this teacher's own. Otherwise a

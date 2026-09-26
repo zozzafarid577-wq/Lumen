@@ -85,8 +85,8 @@
                show me everybody who still has not done it. -->
           <select class="form-select" id="pw-filter" style="max-width:190px" aria-label="Filter by password">
             <option value="">Any password</option>
-            <option value="temp">Still temporary</option>
-            <option value="own">Chosen their own</option>
+            <option value="temp">Not set up yet</option>
+            <option value="own">Set their own</option>
           </select>
         </div>
         <span class="small muted" id="count">—</span>
@@ -99,7 +99,7 @@
         <div class="alert alert-warning" style="align-items:center;flex-wrap:wrap;gap:12px">
           <span style="flex:1;min-width:220px" id="pw-nudge-text"></span>
           <button class="btn btn-outline btn-xs" onclick="showTempOnly()">Show me who</button>
-          <button class="btn btn-primary btn-xs" onclick="remindAll()">Remind them all</button>
+          <button class="btn btn-primary btn-xs" onclick="remindAll()">Send them all a link</button>
         </div>
       </div>
 
@@ -211,24 +211,23 @@
         </div>
       </div>
 
-      <!-- Shown once the account exists. The password is displayed once
-           and never stored anywhere readable, so it has to be handed over
-           now — hence the copy and WhatsApp buttons. -->
+      <!-- Shown once the account exists. No password appears here,
+           because none was made: the student gets a link and chooses
+           their own. The link is what has to be handed over — hence the
+           copy and WhatsApp buttons. -->
       <div id="creds-box" style="display:none">
-        <div class="alert alert-success mb16">Account created. Give these details to the student — this password is shown only once.</div>
+        <div class="alert alert-success mb16">Account created. Send them this link and they choose their own password.</div>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
           <div class="spread" style="margin-bottom:8px">
-            <span class="small muted">Email</span>
+            <span class="small muted">Signs in with</span>
             <span class="small" style="font-weight:700" id="cred-email">—</span>
           </div>
-          <div class="spread">
-            <span class="small muted">Password</span>
-            <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="cred-pw">—</span>
-          </div>
+          <div class="small muted" style="margin-bottom:6px">Their set-up link</div>
+          <div class="small" style="font-family:ui-monospace,monospace;word-break:break-all" id="cred-link">—</div>
         </div>
         <div class="row">
           <button class="btn btn-success btn-sm" onclick="sendWhatsApp()">Send on WhatsApp</button>
-          <button class="btn btn-outline btn-sm" onclick="copyCredentials()">Copy details</button>
+          <button class="btn btn-outline btn-sm" onclick="copyCredentials()">Copy the link</button>
         </div>
       </div>
     </div>
@@ -323,20 +322,18 @@
       </button>
     </div>
     <div class="modal-body">
-      <div class="alert alert-success mb16" id="ap-mailed">Emailed to them. This password is shown only once.</div>
+      <div class="alert alert-success mb16" id="ap-mailed">Emailed to them. Send the link on as well if you want to be sure.</div>
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
         <div class="spread" style="margin-bottom:8px">
-          <span class="small muted">Email</span><span class="small" style="font-weight:700" id="ap-email">—</span>
+          <span class="small muted">Signs in with</span><span class="small" style="font-weight:700" id="ap-email">—</span>
         </div>
-        <div class="spread">
-          <span class="small muted">Password</span>
-          <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="ap-pw">—</span>
-        </div>
+        <div class="small muted" style="margin-bottom:6px">Their set-up link</div>
+        <div class="small" style="font-family:ui-monospace,monospace;word-break:break-all" id="ap-link">—</div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-success" onclick="shareApproved()">Send on WhatsApp</button>
-      <button class="btn btn-outline" onclick="copyApproved()">Copy details</button>
+      <button class="btn btn-outline" onclick="copyApproved()">Copy the link</button>
       <button class="btn btn-primary" onclick="closeModal('approved-modal')">Done</button>
     </div>
   </div>
@@ -346,25 +343,23 @@
 <div class="modal-backdrop" id="reset-modal">
   <div class="modal" style="max-width:460px">
     <div class="modal-head">
-      <span class="modal-title">New password</span>
+      <span class="modal-title" id="reset-title">A link to a new password</span>
       <button class="modal-close" onclick="closeModal('reset-modal')" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="modal-body">
-      <p class="small muted mb16">They will be asked to change it the first time they sign in.</p>
+      <p class="small muted mb16" id="reset-note">Their old password stopped working just now. This link lets them choose a new one, and works once.</p>
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
         <div class="spread" style="margin-bottom:8px">
-          <span class="small muted">Email</span><span class="small" style="font-weight:700" id="r-email">—</span>
+          <span class="small muted">Signs in with</span><span class="small" style="font-weight:700" id="r-email">—</span>
         </div>
-        <div class="spread">
-          <span class="small muted">Password</span>
-          <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="r-pw">—</span>
-        </div>
+        <div class="small muted" style="margin-bottom:6px">Their new link</div>
+        <div class="small" style="font-family:ui-monospace,monospace;word-break:break-all" id="r-link">—</div>
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-outline" onclick="copyReset()">Copy details</button>
+      <button class="btn btn-outline" onclick="copyReset()">Copy the link</button>
       <button class="btn btn-success" onclick="shareReset()">Send on WhatsApp</button>
       <button class="btn btn-primary" onclick="closeModal('reset-modal')">Done</button>
     </div>
@@ -399,7 +394,7 @@
         </div>
         <p class="small muted" id="sd-signin-note" style="margin:0 0 12px"></p>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button class="btn btn-outline btn-xs" id="sd-remind" style="display:none">Remind them to set a password</button>
+          <button class="btn btn-outline btn-xs" id="sd-remind" style="display:none">Send a set-up link</button>
           <button class="btn btn-outline btn-xs" id="sd-reset">Reset password</button>
         </div>
       </div>
@@ -882,13 +877,13 @@ async function approveReg(id) {
 
   try {
     const data = await apiPost('/api/invites', { action: 'approve', registration_id: id });
-    lastApproved = { email: data.email, password: data.password, phone: data.phone };
+    lastApproved = { email: data.email, url: data.invite_url, phone: data.phone };
 
     document.getElementById('ap-email').textContent = data.email;
-    document.getElementById('ap-pw').textContent = data.password;
+    document.getElementById('ap-link').textContent = data.invite_url || '—';
     document.getElementById('ap-mailed').textContent = data.email_sent
-      ? 'Emailed to them. This password is shown only once — keep a copy if you want to send it yourself too.'
-      : 'The email could not be sent, so this is the only place these details exist. Send them yourself.';
+      ? 'Emailed to them. Send the link on as well if you want to be sure they have it.'
+      : 'The email could not be sent, so this link is the only way in. Send it to them yourself.';
     openModal('approved-modal');
 
     await Promise.all([loadStudents(), loadPending()]);
@@ -1100,13 +1095,7 @@ async function deleteInvite(id) {
 }
 
 function copyApproved() { copy(credentialsText(lastApproved)); }
-function shareApproved() {
-  if (!lastApproved) return;
-  const digits = (lastApproved.phone || '').replace(/\D/g, '');
-  const text = encodeURIComponent(
-    `Hello! Your account on ${me.teacher?.display_name || 'Lumen'} is ready.\n\n` + credentialsText(lastApproved));
-  window.open(digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank', 'noopener');
-}
+function shareApproved() { shareOnWhatsApp(lastApproved, credentialsText(lastApproved)); }
 
 // ── Courses and groups for one student ────────────────────────────
 function openEnrol(id) {
@@ -1259,14 +1248,14 @@ function render() {
       <!-- Whether they have taken the account over from the password you
            handed them. Yellow is a to-do, not an error. -->
       <td class="small">${s.must_change_pw
-        ? '<span class="badge b-yellow">Still temporary</span>'
-        : '<span class="badge b-green">Their own</span>'}</td>
+        ? '<span class="badge b-yellow">Not set up</span>'
+        : '<span class="badge b-green">Set their own</span>'}</td>
       <td><span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span></td>
       <td style="text-align:right;white-space:nowrap">
         <!-- A forgotten password is the thing a teacher is asked for most
              often, and usually mid-lesson. Both answers to it sit on the
              row rather than two clicks inside the student. -->
-        ${s.must_change_pw ? `<button class="btn btn-outline btn-xs" onclick="remindPassword('${s.id}')">Remind</button>` : ''}
+        ${s.must_change_pw ? `<button class="btn btn-outline btn-xs" onclick="remindPassword('${s.id}')">Send link</button>` : ''}
         <button class="btn btn-outline btn-xs" onclick="resetPassword('${s.id}')">Reset password</button>
         <button class="btn btn-outline btn-xs" onclick="openStudent('${s.id}')">Open</button>
       </td>
@@ -1294,7 +1283,7 @@ function openStudent(id) {
   document.getElementById('sd-badges').innerHTML = [
     `<span class="badge ${s.is_active ? 'b-green' : 'b-gray'}">${s.is_active ? 'Active' : 'Paused'}</span>`,
     s.must_change_pw
-      ? '<span class="badge b-yellow">Still on the password you gave them</span>'
+      ? '<span class="badge b-yellow">Has not set a password yet</span>'
       : '<span class="badge b-green">Has chosen their own password</span>',
     `<span class="small muted">Added ${fmtDate(s.created_at)}</span>`,
   ].filter(Boolean).join('');
@@ -1304,8 +1293,8 @@ function openStudent(id) {
   // password is in, and which of the two buttons is the answer.
   document.getElementById('sd-signin-email').textContent = s.email || '—';
   document.getElementById('sd-signin-note').textContent = s.must_change_pw
-    ? 'They are still signing in with the password you handed them, and have not chosen their own. That password is not kept anywhere — if they have lost it, reset it and give them the new one.'
-    : 'They have chosen their own password. Nobody can look it up, so a student who has forgotten theirs needs a reset.';
+    ? 'They have not chosen a password yet. Send them a set-up link and they pick one themselves — it works once, and for 14 days.'
+    : 'They have chosen their own password, and nobody can look it up. If they have forgotten it, reset it: their old password stops working and they get a link to choose a new one.';
 
   document.getElementById('sd-courses').innerHTML = drawEnrolSummary(s);
   document.getElementById('sd-progress').href = `/teacher/progress.html?student=${s.id}`;
@@ -1466,10 +1455,10 @@ async function createStudent() {
 
   try {
     const data = await apiPost('/api/students', { action: 'create', ...payload });
-    lastCreated = { email: data.email, password: data.password, phone: payload.phone || payload.parent_phone };
+    lastCreated = { email: data.email, url: data.invite_url, phone: payload.phone || payload.parent_phone };
 
     document.getElementById('cred-email').textContent = data.email;
-    document.getElementById('cred-pw').textContent = data.password;
+    document.getElementById('cred-link').textContent = data.invite_url || '—';
     document.getElementById('new-fields').style.display = 'none';
     document.getElementById('creds-box').style.display = 'block';
     document.getElementById('new-foot').style.display = 'none';
@@ -1483,32 +1472,34 @@ async function createStudent() {
   }
 }
 
+// What a teacher hands over. A link, never a password — there is no
+// password to hand over, and that is the point: the only one the account
+// will ever have is the one the student is about to choose.
 function credentialsText(c) {
-  return `Lumen sign-in: ${siteOrigin()}/login.html\nEmail: ${c.email}\nPassword: ${c.password}\n\nPlease change your password after signing in for the first time.`;
+  if (!c) return '';
+  return `Set up your ${me.teacher?.display_name || 'Lumen'} account:\n${c.url}\n\n`
+    + `You will sign in with ${c.email} and a password you choose yourself. `
+    + `The link works once, and for 14 days.`;
 }
 
-function sendWhatsApp() {
-  if (!lastCreated) return;
-  const digits = (lastCreated.phone || '').replace(/\D/g, '');
-  const text = encodeURIComponent(
-    `Hello! Your account on ${me.teacher?.display_name || 'Lumen'} is ready.\n\n` + credentialsText(lastCreated));
-  window.open(digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank', 'noopener');
+function resetText(c) {
+  if (!c) return '';
+  return `Your ${me.teacher?.display_name || 'Lumen'} password has been reset — the old one no longer works.\n\n`
+    + `Choose a new one here:\n${c.url}\n\n`
+    + `You will still sign in with ${c.email}. The link works once, and for 14 days.`;
 }
 
+function shareOnWhatsApp(c, text) {
+  if (!c) return;
+  const digits = (c.phone || '').replace(/\D/g, '');
+  const body = encodeURIComponent(text);
+  window.open(digits ? `https://wa.me/${digits}?text=${body}` : `https://wa.me/?text=${body}`, '_blank', 'noopener');
+}
+
+function sendWhatsApp() { shareOnWhatsApp(lastCreated, credentialsText(lastCreated)); }
 function copyCredentials() { copy(credentialsText(lastCreated)); }
-function copyReset() { copy(credentialsText(lastReset)); }
-
-// A reset is handed over the same way a new account is — usually on
-// WhatsApp, usually while the student is standing there — so it gets the
-// same button, with wording that says the old password has gone.
-function shareReset() {
-  if (!lastReset) return;
-  const digits = (lastReset.phone || '').replace(/\D/g, '');
-  const text = encodeURIComponent(
-    `Hello! Your password on ${me.teacher?.display_name || 'Lumen'} has been reset. `
-    + `Your old one no longer works.\n\n` + credentialsText(lastReset));
-  window.open(digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`, '_blank', 'noopener');
-}
+function copyReset() { copy(resetText(lastReset)); }
+function shareReset() { shareOnWhatsApp(lastReset, resetText(lastReset)); }
 
 async function copy(text) {
   if (!text) return;
@@ -1529,10 +1520,10 @@ function say(id, msg) {
   el.style.display = msg ? 'flex' : 'none';
 }
 
-// ── Who is still on a temporary password ──────────────────────────
-// A student who never chooses their own is still signing in with the
-// password that was read out to them, which by now several people may
-// know. Nobody notices that on their own, so the page says it.
+// ── Who has not set a password yet ───────────────────────
+// A student who never opens their set-up link cannot sign in at all,
+// and will not always say so. Nobody notices that on their own, so the
+// page says it.
 function tempPasswordStudents() {
   return students.filter(s => s.must_change_pw && s.is_active && s.email);
 }
@@ -1543,8 +1534,8 @@ function drawPasswordNudge() {
   if (!waiting.length) { box.style.display = 'none'; return; }
 
   document.getElementById('pw-nudge-text').textContent = waiting.length === 1
-    ? `${waiting[0].full_name} has not chosen their own password yet — they are still using the one you gave them.`
-    : `${waiting.length} students have not chosen their own password yet — they are still using the ones you gave them.`;
+    ? `${waiting[0].full_name} has not set a password yet, so they cannot sign in. Send them a link.`
+    : `${waiting.length} students have not set a password yet, so they cannot sign in. Send them a link.`;
   box.style.display = 'block';
 }
 
@@ -1554,13 +1545,22 @@ function showTempOnly() {
   render();
 }
 
-// The reminder cannot carry a password — none is stored anywhere it
-// could be read back from — so it only tells them to go and set one.
+// A fresh link, emailed to them — and handed back, so it can go on
+// WhatsApp too when that is the way this student is actually reached.
 async function remindPassword(id) {
   const s = students.find(x => x.id === id);
   if (!s) return;
   try {
-    const data = await apiPost('/api/students', { action: 'remind_password', student_id: id });
+    const data = await apiPost('/api/students', { action: 'send_invite', student_id: id });
+    if (data.invite_url) {
+      lastReset = { email: s.email, url: data.invite_url, phone: s.phone || s.parent_phone };
+      document.getElementById('reset-title').textContent = 'Their set-up link';
+      document.getElementById('reset-note').textContent =
+        `${s.full_name} can choose their own password with this. It works once, and for 14 days.`;
+      document.getElementById('r-email').textContent = s.email;
+      document.getElementById('r-link').textContent = data.invite_url;
+      openModal('reset-modal');
+    }
     reportReminders(data, s.full_name);
   } catch (err) { showToast(err.message, 'error'); }
 }
@@ -1568,11 +1568,11 @@ async function remindPassword(id) {
 async function remindAll() {
   const waiting = tempPasswordStudents();
   if (!waiting.length) return;
-  if (!confirm(`Email ${waiting.length === 1 ? waiting[0].full_name : `all ${waiting.length} of them`} a reminder to set their own password?`)) return;
+  if (!confirm(`Email ${waiting.length === 1 ? waiting[0].full_name : `all ${waiting.length} of them`} a link to set their own password?`)) return;
 
   try {
     const data = await apiPost('/api/students', {
-      action: 'remind_password', student_ids: waiting.map(s => s.id),
+      action: 'send_invite', student_ids: waiting.map(s => s.id),
     });
     reportReminders(data);
   } catch (err) { showToast(err.message, 'error'); }
@@ -1584,13 +1584,13 @@ function reportReminders(data, oneName) {
   const skipped = data.skipped || [];
   if (data.sent) {
     showToast(oneName && data.sent === 1
-      ? `Reminder sent to ${oneName}.`
-      : `Reminder sent to ${data.sent} student${data.sent === 1 ? '' : 's'}.`, 'success');
+      ? `Link emailed to ${oneName}.`
+      : `Link emailed to ${data.sent} student${data.sent === 1 ? '' : 's'}.`, 'success');
   }
   if (skipped.length) {
     showToast(skipped.length === 1
       ? `${skipped[0].name} ${skipped[0].why}.`
-      : `${skipped.length} could not be reminded — ${skipped[0].name} ${skipped[0].why}, and others.`,
+      : `${skipped.length} could not be sent one — ${skipped[0].name} ${skipped[0].why}, and others.`,
       data.sent ? 'info' : 'error');
   }
 }
@@ -1599,13 +1599,16 @@ function reportReminders(data, oneName) {
 async function resetPassword(id) {
   const s = students.find(x => x.id === id);
   if (!s) return;
-  if (!confirm(`Give ${s.full_name} a new password? Their current one will stop working immediately.`)) return;
+  if (!confirm(`Send ${s.full_name} a link to choose a new password? Their current one stops working immediately.`)) return;
 
   try {
     const data = await apiPost('/api/students', { action: 'reset_password', student_id: id });
-    lastReset = { email: data.email, password: data.password, phone: s.phone || s.parent_phone };
+    lastReset = { email: data.email, url: data.invite_url, phone: s.phone || s.parent_phone };
+    document.getElementById('reset-title').textContent = 'A link to a new password';
+    document.getElementById('reset-note').textContent =
+      'Their old password stopped working just now. This link lets them choose a new one, and works once.';
     document.getElementById('r-email').textContent = data.email;
-    document.getElementById('r-pw').textContent = data.password;
+    document.getElementById('r-link').textContent = data.invite_url || '—';
     openModal('reset-modal');
   } catch (err) { showToast(err.message, 'error'); }
 }

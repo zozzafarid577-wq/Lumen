@@ -3,7 +3,8 @@ import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor,
 import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
 import { createStudentAccount } from './_lib/students.js';
-import { sendEmail, passwordReset, passwordReminder, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { sendEmail, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { sendPasswordInvite } from './_lib/invite.js';
 
 // Everything a teacher does to a student account. Creating an auth user,
 // setting a password and deleting an account all need the service-role
@@ -22,6 +23,10 @@ export default handler(async (req, res) => {
     case 'create':         return createStudent(res, profile, teacherId, body, req);
     case 'update':         return updateStudent(res, profile, teacherId, body, req);
     case 'reset_password': return resetPassword(res, profile, teacherId, body, req);
+    // Named for what it does now rather than what it did. The old name
+    // still answers, because a teacher with the page open in another tab
+    // should not meet "unknown action" mid-class.
+    case 'send_invite':
     case 'remind_password': return remindPassword(res, profile, teacherId, body, req);
     case 'set_active':     return setActive(res, profile, teacherId, body);
     case 'delete':         return deleteStudent(res, profile, teacherId, body);
@@ -58,13 +63,16 @@ async function createStudent(res, actor, teacherId, body, req) {
   // _lib/students.js, because approving a registration from a batch
   // invite link has to do exactly the same things.
   const made = await createStudentAccount({
-    teacherId, fullName, email, phone, parentPhone, parentEmail, courseIds, groupIds, req,
+    teacherId, fullName, email, phone, parentPhone, parentEmail, courseIds, groupIds,
+    createdBy: actor.id, req,
   });
 
   await logActivity(teacherId, actor, 'student_created', `${fullName} <${email}>`);
 
+  // A link to set a password, not a password. There is nothing here for
+  // the teacher to read out, write down or forget to delete.
   return res.status(200).json({
-    student_id: made.studentId, email: made.email, password: made.password,
+    student_id: made.studentId, email: made.email, invite_url: made.inviteUrl,
     email_sent: made.emailSent, email_error: made.emailError,
   });
 }
@@ -162,48 +170,48 @@ async function updateStudent(res, actor, teacherId, body, req) {
   return res.status(200).json({ ok: true, changed, email_sent: mail.sent });
 }
 
-// ── Reset password ────────────────────────────────────────────────
+// ── Let them back in ──────────────────────────────────────────────
+// What used to be "reset password" and hand over a new one. It sends a
+// link instead, because a password a teacher can read out is a password
+// somebody else knows — and because the student choosing it themselves
+// is the only version of this where nobody but them ever has it.
+//
+// The old password stops working the moment this is done, not when the
+// link is used. A teacher pressing this is usually doing it because
+// somebody should not be getting in.
 async function resetPassword(res, actor, teacherId, body, req) {
   const student = await getStudent(body.student_id, teacherId);
-  const password = generatePassword();
 
-  const { error } = await admin.auth.admin.updateUserById(student.id, { password });
+  const { error } = await admin.auth.admin.updateUserById(student.id, { password: generatePassword(32) });
   if (error) throw new HttpError(500, 'Could not reset that password. Please try again.');
 
-  // Back to a password somebody else has seen, so it has to be changed
-  // again on the next sign-in.
   await admin.from('profiles').update({ must_change_pw: true }).eq('id', student.id);
   await logActivity(teacherId, actor, 'student_password_reset', student.full_name);
 
-  // Named the same way the welcome email is: the student was enrolled by
-  // a person, and the message should say whose space it is about.
   const { data: space } = await admin
     .from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
 
-  const mail = await sendEmail({
-    to: student.email, toName: student.full_name,
-    ...passwordReset({
-      name: student.full_name, email: student.email, password,
-      spaceName: space?.display_name || null, loginUrl: loginUrlFor(req),
-    }),
+  const invite = await sendPasswordInvite({
+    student, teacherId, createdBy: actor.id,
+    spaceName: space?.display_name || null, req, kind: 'reset',
   });
 
-  return res.status(200).json({ email: student.email, password, email_sent: mail.sent, email_error: mail.error || null });
+  return res.status(200).json({
+    email: student.email, invite_url: invite.url, expires_at: invite.expiresAt,
+    email_sent: invite.emailSent, email_error: invite.emailError,
+  });
 }
 
-// ── Remind them to set their own password ─────────────────────────
-// A student still on the password their teacher handed them has one
-// job left, and no way of being told about it from inside a portal they
-// are not visiting. This is the nudge.
-//
-// It cannot resend the password: nothing stores it in a form anyone can
-// read back, which is the point. A student who has lost theirs needs a
-// reset, and the email says so.
+// ── Send them a link to set their own password ────────────────────
+// For everybody who has not got round to it: the students created
+// before links existed, still signing in with what they were handed,
+// and anyone whose first link went unopened.
 //
 // Takes one student or a whole list, because the question a teacher
 // actually asks is "who still has not done this?" and the answer is
-// usually several names at once. One student who cannot be reminded —
-// already done, or a mail provider refusing — does not stop the rest.
+// usually several names at once. One student who cannot be sent one —
+// already done, no address, a mail provider refusing — does not stop
+// the rest.
 async function remindPassword(res, actor, teacherId, body, req) {
   // One named student is answered strictly: a student who is not theirs
   // is a 403, exactly as it is everywhere else in this file. A list is
@@ -217,10 +225,13 @@ async function remindPassword(res, actor, teacherId, body, req) {
 
   const { data: space } = await admin
     .from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
-  const loginUrl = loginUrlFor(req);
+  const spaceName = space?.display_name || null;
 
   const sent = [];
   const skipped = [];
+  // Only meaningful when one student was named, where it is the link the
+  // teacher will hand over themselves.
+  let lastUrl = null;
 
   for (const id of ids) {
     let student;
@@ -241,24 +252,27 @@ async function remindPassword(res, actor, teacherId, body, req) {
       continue;
     }
 
-    const mail = await sendEmail({
-      to: student.email, toName: student.full_name,
-      ...passwordReminder({
-        name: student.full_name, email: student.email,
-        spaceName: space?.display_name || null, loginUrl,
-      }),
+    // Issued whether or not the email lands: a link that could not be
+    // emailed is still a link the teacher can send on WhatsApp, and the
+    // single-student caller gets it back to do exactly that.
+    const invite = await sendPasswordInvite({
+      student, teacherId, createdBy: actor.id, spaceName, req, kind: 'welcome',
     });
+    lastUrl = invite.url;
 
-    if (mail.sent) sent.push(student.full_name);
-    else skipped.push({ name: student.full_name, why: mail.error || 'the email could not be sent' });
+    if (invite.emailSent) sent.push(student.full_name);
+    else skipped.push({ name: student.full_name, why: invite.emailError || 'the email could not be sent' });
   }
 
   if (sent.length) {
-    await logActivity(teacherId, actor, 'student_password_reminded',
+    await logActivity(teacherId, actor, 'student_invite_sent',
       sent.length === 1 ? sent[0] : `${sent.length} students`);
   }
 
-  return res.status(200).json({ sent: sent.length, skipped });
+  return res.status(200).json({
+    sent: sent.length, skipped,
+    invite_url: bulk ? null : lastUrl,
+  });
 }
 
 // ── Activate / deactivate ─────────────────────────────────────────

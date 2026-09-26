@@ -72,6 +72,19 @@
             <input type="email" id="email" required autocomplete="email" placeholder="you@example.com">
             <p style="font-size:.8rem;color:var(--muted);margin:6px 0 0">This becomes your sign-in. Use an address you actually check.</p>
           </div>
+          <!-- Chosen here, by them, once. Nobody generates a password for
+               a student any more: one that has to be read out or sent on
+               WhatsApp to reach them is one other people have seen. -->
+          <div class="field">
+            <label for="password">Choose a password</label>
+            <div style="position:relative">
+              <input type="password" id="password" required autocomplete="new-password" minlength="8"
+                     style="padding-right:70px" placeholder="At least 8 characters">
+              <button type="button" id="pw-toggle"
+                style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;font-size:.76rem;font-weight:700;color:var(--primary);cursor:pointer">Show</button>
+            </div>
+            <p style="font-size:.8rem;color:var(--muted);margin:6px 0 0">At least 8 characters. This is yours — your teacher never sees it.</p>
+          </div>
           <div class="field">
             <label for="phone">Your mobile number</label>
             <input type="tel" id="phone" required autocomplete="tel" placeholder="01x xxxx xxxx">
@@ -93,24 +106,22 @@
         </p>
       </div>
 
-      <!-- The account already exists by the time this is on screen, so
-           this is the sign-in, not a promise of one. It is the one
-           moment the student is certainly there to read it: the same
-           details go out by email, but an inbox they cannot open on the
-           bus is no use to them now. -->
+      <!-- The account exists by the time this is on screen, and so does
+           the password, because they chose it a moment ago. There is
+           nothing here for them to write down — which is the point of
+           having asked them for it rather than issuing one. -->
       <div id="done" style="display:none">
         <h1>You're in</h1>
         <p class="lead" id="done-text"></p>
         <div class="form-msg ok" style="display:block">
-          <strong>Write these down before you close this page.</strong>
-          <div style="margin-top:10px;line-height:1.9">
-            Email: <strong id="done-email" style="word-break:break-all"></strong><br>
-            Password: <strong id="done-pw" style="font-family:ui-monospace,Menlo,monospace"></strong>
-          </div>
+          Sign in with <strong id="done-email" style="word-break:break-all"></strong>
+          and the password you just chose.
         </div>
-        <button class="btn btn-outline" id="copy-creds" onclick="copyCreds()" style="margin-top:14px">Copy my sign-in details</button>
+        <a class="btn btn-primary btn-block btn-lg" href="/login.html" style="margin-top:16px">Sign in now</a>
         <p class="small muted" id="done-mail" style="margin-top:14px"></p>
-        <p class="auth-foot" style="margin-top:22px">Sign in at <a href="/login.html">lumen · sign in</a>. You will be asked to change this password.</p>
+        <p class="auth-foot" style="margin-top:18px;color:var(--muted)">
+          Forgotten it already? Ask your teacher and they will send you a link to choose a new one.
+        </p>
       </div>
 
     </div>
@@ -166,6 +177,7 @@ el('join-form').addEventListener('submit', async e => {
     action: 'submit',
     full_name:    el('full_name').value,
     email:        el('email').value,
+    password:     el('password').value,
     phone:        el('phone').value,
     parent_phone: el('parent_phone').value,
     parent_email: el('parent_email').value,
@@ -176,6 +188,7 @@ el('join-form').addEventListener('submit', async e => {
   const missing = [
     [payload.full_name, 'your full name'],
     [payload.email, 'your email'],
+    [payload.password, 'a password'],
     [payload.phone, 'your mobile number'],
     [payload.parent_phone, "a parent's mobile number"],
     [payload.parent_email, "a parent's email"],
@@ -185,6 +198,10 @@ el('join-form').addEventListener('submit', async e => {
     return say('err', `Please add ${missing.length > 1
       ? missing.slice(0, -1).join(', ') + ' and ' + missing[missing.length - 1]
       : missing[0]}.`);
+  }
+
+  if (payload.password.length < 8) {
+    return say('err', 'Your password needs to be at least 8 characters.');
   }
 
   sent = true;
@@ -198,13 +215,9 @@ el('join-form').addEventListener('submit', async e => {
       ? `You have an account with ${out.space_name}${out.course_title ? ` for ${out.course_title}` : ''}.`
       : 'Your account is ready.';
     el('done-email').textContent = out.email || payload.email.trim();
-    el('done-pw').textContent = out.password || '';
-    // Said either way. "Check your email" to somebody whose email never
-    // arrived is how a student decides the password on screen was not
-    // the real one and waits for a better one.
     el('done-mail').textContent = out.email_sent
-      ? 'We have emailed these to you as well.'
-      : 'We could not email these to you, so keep the password above safe.';
+      ? 'We have emailed you a copy of this as well.'
+      : '';
     show('done');
   } catch (err) {
     // 409 is "you are already here" — a finished state, not a failed
@@ -217,34 +230,14 @@ el('join-form').addEventListener('submit', async e => {
   }
 });
 
-// A phone keyboard and a generated password are a bad combination, so
-// the details can be taken in one tap. execCommand is the fallback
-// because clipboard.writeText needs a secure context and a permission
-// some in-app browsers — the ones a WhatsApp link opens in — refuse.
-async function copyCreds() {
-  const text = `Lumen sign-in: ${siteOrigin()}/login.html\n`
-    + `Email: ${el('done-email').textContent}\n`
-    + `Password: ${el('done-pw').textContent}`;
-  const btn = el('copy-creds');
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (_) {
-    const box = document.createElement('textarea');
-    box.value = text;
-    box.style.position = 'fixed';
-    box.style.opacity = '0';
-    document.body.appendChild(box);
-    box.select();
-    try { document.execCommand('copy'); } catch (__) {
-      btn.textContent = 'Press and hold the password to copy it';
-      document.body.removeChild(box);
-      return;
-    }
-    document.body.removeChild(box);
-  }
-  btn.textContent = 'Copied';
-  setTimeout(() => { btn.textContent = 'Copy my sign-in details'; }, 2500);
-}
+// Typing a password you cannot see, on a phone, is how a student ends
+// up locked out of an account they made thirty seconds ago.
+el('pw-toggle').addEventListener('click', e => {
+  const field = el('password');
+  const showing = field.type === 'text';
+  field.type = showing ? 'password' : 'text';
+  e.target.textContent = showing ? 'Show' : 'Hide';
+});
 
 // ── Plumbing ──────────────────────────────────────────────────────
 async function post(body) {

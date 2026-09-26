@@ -361,7 +361,10 @@ describe('approving a registration', () => {
     const res = await call({ action: 'approve', registration_id: 'reg-1' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.password).toHaveLength(12);
+    // Approving makes the same account a teacher typing one in makes,
+    // and hands over the same thing: a link, not a password.
+    expect(res.body).not.toHaveProperty('password');
+    expect(res.body.invite_url).toMatch(/\/setup\/[A-Za-z0-9]+$/);
     expect(res.body.email).toBe('sara@example.com');
 
     const [created] = getSupabaseCalls('auth.admin.createUser');

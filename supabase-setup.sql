@@ -527,6 +527,38 @@ CREATE POLICY "student_registrations_owner_all" ON public.student_registrations
   FOR ALL USING (public.is_platform_owner()) WITH CHECK (public.is_platform_owner());
 
 -- ────────────────────────────────────────
+-- PASSWORD INVITES (choosing your own, once)
+-- ────────────────────────────────────────
+-- A student is never given a password. They are given a link, and this
+-- table is what the link is made of: one single-use row, dated, thrown
+-- away once spent or replaced.
+--
+-- Nobody can read it. Row-level security is on and there are no
+-- policies, so anon and authenticated see an empty table and only the
+-- API's service-role key touches it. That is what makes the token a
+-- credential rather than a lookup key.
+CREATE TABLE IF NOT EXISTS public.password_invites (
+  -- The token IS the row: it goes in the URL and nothing else
+  -- identifies the link.
+  token      TEXT PRIMARY KEY,
+  student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  -- A used link is kept rather than deleted, so a student who taps the
+  -- same WhatsApp message twice is told "already used" rather than
+  -- "never existed".
+  used_at    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS password_invites_student_idx
+  ON public.password_invites (student_id, created_at DESC);
+
+ALTER TABLE public.password_invites ENABLE ROW LEVEL SECURITY;
+-- Deliberately no policies.
+
+-- ────────────────────────────────────────
 -- MODULES (units inside a course)
 -- ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.modules (

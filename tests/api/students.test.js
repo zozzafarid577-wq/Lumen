@@ -40,7 +40,10 @@ describe('creating a student', () => {
     const res = await call({ ...PARENT, full_name: 'Sara Ahmed', email: 'Sara@Example.com', course_ids: [COURSE] });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.password).toHaveLength(12);
+    // A link to set a password, never a password. Nobody — not even the
+    // teacher who made the account — is told one.
+    expect(res.body).not.toHaveProperty('password');
+    expect(res.body.invite_url).toMatch(/\/setup\/[A-Za-z0-9]+$/);
     expect(res.body.email).toBe('sara@example.com');
 
     const [created] = getSupabaseCalls('auth.admin.createUser');
@@ -237,10 +240,18 @@ describe('acting on an existing student', () => {
     configureSupabaseMock({ results: withSubscription() });
   });
 
-  it('resets a password and requires it to be changed again', async () => {
+  it('resets by sending a link, not by handing over a password', async () => {
     const res = await call({ action: 'reset_password', student_id: 'stu-1' });
+
     expect(res.statusCode).toBe(200);
-    expect(res.body.password).toHaveLength(12);
+    expect(res.body).not.toHaveProperty('password');
+    expect(res.body.invite_url).toMatch(/\/setup\/[A-Za-z0-9]+$/);
+
+    // The old password stops working now, not when the link is opened.
+    // A teacher pressing this is often doing it because somebody should
+    // not be getting in.
+    const [pw] = getSupabaseCalls('auth.admin.updateUserById');
+    expect(pw.payload.password).toHaveLength(32);
 
     const [update] = getSupabaseCalls('profiles.update');
     expect(update.payload).toEqual({ must_change_pw: true });
@@ -293,7 +304,7 @@ describe('acting on an existing student', () => {
       vi.unstubAllGlobals();
     });
 
-    it('emails one student, without a password in it', async () => {
+    it('emails one student a link, with no password in it', async () => {
       asUser(TEACHER_USER, { extraProfiles: { 'stu-1': waiting } });
       const fetchMock = withMail();
 
@@ -304,10 +315,10 @@ describe('acting on an existing student', () => {
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
       expect(body.to).toEqual([{ email: 'sara@example.com', name: 'Sara' }]);
-      // Nothing can send the password: it is not stored anywhere readable.
-      // The message exists to get them to choose one.
-      expect(body.htmlContent).toMatch(/login\.html/);
-      expect(body.htmlContent).toMatch(/temporary/i);
+      // A link to set one, and no password anywhere in it — there is
+      // none to send, which is the point of the whole flow.
+      expect(body.htmlContent).toMatch(/\/setup\/[A-Za-z0-9]+/);
+      expect(res.body.invite_url).toMatch(/\/setup\/[A-Za-z0-9]+$/);
     });
 
     it('leaves alone a student who has already chosen one', async () => {

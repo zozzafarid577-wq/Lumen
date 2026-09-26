@@ -52,6 +52,16 @@ async function submit(res, invite, body, req) {
   const phone       = cleanText(body.phone, { max: 40 });
   const parentPhone = cleanText(body.parent_phone, { max: 40 });
 
+  // Theirs, chosen on the form. Nobody generates a password for a
+  // student any more: one that has to be shown on a screen or sent on to
+  // reach them is one other people have seen.
+  //
+  // Checked here and not only in the page, because the page is the half
+  // of this a determined student can skip.
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (password.length < 8) throw new HttpError(400, 'Choose a password of at least 8 characters.');
+  if (password.length > 72) throw new HttpError(400, 'That password is too long — 72 characters at most.');
+
   // Required, not optional, because it is half of what says "this is the
   // same person" — and because a teacher with a class and no numbers for
   // it cannot reach anybody.
@@ -125,6 +135,7 @@ async function submit(res, invite, body, req) {
       parentEmail,
       courseIds:   [invite.course_id],
       groupIds:    invite.group_id ? { [invite.course_id]: invite.group_id } : {},
+      password,
       req,
     });
   } catch (err) {
@@ -138,16 +149,14 @@ async function submit(res, invite, body, req) {
   await admin.from('student_registrations')
     .update({ student_id: made.studentId }).eq('id', reg.id);
 
-  // The password comes back to the page as well as going out by email. A
-  // student standing there with a phone is the one moment they are
-  // certainly reachable — a mail provider having a bad afternoon must
-  // not be the difference between having an account and not.
+  // No password goes back, because none was ever made: the one on the
+  // account is the one they typed into the form a moment ago, and it has
+  // never been anywhere this endpoint could send it.
   return res.status(200).json({
     ok: true,
     space_name:   invite.space_name,
     course_title: invite.course_title,
     email:        made.email,
-    password:     made.password,
     email_sent:   made.emailSent,
   });
 }

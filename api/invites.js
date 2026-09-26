@@ -209,6 +209,7 @@ async function approve(res, actor, teacherId, body, req) {
       parentEmail: reg.parent_email,
       courseIds:   [reg.course_id],
       groupIds:    reg.group_id ? { [reg.course_id]: reg.group_id } : {},
+      createdBy:   actor.id,
       req,
     });
   } catch (err) {
@@ -226,10 +227,12 @@ async function approve(res, actor, teacherId, body, req) {
 
   await logActivity(teacherId, actor, 'registration_approved', `${reg.full_name} <${reg.email}>`);
 
+  // A link to set a password, not a password. Same handover as a student
+  // typed in by hand, because it is the same account either way.
   return res.status(200).json({
     student_id: made.studentId,
     email: made.email,
-    password: made.password,
+    invite_url: made.inviteUrl,
     phone: reg.phone || reg.parent_phone || null,
     email_sent: made.emailSent,
     email_error: made.emailError,

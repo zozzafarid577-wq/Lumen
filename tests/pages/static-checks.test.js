@@ -344,12 +344,13 @@ describe('links a teacher hands to somebody else', () => {
     expect(ui).toMatch(/if \(!configured\) return location\.origin;/);
   });
 
+  // A batch invite link is still built in the page. A student's set-up
+  // link is not: it comes back from the API, which builds it from
+  // PUBLIC_URL — see the check below.
   const SHAREABLE = [
     ['teacher/students.html', /function inviteUrl\(token\) \{[^}]*\}/],
-    ['teacher/students.html', /Lumen sign-in: \$\{[^}]+\}/],
     ['teacher/team.html', /Lumen sign-in: \$\{[^}]+\}/],
     ['admin/teachers.html', /Lumen sign-in: \$\{[^}]+\}/],
-    ['join.html', /Lumen sign-in: \$\{[^}]+\}/],
   ];
 
   it.each(SHAREABLE)('%s builds its shared link from siteOrigin()', (rel, re) => {
@@ -361,6 +362,28 @@ describe('links a teacher hands to somebody else', () => {
     expect(found[0], `${rel} still builds a shared link from location.origin`)
       .not.toMatch(/location\.origin/);
     expect(found[0]).toMatch(/siteOrigin\(\)/);
+  });
+
+  it('never puts a student password in a message a teacher sends', () => {
+    // Students are sent a link and choose their own password. A page that
+    // starts writing "Password: …" into a WhatsApp message again has put
+    // back the thing this flow exists to remove.
+    for (const rel of ['teacher/students.html', 'join.html']) {
+      const html = PAGES.find(p => p.rel === rel)?.html;
+      expect(html, `${rel} not found`).toBeTruthy();
+      expect(html, `${rel} is handing over a password again`)
+        .not.toMatch(/Password: \$\{/);
+    }
+  });
+
+  it('hands over the set-up link the server built, not one of its own', () => {
+    // The API builds it from PUBLIC_URL, so a teacher working from a
+    // preview deployment still sends a link to the real site.
+    const html = PAGES.find(p => p.rel === 'teacher/students.html').html;
+    const text = html.match(/function credentialsText\(c\) \{[\s\S]*?\n\}/)?.[0];
+    expect(text, 'credentialsText() is no longer there to check').toBeTruthy();
+    expect(text).toMatch(/\$\{c\.url\}/);
+    expect(text).not.toMatch(/location\.origin|siteOrigin\(\)/);
   });
 
   it('leaves the password-reset redirect on the current origin', () => {

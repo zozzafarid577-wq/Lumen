@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { emailStatus, sendEmail, studentWelcome, passwordReset, passwordReminder, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
+import { emailStatus, sendEmail, studentWelcome, studentInvite, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
 
 const ORIGINAL = { ...process.env };
 
@@ -87,14 +87,15 @@ describe('sendEmail', () => {
 describe('templates', () => {
   const args = { name: 'Sara Ahmed', email: 'sara@example.com', password: 'Abc!2345', spaceName: 'Advanced Biology', loginUrl: 'https://lumen.test/login.html' };
 
-  it('carry the credentials and the sign-in link', () => {
-    for (const build of [studentWelcome, passwordReset, teacherWelcome]) {
+  it('carry the address and the link, whatever they are for', () => {
+    for (const build of [studentWelcome, teacherWelcome]) {
       const { subject, html } = build(args);
       expect(subject.length).toBeGreaterThan(5);
       expect(html).toContain('sara@example.com');
-      expect(html).toContain('Abc!2345');
       expect(html).toContain('https://lumen.test/login.html');
     }
+    // Only the teacher is still handed a password to sign in with.
+    expect(teacherWelcome(args).html).toContain('Abc!2345');
   });
 
   it('escape what goes into them', () => {
@@ -109,21 +110,28 @@ describe('templates', () => {
     expect(studentWelcome({ ...args, spaceName: null }).subject).toContain('Lumen');
   });
 
-  it('leave the password out of the reminder — there is none to send', () => {
-    // The reminder goes to a student still using the password they were
-    // handed. Nothing stores that password in a form anyone can read
-    // back, so the message can only point them at the sign-in page.
-    const { subject, html } = passwordReminder({
-      name: 'Sara Ahmed', email: 'sara@example.com',
-      spaceName: 'Advanced Biology', loginUrl: 'https://lumen.test/login.html',
-    });
+  it('invite a student with a link and no password at all', () => {
+    // A student is never sent a password, because one is never made for
+    // them. The link is the whole message.
+    const setupUrl = 'https://lumen.test/setup/AbC123';
 
-    expect(subject).toMatch(/password/i);
-    expect(html).toContain('sara@example.com');
-    expect(html).toContain('https://lumen.test/login.html');
-    expect(html).not.toContain('Abc!2345');
-    // And it says what to do when the handed-over details are lost.
-    expect(html).toMatch(/ask your teacher/i);
+    for (const kind of ['welcome', 'reset']) {
+      const { subject, html } = studentInvite({
+        name: 'Sara Ahmed', email: 'sara@example.com',
+        spaceName: 'Advanced Biology', setupUrl, days: 14, kind,
+      });
+
+      expect(subject.length, kind).toBeGreaterThan(5);
+      expect(html, kind).toContain('sara@example.com');
+      expect(html, kind).toContain(setupUrl);
+      expect(html, kind).not.toContain('Abc!2345');
+      // Saying so is what stops a student sitting on it for a month.
+      expect(html, kind).toMatch(/works once, and for 14 days/i);
+    }
+
+    // A reset says the old password has gone; a welcome has nothing to
+    // say about one, because there never was one.
+    expect(studentInvite({ ...args, setupUrl, kind: 'reset' }).html).toMatch(/no longer works/i);
   });
 
   it('carry the Lumen header on every message', () => {
@@ -131,7 +139,7 @@ describe('templates', () => {
     // every client does: the band must never render as a white gap.
     for (const html of [
       studentWelcome(args).html,
-      passwordReminder({ ...args, password: undefined }).html,
+      studentInvite({ ...args, setupUrl: 'https://lumen.test/setup/AbC123' }).html,
     ]) {
       expect(html).toMatch(/bgcolor="#A2509F"/);
       expect(html).toContain('Educate with Excellence');

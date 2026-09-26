@@ -4,6 +4,10 @@
     {
       "source": "/join/:token",
       "destination": "/join"
+    },
+    {
+      "source": "/setup/:token",
+      "destination": "/set-password"
     }
   ],
   "redirects": [

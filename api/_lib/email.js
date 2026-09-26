@@ -171,61 +171,61 @@ ${detail}${chip}${list}
 
 const firstName = (name) => (name ? esc(String(name).trim().split(/\s+/)[0]) : '');
 
-export function studentWelcome({ name, email, password, spaceName, loginUrl }) {
+// The one email a new student gets, and the one a student gets when a
+// teacher lets them back in. It carries a link, never a password —
+// there is no password to carry, which is the point: the only one the
+// account ever has is the one they are about to choose.
+//
+// `kind` picks the wording. Everything else about the message is the
+// same, because it is the same link doing the same thing.
+export function studentInvite({ name, email, spaceName, setupUrl, days = 14, kind = 'welcome' }) {
+  const welcome = kind === 'welcome';
+  const where = spaceName ? ` on <strong>${esc(spaceName)}</strong>` : '';
+
+  return {
+    subject: welcome
+      ? `Set up your ${spaceName || 'Lumen'} account 🎉`
+      : `Choose a new password for ${spaceName || 'Lumen'}`,
+    html: layout({
+      heading: welcome
+        ? `Welcome${name ? ', ' + firstName(name) : ''}!`
+        : `${name ? firstName(name) + ', let' : 'Let'}'s get you back in`,
+      intro: welcome
+        ? `Your teacher has made you an account${where}. Press the button below and choose a password — you pick it yourself, and nobody else ever sees it.`
+        : `Your teacher has sent you a new sign-in link${where}. Press the button below to choose a new password. Your old one no longer works.`,
+      rows: [['Your email', email]],
+      bullets: welcome ? [
+        '<strong>Recordings and materials</strong> for every lesson, kept for the whole term',
+        '<strong>Tests</strong> that give you your score the moment you finish',
+        '<strong>Homework</strong> to hand in, and the feedback that comes back',
+        '<strong>Your progress</strong>, so you always know where you stand',
+      ] : [],
+      note: `This link works once, and for ${days} days. After that, or if you have already used it, ask your teacher to send you another.`,
+      loginUrl: setupUrl,
+      cta: welcome ? 'Choose my password' : 'Choose a new password',
+    }),
+  };
+}
+
+// For a student who registered themselves and chose their password on
+// the way in. Nothing needs setting up, so this only says where the
+// door is and what is behind it.
+export function studentWelcome({ name, email, spaceName, loginUrl }) {
   return {
     subject: `Your ${spaceName || 'Lumen'} account is ready 🎉`,
     html: layout({
       heading: `Welcome${name ? ', ' + firstName(name) : ''}!`,
-      intro: `Your teacher has created your account${spaceName ? ` on <strong>${esc(spaceName)}</strong>` : ''}. Everything for the course is waiting behind it.`,
+      intro: `You are registered${spaceName ? ` on <strong>${esc(spaceName)}</strong>` : ''}, and your account is ready. Sign in with the email below and the password you chose.`,
       rows: [['Your email', email]],
-      highlight: ['Your password', password],
       bullets: [
         '<strong>Recordings and materials</strong> for every lesson, kept for the whole term',
         '<strong>Tests</strong> that give you your score the moment you finish',
         '<strong>Homework</strong> to hand in, and the feedback that comes back',
         '<strong>Your progress</strong>, so you always know where you stand',
       ],
-      note: 'You will be asked to choose your own password the first time you sign in. Keep these details to yourself.',
+      note: 'Forgotten your password already? Ask your teacher and they will send you a link to choose a new one.',
       loginUrl,
       cta: 'Sign in and take a look',
-    }),
-  };
-}
-
-export function passwordReset({ name, email, password, spaceName, loginUrl }) {
-  return {
-    subject: `Your ${spaceName || 'Lumen'} password has been reset`,
-    html: layout({
-      heading: 'Here is your new password',
-      intro: `Your teacher has reset the password on your account${name ? `, ${firstName(name)}` : ''}. The old one no longer works.`,
-      rows: [['Your email', email]],
-      highlight: ['New password', password],
-      note: 'You will be asked to choose your own the next time you sign in. If you did not expect this, speak to your teacher.',
-      loginUrl,
-      cta: 'Sign in with it',
-    }),
-  };
-}
-
-// For a student still signing in with the password their teacher handed
-// them. It cannot contain that password — nobody has it to send, which is
-// the whole point of storing it the way it is stored — so it only nudges,
-// and says where to go when the details have been lost.
-export function passwordReminder({ name, email, spaceName, loginUrl }) {
-  return {
-    subject: `A reminder: choose your own ${spaceName || 'Lumen'} password`,
-    html: layout({
-      heading: `${name ? firstName(name) + ', your' : 'Your'} password is still the temporary one`,
-      intro: `You have not chosen your own password${spaceName ? ` on <strong>${esc(spaceName)}</strong>` : ''} yet. Sign in with the details you were given and you will be asked to pick one — it takes a moment, and it keeps your account yours.`,
-      rows: [['Your email', email]],
-      bullets: [
-        'Sign in with the temporary password you were given',
-        'Choose a password only you know',
-        'That is it — your lessons, tests and marks are all there',
-      ],
-      note: 'Lost the details you were given? Ask your teacher and they will send you a new password.',
-      loginUrl,
-      cta: 'Choose my password',
     }),
   };
 }

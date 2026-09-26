@@ -58,10 +58,13 @@ function canMakeAccounts() {
 
 // A parent's number and address are required, so a valid submission
 // carries them.
+// The password is theirs, typed on the form. Nothing generates one any
+// more, so a submission without it is not a valid submission.
 const GOOD = {
   action: 'submit',
   full_name: 'Sara Ahmed',
   email: 'Sara@Example.com',
+  password: 'chose-this-myself',
   phone: '+20 101 234 5678',
   parent_phone: '+20 100 000 1111',
   parent_email: 'Parent@Example.com',
@@ -219,8 +222,12 @@ describe('registering', () => {
     // student can see another teacher's space.
     expect(created.payload.app_metadata).toEqual({ role: 'student', teacher_id: TEACHER_ID });
 
+    // The password on the account is the one they typed, and the flag
+    // that says "has not chosen one" is off from the start.
+    expect(created.payload.password).toBe('chose-this-myself');
+
     const [profile] = getSupabaseCalls('profiles.insert');
-    expect(profile.payload).toMatchObject({ teacher_id: TEACHER_ID, role: 'student', must_change_pw: true });
+    expect(profile.payload).toMatchObject({ teacher_id: TEACHER_ID, role: 'student', must_change_pw: false });
   });
 
   it('enrols them on the invite\u2019s own course and group', async () => {
@@ -232,14 +239,27 @@ describe('registering', () => {
     }]);
   });
 
-  it('hands the sign-in straight back to the student', async () => {
-    // They are holding a phone at this moment and may never open the
-    // email. The password goes on the screen as well as into the inbox.
+  it('sends no password back, because it never made one', async () => {
+    // The student chose it on the form a moment ago. There is nothing to
+    // hand over, show on screen or put in an email — which is the whole
+    // reason for asking them rather than issuing one.
     const res = await call({ ...GOOD, token: TOKEN });
 
     expect(res.body.email).toBe('sara@example.com');
-    expect(res.body.password).toHaveLength(12);
+    expect(res.body).not.toHaveProperty('password');
     expect(res.body).toHaveProperty('email_sent');
+  });
+
+  it('insists on a password long enough to be one', async () => {
+    for (const password of ['', 'short', undefined]) {
+      resetSupabaseMock();
+      configureSupabaseMock({ results: { ...withInvite(), ...emptySpace(), ...canMakeAccounts() } });
+
+      const res = await call({ ...GOOD, password, token: TOKEN });
+
+      expect(res.statusCode, String(password)).toBe(400);
+      expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
+    }
   });
 
   it('records which account the registration became', async () => {
