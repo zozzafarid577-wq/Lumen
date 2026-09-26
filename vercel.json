@@ -8,6 +8,16 @@
   ],
   "redirects": [
     {
+      "source": "/pricing",
+      "destination": "/contact",
+      "permanent": false
+    },
+    {
+      "source": "/pricing.html",
+      "destination": "/contact",
+      "permanent": false
+    },
+    {
       "source": "/portal",
       "destination": "/portal/courses",
       "permanent": false

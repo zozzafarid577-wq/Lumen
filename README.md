@@ -12,7 +12,7 @@ the day-to-day work Lumen carries and how many students the teacher has.
 
 | Path             | What it is                                                              |
 | ---------------- | ----------------------------------------------------------------------- |
-| `index.html`, `pricing.html`, `features.html`, `contact.html` | The public site |
+| `index.html`, `features.html`, `contact.html` | The public site. It quotes no prices: what Lumen costs is said on the call, and a student reads these pages too |
 | `login.html`, `forgot-password.html`, `reset-password.html` | Sign-in and password recovery |
 | `join.html`      | Where a batch invite link lands — the one page a student uses before they have an account |
 | `teacher/`       | The teacher portal — the management system                              |

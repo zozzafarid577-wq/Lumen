@@ -22,7 +22,6 @@
       <span class="page-title">Plans &amp; pricing</span>
     </div>
     <div class="topbar-right">
-      <a href="/pricing.html" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View the page</a>
       <button class="btn btn-primary btn-sm" onclick="openPlan(null)">Add a plan</button>
     </div>
   </header>
@@ -36,12 +35,16 @@
     </div>
 
     <!-- The two listings are different products, not one list sorted two
-         ways: packages are cards on the site, tiers are a table of bands.
-         Reordering only ever happens inside a listing. -->
+         ways: a package is what a teacher is put on, a tier is the band
+         their class size falls in. Reordering only ever happens inside a
+         listing. Neither is published any more — nothing on the public
+         site quotes a price — so these rows are what the console and a
+         teacher's own subscription page read, and what a quote is built
+         from by hand. -->
     <div class="card mb16">
       <div class="card-header">
         <span class="card-title">Packages</span>
-        <span class="small muted">Shown as cards on the home and pricing pages</span>
+        <span class="small muted">What a teacher is put on when they sign up</span>
       </div>
       <div class="card-body" id="packages"></div>
     </div>
@@ -49,7 +52,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">By class size</span>
-        <span class="small muted">The tier table on the pricing page</span>
+        <span class="small muted">The monthly fee for each band of class size</span>
       </div>
       <div class="card-body" id="tiers"></div>
     </div>

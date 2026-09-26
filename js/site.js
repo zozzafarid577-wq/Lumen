@@ -1,10 +1,13 @@
 // ─────────────────────────────────────────────────────────────────
 // Lumen — public site
 //
-// The marketing pages work with no JavaScript and no database: every
-// price on them is written into the HTML. What this file adds is the
-// live price list, so changing a plan in Supabase changes the site, and
-// the forms that write to `leads` and start a trial.
+// The pages work with no JavaScript and no database. What this file
+// adds is the mobile nav and the form that writes to `leads`.
+//
+// It used to render the price list too, live from the `plans` table.
+// Nothing public quotes a price any more — what Lumen costs is said on
+// the call — so the plans stayed and their rendering went. The table is
+// still the source of truth for the console and for a subscription.
 // ─────────────────────────────────────────────────────────────────
 
 const SITE_CFG = window.LUMEN_CONFIG || {};
@@ -17,14 +20,6 @@ const sbPublic = SITE_CONFIGURED
       auth: { persistSession: false, autoRefreshToken: false },
     })
   : null;
-
-function esc(str) {
-  const d = document.createElement('div');
-  d.textContent = str ?? '';
-  return d.innerHTML;
-}
-
-function money(n) { return Number(n || 0).toLocaleString('en-US'); }
 
 // ── Mobile nav ────────────────────────────────────────────────────
 function mountNavToggle() {
@@ -47,82 +42,6 @@ function mountNavToggle() {
     });
   });
 })();
-
-// ── Live price list ───────────────────────────────────────────────
-// The cards already in the HTML are the current prices and are what a
-// reader sees if Supabase is unreachable or not yet configured. They are
-// replaced only once real rows have arrived.
-async function renderPlanCards(containerId, { codes = null, featured = null } = {}) {
-  const host = document.getElementById(containerId);
-  if (!host || !sbPublic) return;
-
-  let query = sbPublic.from('plans').select('*')
-    .eq('is_active', true).eq('listing', 'package').order('sort_order');
-  if (codes) query = query.in('code', codes);
-
-  const { data, error } = await query;
-  if (error || !data?.length) return;   // keep the written-in prices
-
-  host.innerHTML = data.map(p => planCard(p, featured ?? (data.length > 1 ? data[data.length - 1].code : null))).join('');
-}
-
-function planCard(plan, featuredCode) {
-  const isFeatured = plan.code === featuredCode;
-  const features = Array.isArray(plan.features) ? plan.features : [];
-  return `
-    <div class="price-card${isFeatured ? ' featured' : ''}">
-      ${isFeatured ? '<div class="price-flag">Full service</div>' : ''}
-      <div class="price-name">${esc(plan.name)}</div>
-      <div class="price-sub">${esc(plan.package === 'full' ? 'Platform + student support' : 'Basic support')} · up to ${plan.student_limit} students</div>
-      <div class="price-amount">
-        <span class="n">${money(plan.monthly_fee_egp)}</span>
-        <span class="cur">EGP</span>
-        <span class="per">/ month</span>
-      </div>
-      <ul class="price-list">${features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      ${plan.blurb ? `<div class="price-best">${esc(plan.blurb)}</div>` : ''}
-      <a href="/contact.html?plan=${encodeURIComponent(plan.code)}" class="btn ${isFeatured ? 'btn-primary' : 'btn-outline'} btn-block">Choose this package</a>
-    </div>`;
-}
-
-// The student tiers table on the pricing page.
-async function renderTierTable(tbodyId) {
-  const body = document.getElementById(tbodyId);
-  if (!body || !sbPublic) return;
-  const { data, error } = await sbPublic
-    .from('plans').select('student_limit, monthly_fee_egp')
-    .eq('is_active', true).eq('listing', 'tier').order('student_limit');
-  if (error || !data?.length) return;
-
-  // One row per band, so "up to 60 / 61–100 / 101–150" reads the way the
-  // service sheet does rather than repeating "up to N" three times.
-  let previous = 0;
-  body.innerHTML = data.map(p => {
-    const label = previous === 0 ? `Up to ${p.student_limit}` : `${previous + 1} – ${p.student_limit}`;
-    previous = p.student_limit;
-    return `<tr><td>${esc(label)}</td><td>${money(p.monthly_fee_egp)} EGP</td></tr>`;
-  }).join('');
-}
-
-// Fill a plan <select> on the contact form, and preselect ?plan=.
-async function fillPlanSelect(selectId) {
-  const sel = document.getElementById(selectId);
-  if (!sel || !sbPublic) return;
-  const { data } = await sbPublic.from('plans').select('code, name, listing, monthly_fee_egp, student_limit')
-    .eq('is_active', true).order('sort_order');
-  if (!data?.length) return;
-
-  const group = (label, rows) => rows.length
-    ? `<optgroup label="${esc(label)}">${rows.map(p =>
-        `<option value="${esc(p.code)}">${esc(p.name)} — ${money(p.monthly_fee_egp)} EGP / month</option>`).join('')}</optgroup>`
-    : '';
-
-  sel.innerHTML = '<option value="">Not sure yet — advise me</option>'
-    + group('Packages', data.filter(p => p.listing === 'package'))
-    + group('By class size', data.filter(p => p.listing === 'tier'));
-  const wanted = new URLSearchParams(location.search).get('plan');
-  if (wanted && data.some(p => p.code === wanted)) sel.value = wanted;
-}
 
 // ── Lead form ─────────────────────────────────────────────────────
 // Writes straight to `leads`, which the anon role may insert into and
