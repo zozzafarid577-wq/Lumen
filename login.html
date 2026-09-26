@@ -50,11 +50,40 @@
       </form>
 
       <p class="auth-foot"><a href="/forgot-password.html">Forgotten your password?</a></p>
-      <p class="auth-foot" style="margin-top:10px;color:var(--muted)">
+
+      <!-- The walkthrough sits behind a button rather than on the page.
+           Somebody signing in for the hundredth time should meet the
+           form, not a video; somebody signing in for the first time
+           should not have to be told where to find help. -->
+      <p class="auth-foot" id="guide-row" style="margin-top:22px;display:none">
+        <button type="button" class="btn btn-outline btn-sm" onclick="openGuide()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg>
+          First time here? Watch how it works
+        </button>
+      </p>
+
+      <p class="auth-foot" style="margin-top:14px;color:var(--muted)">
         No account yet? Your teacher makes it for you, or sends your class a registration link.
       </p>
     </div>
   </main>
+</div>
+
+<!-- The video itself. The iframe carries no src until the button is
+     pressed, so a page that nobody watches costs nobody anything, and
+     the src is taken away again on close so the sound stops with it. -->
+<div class="vid-back" id="guide-back" role="dialog" aria-modal="true" aria-label="How to use Lumen">
+  <div class="vid-box">
+    <div class="vid-head">
+      <span class="vid-title">How to sign in and find your lessons and tests</span>
+      <button type="button" class="vid-close" onclick="closeGuide()" aria-label="Close">&times;</button>
+    </div>
+    <div class="vid-frame">
+      <!-- `allow` covers fullscreen on its own; adding allowfullscreen as
+           well only makes the browser warn that one overrides the other. -->
+      <iframe id="guide-frame" title="How to use Lumen" allow="autoplay; fullscreen"></iframe>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -66,6 +95,36 @@ document.querySelectorAll('.year').forEach(el => { el.textContent = new Date().g
 
 const params = new URLSearchParams(location.search);
 const msg = document.getElementById('msg');
+
+// ── The walkthrough ───────────────────────────────────────────────
+// Offered only when one is configured, so an empty STUDENT_GUIDE_URL
+// leaves a clean page rather than a button that opens nothing.
+const GUIDE_URL = (window.LUMEN_CONFIG || {}).STUDENT_GUIDE_URL || '';
+const guideBack = document.getElementById('guide-back');
+const guideFrame = document.getElementById('guide-frame');
+if (GUIDE_URL) document.getElementById('guide-row').style.display = 'block';
+
+function openGuide() {
+  if (!GUIDE_URL) return;
+  guideFrame.src = GUIDE_URL;
+  guideBack.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeGuide() {
+  guideBack.classList.remove('open');
+  // Emptying the frame is what actually stops the video. Hiding the
+  // box only makes it invisible; it would carry on playing underneath.
+  guideFrame.removeAttribute('src');
+  document.body.style.overflow = '';
+}
+
+// Clicking the backdrop, or Escape, closes it — both are what a student
+// will try before hunting for the small × in the corner.
+guideBack.addEventListener('click', e => { if (e.target === guideBack) closeGuide(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && guideBack.classList.contains('open')) closeGuide();
+});
 
 // Why they were sent back here, if they were.
 const REASONS = {

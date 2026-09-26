@@ -29,6 +29,19 @@ window.LUMEN_CONFIG = {
   // read by siteUrlFor() in api/_lib/email.js for the links inside
   // emails. The two should name the same site.
   SITE_URL: 'https://lumenlearn.site',
+
+  // The walkthrough a student can watch from the sign-in page: how to
+  // get in, and where the lessons and tests are once they have.
+  //
+  // A Google Drive file's *preview* URL, not its /view one — /view
+  // refuses to be framed, and an iframe pointed at it comes up blank.
+  // Take the id out of the sharing link and put it here:
+  //   https://drive.google.com/file/d/<id>/preview
+  //
+  // The file has to be shared as "anyone with the link", or every
+  // student meets a Google sign-in box instead of the video. Leave this
+  // empty and the button simply does not appear.
+  STUDENT_GUIDE_URL: 'https://drive.google.com/file/d/1tQoOSJE7aUduLAp6ULuCVr6g_cWd4HLg/preview',
   SUPABASE_URL: 'https://ivguwplraowoelewroxw.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2Z3V3cGxyYW93b2VsZXdyb3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDAzOTAsImV4cCI6MjEwNTY3NjM5MH0.gk2qncKT0qU20gpnFvyzvLPrXQetOecyjHDXEDSM15w',
 };

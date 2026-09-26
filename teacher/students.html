@@ -386,7 +386,23 @@
     <div class="modal-body">
       <div class="alert alert-error" id="sd-alert" style="display:none;margin-bottom:16px"></div>
 
-      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:18px" id="sd-badges"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:14px" id="sd-badges"></div>
+
+      <!-- How this student gets in, and what to do about it when they
+           cannot. The email is here because it is the half of the
+           sign-in a teacher can read out; the password is not, because
+           nothing keeps a copy of it once it has been handed over. -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px">
+        <div class="spread" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">
+          <span class="small muted">Signs in with</span>
+          <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="sd-signin-email">—</span>
+        </div>
+        <p class="small muted" id="sd-signin-note" style="margin:0 0 12px"></p>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-xs" id="sd-remind" style="display:none">Remind them to set a password</button>
+          <button class="btn btn-outline btn-xs" id="sd-reset">Reset password</button>
+        </div>
+      </div>
 
       <div class="form-row">
         <div class="form-group">
@@ -431,13 +447,11 @@
         <div id="sd-results" class="small"></div>
       </div>
 
-      <!-- The account actions live here rather than in the table row, so
-           that reaching for Delete means having the student open in front
-           of you first. -->
+      <!-- Delete lives here rather than in the table row, so that
+           reaching for it means having the student open in front of you
+           first. The password actions are up beside the sign-in details,
+           where the question that prompts them gets asked. -->
       <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:18px">
-        <!-- Only shown while there is something to remind them about. -->
-        <button class="btn btn-outline btn-sm" id="sd-remind" style="display:none">Remind to set a password</button>
-        <button class="btn btn-outline btn-sm" id="sd-reset">Reset password</button>
         <button class="btn btn-outline btn-sm" id="sd-pause">Pause</button>
         <button class="btn btn-ghost btn-sm" id="sd-delete" style="color:var(--danger)">Delete</button>
       </div>
@@ -1284,6 +1298,14 @@ function openStudent(id) {
       : '<span class="badge b-green">Has chosen their own password</span>',
     `<span class="small muted">Added ${fmtDate(s.created_at)}</span>`,
   ].filter(Boolean).join('');
+
+  // The sign-in panel. A teacher opening this is usually answering "I
+  // can't get in" — so it says what the account is, what state the
+  // password is in, and which of the two buttons is the answer.
+  document.getElementById('sd-signin-email').textContent = s.email || '—';
+  document.getElementById('sd-signin-note').textContent = s.must_change_pw
+    ? 'They are still signing in with the password you handed them, and have not chosen their own. That password is not kept anywhere — if they have lost it, reset it and give them the new one.'
+    : 'They have chosen their own password. Nobody can look it up, so a student who has forgotten theirs needs a reset.';
 
   document.getElementById('sd-courses').innerHTML = drawEnrolSummary(s);
   document.getElementById('sd-progress').href = `/teacher/progress.html?student=${s.id}`;
