@@ -145,7 +145,9 @@ async function load() {
   // round trips. Everything the opened rows need comes down here too, so
   // expanding a student is instant and silent.
   const [students, attempts, completions, tests, lessons, enrolments] = await Promise.all([
-    sb.from('profiles').select('id, full_name, email')
+    // parent_email comes down with them: the report button needs to know
+    // whether there is anywhere to send it before it is pressed.
+    sb.from('profiles').select('id, full_name, email, parent_email')
       .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
     // Every attempt, not just the best: "passed on the third go" is a
     // different fact about a student than "passed".
@@ -266,7 +268,40 @@ function detailFor(s) {
   return `<div class="detail-inner">
     <div>${testDetail(s, courseIds)}</div>
     <div>${lessonDetail(s, courseIds, courseName)}</div>
+  </div>
+  ${parentRow(s)}`;
+}
+
+// The one thing a teacher does with this page that is not reading it.
+// The numbers are gathered on the server when it is pressed, not taken
+// from what happens to be on screen.
+function parentRow(s) {
+  const to = (s.parent_email || '').trim();
+  return `<div style="padding:0 18px 18px">
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();emailParent('${s.id}')"
+              ${to ? '' : 'disabled'}>
+        Email this to the parent \u00b7 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631 \u0644\u0648\u0644\u064a \u0627\u0644\u0623\u0645\u0631
+      </button>
+      <span class="small muted">${to
+        ? escHtml(to)
+        : 'No parent email on their account \u2014 add one on the Students page.'}</span>
+    </div>
   </div>`;
+}
+
+async function emailParent(id) {
+  const s = summary.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`Email ${s.full_name}'s progress to ${s.parent_email}?`)) return;
+
+  try {
+    const out = await apiPost('/api/students', { action: 'email_progress', student_id: id });
+    showToast(out.sent
+      ? `Sent to ${out.to}.`
+      : `Could not send it: ${out.error || 'the mail provider refused it'}`,
+      out.sent ? 'success' : 'error');
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 function testDetail(s, courseIds) {

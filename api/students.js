@@ -3,7 +3,7 @@ import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor,
 import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail, phoneKey } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
 import { createStudentAccount } from './_lib/students.js';
-import { sendEmail, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { sendEmail, signInEmailChanged, progressReport, loginUrlFor } from './_lib/email.js';
 import { sendPasswordInvite } from './_lib/invite.js';
 
 // Everything a teacher does to a student account. Creating an auth user,
@@ -28,6 +28,7 @@ export default handler(async (req, res) => {
     // should not meet "unknown action" mid-class.
     case 'send_invite':
     case 'remind_password': return remindPassword(res, profile, teacherId, body, req);
+    case 'email_progress': return emailProgress(res, profile, teacherId, body, req);
     case 'set_active':     return setActive(res, profile, teacherId, body);
     case 'delete':         return deleteStudent(res, profile, teacherId, body);
     default: throw new HttpError(400, 'Unknown action.');
@@ -273,6 +274,91 @@ async function remindPassword(res, actor, teacherId, body, req) {
     sent: sent.length, skipped,
     invite_url: bulk ? null : lastUrl,
   });
+}
+
+// ── Send a parent where their child stands ────────────────────────
+// The numbers are read here, not taken from the page that asked. A
+// report is the one email a parent will act on, and "the browser said
+// so" is not good enough for a mark somebody will be asked about at
+// home.
+//
+// A retake replaces an earlier try, the same rule the portals score
+// by: a student is credited with their best mark on each test, so one
+// bad first attempt never becomes the story a parent is told.
+async function emailProgress(res, actor, teacherId, body, req) {
+  const student = await getStudent(body.student_id, teacherId);
+
+  const to = (student.parent_email || '').trim();
+  if (!to) {
+    throw new HttpError(400,
+      `There is no parent email on ${student.full_name}'s account. Add one and try again.`);
+  }
+
+  const [attempts, tests, completions, enrolments, space] = await Promise.all([
+    admin.from('test_attempts').select('test_id, percentage, passed, completed_at')
+      .eq('teacher_id', teacherId).eq('student_id', student.id).not('completed_at', 'is', null),
+    admin.from('practice_tests').select('id, title').eq('teacher_id', teacherId),
+    admin.from('lesson_completions').select('lesson_id')
+      .eq('teacher_id', teacherId).eq('student_id', student.id),
+    admin.from('enrollments').select('course_id').eq('teacher_id', teacherId).eq('student_id', student.id),
+    admin.from('teachers').select('display_name, contact_email').eq('id', teacherId).maybeSingle(),
+  ]);
+
+  const titles = new Map((tests.data || []).map(t => [t.id, t.title]));
+
+  // Best per test, then averaged across tests.
+  const best = new Map();
+  (attempts.data || []).forEach(a => {
+    const p = parseFloat(a.percentage);
+    if (Number.isNaN(p)) return;
+    const cur = best.get(a.test_id);
+    if (!cur || p > parseFloat(cur.percentage)) best.set(a.test_id, a);
+  });
+  const bests = [...best.values()];
+  const marks = bests.map(a => parseFloat(a.percentage));
+
+  // Only what a student could actually have watched: a unit their
+  // teacher has not released yet is not something they are behind on.
+  const courseIds = (enrolments.data || []).map(e => e.course_id).filter(Boolean);
+  let lessonsTotal = 0;
+  if (courseIds.length) {
+    const { data: open } = await admin
+      .from('lessons').select('id, modules!inner(id, course_id, is_done, open_at)')
+      .eq('teacher_id', teacherId).in('modules.course_id', courseIds);
+    const now = Date.now();
+    lessonsTotal = (open || []).filter(l =>
+      l.modules?.is_done && (!l.modules.open_at || new Date(l.modules.open_at).getTime() <= now)).length;
+  }
+
+  const recent = (attempts.data || [])
+    .slice().sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+    .slice(0, 5)
+    .map(a => ({
+      title: titles.get(a.test_id) || 'A test',
+      percentage: parseFloat(a.percentage) || 0,
+      passed: !!a.passed,
+    }));
+
+  const mail = await sendEmail({
+    to,
+    ...progressReport({
+      studentName: student.full_name,
+      spaceName: space.data?.display_name || null,
+      teacherEmail: space.data?.contact_email || null,
+      stats: {
+        testsTaken: bests.length,
+        average: marks.length ? marks.reduce((s, n) => s + n, 0) / marks.length : null,
+        best: marks.length ? Math.max(...marks) : null,
+        lessonsDone: (completions.data || []).length,
+        lessonsTotal,
+      },
+      recent,
+    }),
+  });
+
+  if (mail.sent) await logActivity(teacherId, actor, 'progress_emailed', `${student.full_name} → ${to}`);
+
+  return res.status(200).json({ sent: mail.sent, to, error: mail.error || null });
 }
 
 // ── Activate / deactivate ─────────────────────────────────────────

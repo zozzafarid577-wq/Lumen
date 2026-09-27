@@ -373,7 +373,9 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN });
     expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/already registered/i);
+    // Which one matched, not just that something did: a dead end a
+    // student cannot act on is how this ends up on the teacher's phone.
+    expect(res.body.error).toMatch(/email address has already been used/i);
     expect(getSupabaseCalls('student_registrations.insert')).toHaveLength(0);
   });
 
@@ -386,7 +388,7 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN, email: 'different@example.com', phone: '01012345678' });
     expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/already registered/i);
+    expect(res.body.error).toMatch(/mobile number has already been used/i);
   });
 
   it('lets somebody who was turned down register again', async () => {
@@ -412,11 +414,11 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN });
     expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/already have an account/i);
+    expect(res.body.error).toMatch(/already has that email address/i);
     // Nobody sends sign-in details any more: the password is the one
     // they chose, and a forgotten one is a link from their teacher.
     expect(res.body.error).toMatch(/password you chose/i);
-    expect(res.body.error).toMatch(/ask your teacher/i);
+    expect(res.body.error).toMatch(/tell your teacher/i);
   });
 
   it('matches an existing student by phone however it was typed', async () => {
@@ -426,7 +428,7 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN, email: 'brand-new@example.com' });
     expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/already have an account/i);
+    expect(res.body.error).toMatch(/already has that mobile number/i);
   });
 
   it('matches a parent’s number too', async () => {
@@ -447,7 +449,7 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN });
     expect(res.statusCode).toBe(409);
-    expect(res.body.error).toMatch(/already registered/i);
+    expect(res.body.error).toMatch(/already been used to register/i);
   });
 
   it('does not dress up an ordinary write failure as a duplicate', async () => {
@@ -457,7 +459,7 @@ describe('registering only once', () => {
 
     const res = await call({ ...GOOD, token: TOKEN });
     expect(res.statusCode).toBe(500);
-    expect(res.body.error).not.toMatch(/already registered/i);
+    expect(res.body.error).not.toMatch(/already been used to register/i);
     expect(res.body.error).not.toMatch(/connection failure/);
   });
 });

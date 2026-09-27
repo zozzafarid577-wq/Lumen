@@ -420,6 +420,69 @@ describe('acting on an existing student', () => {
     expect(looked.some(f => f.phone_key === '000001111'), "the parent's number").toBe(true);
   });
 
+  describe('emailing a parent where their child stands', () => {
+    const withParent = { ...mine, parent_email: 'mum@example.com' };
+
+    it('refuses when there is nowhere to send it', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': { ...mine, parent_email: null } } });
+
+      const res = await call({ action: 'email_progress', student_id: 'stu-1' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toMatch(/no parent email/i);
+    });
+
+    it('counts the best attempt at each test, not every attempt', async () => {
+      // A retake replaces the earlier try everywhere else in Lumen, and
+      // a report that averaged both would tell a parent their child is
+      // worse than their teacher believes.
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': withParent } });
+      process.env.BREVO_API_KEY = 'xkeysib-test';
+      process.env.BREVO_SENDER_EMAIL = 'hello@example.com';
+      const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ messageId: '1' }) }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      configureSupabaseMock({ results: {
+        ...withSubscription(),
+        'test_attempts.select': { data: [
+          { test_id: 't1', percentage: '40', passed: false, completed_at: '2026-09-01T10:00:00Z' },
+          { test_id: 't1', percentage: '90', passed: true,  completed_at: '2026-09-08T10:00:00Z' },
+          { test_id: 't2', percentage: '70', passed: true,  completed_at: '2026-09-10T10:00:00Z' },
+        ], error: null },
+        'practice_tests.select': { data: [{ id: 't1', title: 'Unit 1' }, { id: 't2', title: 'Unit 2' }], error: null },
+        'lesson_completions.select': { data: [{ lesson_id: 'l1' }], error: null },
+        'enrollments.select': { data: [], error: null },
+        'teachers.select': { data: { display_name: 'Dr. Hany', contact_email: 'hany@example.com' }, error: null },
+      } });
+
+      const res = await call({ action: 'email_progress', student_id: 'stu-1' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({ sent: true, to: 'mum@example.com' });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.to).toEqual([{ email: 'mum@example.com' }]);
+      // Two tests sat, best marks 90 and 70, so the average is 80 —
+      // not 66, which is what counting the abandoned 40 would give.
+      expect(body.htmlContent).toMatch(/Tests taken[\s\S]*?2/);
+      expect(body.htmlContent).toMatch(/80%/);
+      expect(body.htmlContent).toMatch(/90%/);
+      // And it is readable by a parent who does not read English.
+      expect(body.htmlContent).toMatch(/dir="rtl"/);
+      expect(body.subject).toMatch(/\u062a\u0642\u0631\u064a\u0631/);
+
+      delete process.env.BREVO_API_KEY;
+      delete process.env.BREVO_SENDER_EMAIL;
+      vi.unstubAllGlobals();
+    });
+
+    it('will not report on a student in another tenant', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-2': { ...theirs, parent_email: 'mum@example.com' } } });
+      const res = await call({ action: 'email_progress', student_id: 'stu-2' });
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
   it('refuses an account that is not a student', async () => {
     asUser(TEACHER_USER, {
       extraProfiles: { 'asst-1': { id: 'asst-1', role: 'assistant', teacher_id: TEACHER_ID, full_name: 'X' } },

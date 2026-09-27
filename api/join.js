@@ -281,7 +281,12 @@ async function screen(teacherId, { email, key, fullName }) {
     admin.from('student_registrations').select('id')
       .eq('teacher_id', teacherId).neq('status', 'rejected').eq('phone_key', key).limit(1),
   ]);
-  if (byEmail.data?.length || byPhone.data?.length) throw alreadyRegistered();
+  // Which one matched, not just that something did. "You are already
+  // registered" to somebody who is certain they are not is a dead end;
+  // "that mobile number is already registered" is something they can
+  // act on, and something they can repeat to their teacher.
+  if (byEmail.data?.length) throw alreadyRegistered('email');
+  if (byPhone.data?.length) throw alreadyRegistered('phone');
 
   // One pass over the students already in this space, covering all three
   // comparisons. Phone numbers are stored as they were typed, so they
@@ -293,11 +298,14 @@ async function screen(teacherId, { email, key, fullName }) {
     .from('profiles').select('full_name, email, phone, parent_phone')
     .eq('teacher_id', teacherId).eq('role', 'student');
 
-  const taken = (students || []).some(s =>
-    (s.email || '').trim().toLowerCase() === email
-    || phoneKey(s.phone) === key
-    || phoneKey(s.parent_phone) === key);
-  if (taken) throw hasAccount();
+  const byAddress = (students || []).some(s => (s.email || '').trim().toLowerCase() === email);
+  // Their own number or the one their parent gave. Both are checked,
+  // because a teacher who enrolled them by hand may have had only one.
+  const byNumber = (students || []).some(s =>
+    phoneKey(s.phone) === key || phoneKey(s.parent_phone) === key);
+
+  if (byAddress) throw hasAccount('email');
+  if (byNumber) throw hasAccount('phone');
 
   // A name already in the space is worth telling the teacher about, and
   // worth nothing more than that: two real students called Mohamed Ali
@@ -317,19 +325,26 @@ function norm(name) {
 // Nobody sends details any more: registering makes the account on the
 // spot with the password the student typed, so the thing to tell
 // somebody who is already here is to go and use it.
-function alreadyRegistered() {
+function alreadyRegistered(what) {
+  const which = what === 'phone'
+    ? 'That mobile number has already been used to register in this class'
+    : 'That email address has already been used to register in this class';
   return new HttpError(409,
-    'You have already registered with this name, email or mobile number — '
-    + 'once is all it takes, and your account is ready. '
-    + 'Sign in with the password you chose when you registered. '
-    + 'If you cannot remember it, ask your teacher to send you a link to choose a new one.');
+    `${which} — once is all it takes, and the account is ready. `
+    + 'Sign in with the password chosen when registering. '
+    + 'If you cannot remember it, ask your teacher to send you a link to choose a new one. '
+    + 'If you think this is somebody else, tell your teacher which one it is — they can see it.');
 }
 
-function hasAccount() {
+function hasAccount(what) {
+  const which = what === 'phone'
+    ? 'A student in this class already has that mobile number — either as their own or as a parent’s'
+    : 'A student in this class already has that email address';
   return new HttpError(409,
-    'You already have an account in this space, so there is nothing to fill in here. '
+    `${which}, so there is nothing to fill in here. `
     + 'Sign in with the password you chose. '
-    + 'Forgotten it? Ask your teacher to send you a link to set a new one.');
+    + 'Forgotten it? Ask your teacher to send you a link to set a new one. '
+    + 'If that account is not yours, tell your teacher — they can see which one it is and fix it.');
 }
 
 function notOpen() {

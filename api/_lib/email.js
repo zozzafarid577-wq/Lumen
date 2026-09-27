@@ -177,6 +177,20 @@ function layout({ heading, intro, rows = [], highlight, bullets = [], note, logi
             </tr>`).join('')}
           </table>` : '';
 
+  // A parent reading a progress report has no account and nowhere to
+  // sign in, so a message with no link has no button and no "if the
+  // button does not work" line under it either.
+  const button = loginUrl && cta ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">
+            <tr><td align="center">
+              <a href="${esc(loginUrl)}" style="display:inline-block;background-color:${BRAND};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:15px 34px;border-radius:9999px">${esc(cta)} &rarr;</a>
+            </td></tr>
+          </table>` : '';
+
+  const footNote = loginUrl
+    ? `Sent by Lumen. If the button does not work, open <span style="color:${INK_2}">${esc(loginUrl)}</span>`
+    : 'Sent by Lumen on behalf of your teacher.';
+
   // The charset is not decoration: a teacher's space is called things
   // like "Dr. Hany — Biology", and without it that dash arrives as
   // mojibake in half the mail clients there are.
@@ -200,18 +214,14 @@ function layout({ heading, intro, rows = [], highlight, bullets = [], note, logi
           <h1 style="margin:0 0 12px;font-size:21px;line-height:1.3;color:${INK}">${esc(heading)}</h1>
           <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:${INK_2}">${intro}</p>
 ${detail}${chip}${list}
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">
-            <tr><td align="center">
-              <a href="${esc(loginUrl)}" style="display:inline-block;background-color:${BRAND};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:15px 34px;border-radius:9999px">${esc(cta)} &rarr;</a>
-            </td></tr>
-          </table>
+${button}
 
           <p style="margin:0;padding-top:18px;border-top:1px solid ${LINE};font-size:13px;line-height:1.6;color:${MUTED}">${note}</p>
 ${rtl}
         </td></tr>
       </table>
       <p style="max-width:520px;margin:18px auto 0;font-size:12px;color:${MUTED};font-family:${FONT};text-align:center">
-        Sent by Lumen. If the button does not work, open <span style="color:${INK_2}">${esc(loginUrl)}</span>
+        ${footNote}
       </p>
     </td></tr>
   </table>
@@ -304,6 +314,61 @@ export function accountReady({ name, email, password, spaceName, loginUrl }) {
         note: 'لا تشارك هذه البيانات مع أحد. '
           + 'إذا نسيت كلمة المرور، اطلب من مدرّسك إرسال رابط جديد، '
           + 'فلا يستطيع أحد استرجاعها نيابة عنك.',
+      },
+    }),
+  };
+}
+
+// What a parent gets when a teacher presses the button: where their
+// child stands, in the numbers the teacher is looking at, in both
+// languages.
+//
+// Written to be read by somebody who has never seen Lumen and never
+// will. No link to sign in — the account is not theirs — and no
+// jargon: "best mark", "lessons watched", and the last few papers with
+// what they got. The teacher's name is on it because the reply belongs
+// to them, not to us.
+export function progressReport({ studentName, spaceName, stats, recent = [], teacherEmail }) {
+  const when = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const pct = (n) => (n == null ? '—' : `${Math.round(n)}%`);
+
+  const rows = [
+    ['Tests taken · عدد الاختبارات', String(stats.testsTaken)],
+    ['Average · المتوسط', pct(stats.average)],
+    ['Best mark · أفضل درجة', pct(stats.best)],
+  ];
+  if (stats.lessonsTotal) {
+    rows.push(['Lessons watched · الدروس المشاهَدة',
+      `${stats.lessonsDone} / ${stats.lessonsTotal}`]);
+  }
+
+  return {
+    subject: `${studentName} — progress report · تقرير المستوى`,
+    html: layout({
+      heading: `${studentName} — how it is going`,
+      intro: `A short progress report from <strong>${esc(spaceName || 'Lumen')}</strong>, as of ${esc(when)}.`,
+      rows,
+      bullets: recent.length ? [
+        '<strong>The last few tests</strong>',
+        ...recent.map(r =>
+          `${esc(r.title)} — <strong>${Math.round(r.percentage)}%</strong>`
+          + `${r.passed ? '' : ' (below the pass mark)'}`),
+      ] : [],
+      note: 'This was sent by your child’s teacher. Reply to them directly if you would like to talk it through '
+        + (teacherEmail ? `— ${esc(teacherEmail)}.` : '.'),
+      // No sign-in link: the account belongs to the student, and a
+      // parent following one would only meet a password they do not
+      // have. The footer line under the button uses this too, so it
+      // points at the site rather than at a page they cannot open.
+      loginUrl: '',
+      cta: '',
+      arabic: {
+        heading: `${esc(studentName)} — تقرير المستوى`,
+        intro: 'هذا تقرير مختصر عن مستوى ابنك / ابنتك '
+          + `في <strong>${esc(spaceName || 'Lumen')}</strong>. `
+          + 'الأرقام بالأعلى توضّح عدد الاختبارات والمتوسط وأفضل درجة والدروس التي تمت مشاهدتها.',
+        note: 'أرسل هذا التقرير مدرّس ابنك / ابنتك. '
+          + 'للتواصل بشأن التقرير، يرجى الرد عليه مباشرة.',
       },
     }),
   };
