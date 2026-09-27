@@ -423,6 +423,39 @@ describe('links a teacher hands to somebody else', () => {
     }
   });
 
+  it('loads no script from somebody else\u2019s CDN', () => {
+    // A third-party script is a DNS lookup, a TLS handshake and a
+    // connection to a host the browser has never spoken to, all before
+    // the sign-in button works \u2014 on a phone on mobile data, most of a
+    // second. It is also a supply chain: whatever they serve, this site
+    // runs.
+    for (const { rel, html } of PAGES) {
+      const remote = [...html.matchAll(/<script[^>]+src=["'](https?:)?\/\/[^"']+["']/g)];
+      expect(remote.map(m => m[0]), `${rel} loads a script from another host`).toEqual([]);
+    }
+  });
+
+  it('points every page at a vendored file that is actually here', () => {
+    // The version is in the filename, so an upgrade that misses a page
+    // leaves it asking for a file nobody shipped \u2014 and a page whose
+    // scripts 404 is a page that does nothing at all.
+    for (const { rel, html } of PAGES) {
+      for (const [, src] of html.matchAll(/<script[^>]+src=["'](\/assets\/vendor\/[^"']+)["']/g)) {
+        expect(existsSync(join(ROOT, src)), `${rel} loads ${src}, which is not in the repo`).toBe(true);
+      }
+    }
+  });
+
+  it('lets a phone keep a vendored file rather than fetch it again', () => {
+    // Safe only because the version is in the filename: a different
+    // version is a different URL, which no cache has seen.
+    const vercel = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
+    const rule = (vercel.headers || []).find(h => h.source.includes('/assets/vendor/'));
+    expect(rule, 'no cache rule for the vendored libraries').toBeTruthy();
+    const cache = rule.headers.find(h => h.key.toLowerCase() === 'cache-control');
+    expect(cache.value).toMatch(/immutable/);
+  });
+
   it('leaves the password-reset redirect on the current origin', () => {
     // Supabase only redirects to URLs on its own allow-list, and the one
     // that always matches is the origin the request came from. Pinning
