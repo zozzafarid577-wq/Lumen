@@ -446,6 +446,27 @@ describe('links a teacher hands to somebody else', () => {
     }
   });
 
+  it('puts nothing in vercel.json that Vercel will not accept', () => {
+    // Vercel validates this file against a strict schema and rejects
+    // the whole deployment over an unknown key — while the previous
+    // deployment carries on serving, so the site looks fine and simply
+    // stops changing. JSON has nowhere to write a comment; the reasons
+    // live in the files the rules are about.
+    const vercel = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
+    const ALLOWED = {
+      headers: ['source', 'headers', 'has', 'missing'],
+      redirects: ['source', 'destination', 'permanent', 'statusCode', 'has', 'missing'],
+      rewrites: ['source', 'destination', 'has', 'missing'],
+    };
+    for (const [section, allowed] of Object.entries(ALLOWED)) {
+      for (const rule of vercel[section] || []) {
+        for (const key of Object.keys(rule)) {
+          expect(allowed, `vercel.json ${section}: "${key}" is not a key Vercel accepts`).toContain(key);
+        }
+      }
+    }
+  });
+
   it('lets a phone keep a vendored file rather than fetch it again', () => {
     // Safe only because the version is in the filename: a different
     // version is a different URL, which no cache has seen.

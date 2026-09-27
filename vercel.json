@@ -59,7 +59,6 @@
   ],
   "headers": [
     {
-      "comment": "The version is in the filename, so this exact file never changes. Upgrading means a new filename and a new URL, which no cache has seen. A year, and immutable so a phone does not even ask.",
       "source": "/assets/vendor/(.*)",
       "headers": [
         {
