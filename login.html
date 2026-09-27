@@ -34,8 +34,15 @@
         <div class="guide" id="guide" hidden>
           <div class="guide-label">New here? Watch how it works</div>
           <div class="vid-frame">
+            <!-- The poster is deliberately NOT set here. It is 34KB, and
+                 this page is reached on a phone on mobile data at the
+                 start of a lesson — a connection that can be measured in
+                 single-digit KB/s. Fetched now it competes with the
+                 script that makes the sign-in button work. It is set
+                 after the page has loaded instead, by which time the
+                 form works and the bandwidth is nobody else's. -->
             <video id="guide-video" controls playsinline preload="none"
-                   poster="/assets/student-guide-poster.jpg">
+                   data-poster="/assets/student-guide-poster.jpg">
               <source src="/assets/student-guide.mp4" type="video/mp4">
               Your browser cannot play this video.
             </video>
@@ -116,6 +123,15 @@ const guideVideo = document.getElementById('guide-video');
 
 if (GUIDE_URL) {
   guide.hidden = false;
+
+  // Signing in comes first; the picture can wait until everything that
+  // matters has arrived.
+  const showPoster = () => {
+    const src = guideVideo.dataset.poster;
+    if (src) guideVideo.poster = src;
+  };
+  if (document.readyState === 'complete') showPoster();
+  else window.addEventListener('load', showPoster, { once: true });
   // The <source> in the markup is the default; a configured URL wins, so
   // the video can be swapped for a new one without touching this page.
   if (GUIDE_URL !== guideVideo.querySelector('source').src) {
@@ -178,22 +194,53 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   btn.textContent = 'Signing in…';
   say('', '');
 
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-
-  if (error) {
+  // Nothing here may hang.
+  //
+  // This is a phone on mobile data at the start of a lesson, and a
+  // button that says "Signing in…" for ever is the worst answer there
+  // is: no error, nothing to press, no way to tell whether waiting will
+  // help. Every path below ends with either a redirect or a sentence
+  // and a button that works again.
+  const stop = (text) => {
     btn.disabled = false;
     btn.textContent = 'Sign in';
+    if (text) say('err', text);
+  };
+
+  let error = null;
+  try {
+    // supabase-js has no timeout of its own, so a request that never
+    // comes back never comes back.
+    ({ error } = await withTimeout(
+      sb.auth.signInWithPassword({ email, password }), SIGN_IN_TIMEOUT_MS, 'the sign-in'));
+  } catch (err) {
+    return stop(/timed out/i.test(String(err?.message))
+      ? 'That took too long. Check your internet connection and try again.'
+      : friendlyError(String(err?.message || err)));
+  }
+
+  if (error) {
     // Supabase says "Invalid login credentials" for a wrong password and
     // for an email that has no account. Don't guess which, and don't
     // confirm to a stranger which addresses exist.
-    say('err', /invalid login/i.test(error.message)
+    return stop(/invalid login/i.test(error.message)
       ? 'That email and password do not match. Check them and try again.'
       : friendlyError(error.message));
-    return;
   }
 
-  await handlePostLogin(params.get('next'));
+  // Signed in. Whatever happens next, it must not leave the button
+  // spinning: handlePostLogin reads a profile and redirects, and both
+  // of those can fail on a bad connection.
+  try {
+    await withTimeout(handlePostLogin(params.get('next')), SIGN_IN_TIMEOUT_MS, 'your dashboard');
+  } catch (err) {
+    console.error('post-login failed:', err);
+    stop('You are signed in, but the page could not be opened. Press Sign in again.');
+  }
 });
+
+// Longer than one profile read, shorter than a person's patience.
+const SIGN_IN_TIMEOUT_MS = 20000;
 
 function say(kind, text) {
   msg.className = 'form-msg' + (kind ? ' ' + kind : '');
