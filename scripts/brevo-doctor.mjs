@@ -19,6 +19,16 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+// brevo-key.txt first: a dotfile is invisible in Finder, which makes
+// "paste your key into this file" impossible to follow for anybody who
+// does not live in a terminal. Any line that looks like a key counts,
+// so the surrounding instructions can stay in the file.
+try {
+  const text = readFileSync(resolve(ROOT, 'brevo-key.txt'), 'utf8');
+  const found = text.match(/xkeysib-[A-Za-z0-9._-]+/);
+  if (found && !process.env.BREVO_API_KEY) process.env.BREVO_API_KEY = found[0];
+} catch (_) { /* not there: try the other places */ }
+
 try {
   for (const line of readFileSync(resolve(ROOT, '.env.local'), 'utf8').split('\n')) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
@@ -28,7 +38,7 @@ try {
 
 const KEY = (process.env.BREVO_API_KEY || '').trim();
 if (!KEY) {
-  console.error('No BREVO_API_KEY. Put one in .env.local first (it is git-ignored).');
+  console.error('No key found. Paste your Brevo API key into brevo-key.txt and save it.');
   process.exit(1);
 }
 

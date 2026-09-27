@@ -218,7 +218,8 @@ describe('an address on the blocklist', () => {
     // one the address is on, and they are cleared in different places.
     expect(calls).toContain('DELETE https://api.brevo.com/v3/smtp/blockedContacts/sara%40example.com');
     expect(calls).toContain('PUT https://api.brevo.com/v3/contacts/sara%40example.com');
-    expect(calls).toHaveLength(4);
+    // send, ask why, clear both lists, send.
+    expect(calls).toHaveLength(5);
 
     quiet.mockRestore(); hush.mockRestore();
   });
@@ -282,11 +283,55 @@ describe('an address on the blocklist', () => {
     const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
 
     expect(out.sent).toBe(false);
-    // send, clear both lists, send. And then stop.
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // send, ask why, clear both lists, send. And then stop.
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(out.error).toMatch(/does not exist/i);
 
     quiet.mockRestore();
+  });
+
+  it('will not clear a hard bounce, and says the address does not exist', async () => {
+    // The one that started all this. Gmail answers a send to a mailbox
+    // that is not there with "550 5.1.1 ... does not exist"; Brevo
+    // records a hard bounce and blocklists the address; and clearing
+    // that only sends another message to nowhere, collects another
+    // bounce, and spends the sending domain's reputation on a typo.
+    const fetchMock = vi.fn(async (url, init) => {
+      if (init.method === 'GET') {
+        return { ok: true, json: async () => ({ contacts: [{ reason: { code: 'hardBounce' } }] }) };
+      }
+      return blocked;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const hush = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'nobody@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out.sent).toBe(false);
+    expect(out.blockReason).toBe('hardBounce');
+    expect(out.error).toMatch(/does not exist/i);
+    expect(out.error).toMatch(/typo/i);
+    // One send, one question, and no second send at all.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.some(c => c[1].method === 'DELETE')).toBe(false);
+
+    quiet.mockRestore(); hush.mockRestore();
+  });
+
+  it('will not clear a spam report either', async () => {
+    // Somebody asking not to be written to. That answer is theirs.
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => init.method === 'GET'
+      ? { ok: true, json: async () => ({ contacts: [{ reason: { code: 'spam' } }] }) }
+      : blocked));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const hush = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'cross@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out.error).toMatch(/reported an earlier Lumen email as spam/i);
+
+    quiet.mockRestore(); hush.mockRestore();
   });
 
   it('leaves an ordinary refusal alone', async () => {

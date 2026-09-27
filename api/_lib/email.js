@@ -68,23 +68,30 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
     return first.sent ? { sent: true } : { sent: false, error: explain(first.raw) };
   }
 
-  // Blocked, so unblock and go again.
+  // Blocked. Why, though — because the two answers are opposites.
   //
-  // Brevo keeps a transactional blocklist per account, and an address
-  // lands on it by bouncing once, or by somebody pressing "spam" on any
-  // earlier message. After that everything to that address is refused,
-  // including the link a student is waiting on — and the teacher, who
-  // did nothing wrong and cannot see the list, is left with a student
-  // who cannot get in.
+  // An address is blocklisted by bouncing, by a spam report, by an
+  // unsubscribe, or by somebody blocking it in the dashboard. Only the
+  // last of those is worth clearing: it is a button somebody pressed,
+  // and possibly by mistake.
   //
-  // This is the transactional list (/smtp/blockedContacts), not the
-  // Contacts list: nobody is added to Contacts, here or anywhere else
-  // in Lumen. Unblocking is exactly what a person would do in the
-  // dashboard, so it is done here instead of being explained.
+  // The others must be left alone. A hard bounce means the mailbox does
+  // not exist — Gmail says so in as many words: "550 5.1.1 The email
+  // account that you tried to reach does not exist" — and unblocking
+  // that address only sends another message to nowhere, collects
+  // another bounce, and spends the sending domain's reputation on a
+  // typo. A spam report is a person asking not to be written to, and
+  // that answer is theirs to give.
   //
-  // Once, never in a loop: an address that is genuinely dead will bounce
-  // again, and retrying that forever is how a sending domain earns a
-  // reputation it cannot spend.
+  // So the reason is read first, and the teacher is told the truth:
+  // check the address, rather than "the mail provider refused it".
+  const why = await blockReason(to);
+
+  if (why.code && !SAFE_TO_CLEAR.test(why.code)) {
+    console.warn(`Brevo: not clearing ${why.code} for a blocked recipient.`);
+    return { sent: false, error: explainBlock(why.code), blockReason: why.code };
+  }
+
   const freed = await unblock(to);
   if (!freed.ok) {
     console.error('Brevo unblock failed:', freed.raw);
@@ -126,6 +133,40 @@ function accountLevelBlock() {
 }
 
 const isBlocked = (raw) => /blacklist|blocked/i.test(String(raw || ''));
+
+// The one reason worth clearing automatically: somebody blocked the
+// address by hand, which can be undone by hand. A bounce, a spam
+// report and an unsubscribe are all answers from the other end, and
+// clearing those is arguing with them.
+const SAFE_TO_CLEAR = /admin|manual/i;
+
+// Why Brevo is refusing this address, in its own words. Null when it
+// will not say, in which case the old behaviour stands: clear it and
+// try once.
+async function blockReason(email) {
+  const resp = await brevo('GET', `${BREVO_UNBLOCK_URL}?email=${encodeURIComponent(email)}&limit=1`);
+  const row = resp.body?.contacts?.[0];
+  return { code: row?.reason?.code || null, message: row?.reason?.message || null };
+}
+
+// What a teacher can actually do about each one.
+function explainBlock(code) {
+  if (/bounce/i.test(code)) {
+    return 'That email address does not exist \u2014 the mail was returned by their provider. '
+      + 'Check it for a typo on their account and try again. '
+      + 'Their set-up link is on screen and can be sent on WhatsApp in the meantime.';
+  }
+  if (/spam|complaint/i.test(code)) {
+    return 'That address reported an earlier Lumen email as spam, so nothing more can be sent to it. '
+      + 'Send them the link another way, and use a different address on their account if they have one.';
+  }
+  if (/unsub/i.test(code)) {
+    return 'That address has unsubscribed from Lumen email, so nothing can be sent to it. '
+      + 'Send them the link another way.';
+  }
+  return 'The mail provider will not deliver to that address. '
+    + 'Send them the link yourself in the meantime.';
+}
 
 // One POST to Brevo, with the timeout that keeps a hung request from
 // holding a serverless function open until it is killed — the account
@@ -208,9 +249,10 @@ async function brevo(method, url, body) {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (resp.ok || resp.status === 404) return { ok: true, missing: resp.status === 404 };
-
     const out = await resp.json().catch(() => ({}));
+    if (resp.ok || resp.status === 404) {
+      return { ok: true, missing: resp.status === 404, body: out };
+    }
     return { ok: false, raw: out?.message || `Brevo returned ${resp.status}` };
   } catch (err) {
     return { ok: false, raw: String(err?.message || err) };

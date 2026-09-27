@@ -404,6 +404,25 @@ describe('links a teacher hands to somebody else', () => {
       .toBeLessThanOrEqual(12);
   });
 
+  it('never sends a live session back to the sign-in page', () => {
+    // The shape of an infinite loop, and it has happened: the sign-in
+    // page finds a session, hands it to handlePostLogin, that sends it
+    // back to the sign-in page, which finds the session again. From the
+    // outside it is a page that loads for ever.
+    //
+    // Whatever the reason for giving up on a session, it has to be
+    // ENDED before the reader is sent to a page that will pick it
+    // straight back up.
+    const auth = readFileSync(join(ROOT, 'js/auth.js'), 'utf8');
+    const fn = auth.match(/async function handlePostLogin[\s\S]*?\n\}/)?.[0];
+    expect(fn, 'handlePostLogin is no longer there to check').toBeTruthy();
+
+    for (const [, before] of [...fn.matchAll(/([\s\S]*?)location\.replace\('\/login\.html/g)]) {
+      expect(before, 'a redirect to sign-in with no signOut() before it')
+        .toMatch(/signOut\(\)/);
+    }
+  });
+
   it('leaves the password-reset redirect on the current origin', () => {
     // Supabase only redirects to URLs on its own allow-list, and the one
     // that always matches is the origin the request came from. Pinning

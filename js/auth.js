@@ -523,7 +523,27 @@ async function signOut() {
 // Called right after a successful signInWithPassword.
 async function handlePostLogin(next) {
   const profile = await getProfile();
-  if (!profile) { location.replace('/login.html'); return; }
+
+  // A session with no profile behind it, sent back to the sign-in page
+  // WITHOUT being ended, is an infinite loop: the page loads, finds the
+  // session still there, calls this again, and sends them back again.
+  // From the outside it is a sign-in page that never stops loading.
+  //
+  // It happens to a real person: a browser still holding the session of
+  // an account that has since been deleted, or a profile row the
+  // database will not return. So the session goes first, and the reason
+  // goes on the page — the same order guardPage() uses.
+  if (!profile) {
+    // Unless the database is simply down. Signing somebody out over an
+    // outage lands them in the one window where signing in cannot work.
+    if (lastProfileError && isServiceOutage(lastProfileError.message)) {
+      showOutageScreen();
+      return;
+    }
+    try { await sb.auth.signOut(); } catch (_) { /* going to the door anyway */ }
+    location.replace('/login.html?e=no_profile');
+    return;
+  }
   try { localStorage.setItem('lumen_role', profile.role); } catch (_) {}
 
   // Straight from signing in to the one thing they have not done. No
