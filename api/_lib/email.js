@@ -12,6 +12,9 @@
 //      send is reported back to the teacher rather than swallowed.
 
 const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
+// The transactional blocklist — not the Contacts list. Nothing in Lumen
+// ever creates a contact: every address is passed inline on the send.
+const BREVO_UNBLOCK_URL = 'https://api.brevo.com/v3/smtp/blockedContacts';
 const TIMEOUT_MS = 8000;
 
 function key() { return (process.env.BREVO_API_KEY || '').trim(); }
@@ -36,36 +39,99 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
   if (!status.ready) return { sent: false, error: status.why };
   if (!to || !subject || !html) return { sent: false, error: 'Nothing to send.' };
 
-  // A hung request must not hold a serverless function open until it is
-  // killed — the account is already made by this point.
+  const payload = {
+    sender: sender(),
+    to: [{ email: to, name: toName || undefined }],
+    replyTo: replyTo ? { email: replyTo } : undefined,
+    subject,
+    htmlContent: html,
+  };
+
+  const first = await post(payload);
+  if (first.sent || !isBlocked(first.raw)) {
+    return first.sent ? { sent: true } : { sent: false, error: explain(first.raw) };
+  }
+
+  // Blocked, so unblock and go again.
+  //
+  // Brevo keeps a transactional blocklist per account, and an address
+  // lands on it by bouncing once, or by somebody pressing "spam" on any
+  // earlier message. After that everything to that address is refused,
+  // including the link a student is waiting on — and the teacher, who
+  // did nothing wrong and cannot see the list, is left with a student
+  // who cannot get in.
+  //
+  // This is the transactional list (/smtp/blockedContacts), not the
+  // Contacts list: nobody is added to Contacts, here or anywhere else
+  // in Lumen. Unblocking is exactly what a person would do in the
+  // dashboard, so it is done here instead of being explained.
+  //
+  // Once, never in a loop: an address that is genuinely dead will bounce
+  // again, and retrying that forever is how a sending domain earns a
+  // reputation it cannot spend.
+  const freed = await unblock(to);
+  if (!freed.ok) {
+    console.error('Brevo unblock failed:', freed.raw);
+    return { sent: false, error: explain(first.raw) };
+  }
+
+  const second = await post(payload);
+  if (second.sent) {
+    console.warn('Brevo: unblocked a blocked recipient and resent.');
+    return { sent: true, unblocked: true };
+  }
+  return { sent: false, error: explain(second.raw) };
+}
+
+const isBlocked = (raw) => /blacklist|blocked/i.test(String(raw || ''));
+
+// One POST to Brevo, with the timeout that keeps a hung request from
+// holding a serverless function open until it is killed — the account
+// is already made by this point.
+async function post(payload) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-
   try {
     const resp = await fetch(BREVO_URL, {
       method: 'POST',
       signal: ctl.signal,
       headers: { 'api-key': key(), 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        sender: sender(),
-        to: [{ email: to, name: toName || undefined }],
-        replyTo: replyTo ? { email: replyTo } : undefined,
-        subject,
-        htmlContent: html,
-      }),
+      body: JSON.stringify(payload),
     });
+    if (resp.ok) return { sent: true };
 
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}));
-      const raw = body?.message || `Brevo returned ${resp.status}`;
-      console.error('Brevo send failed:', raw);
-      return { sent: false, error: explain(raw) };
-    }
-    return { sent: true };
+    const body = await resp.json().catch(() => ({}));
+    const raw = body?.message || `Brevo returned ${resp.status}`;
+    console.error('Brevo send failed:', raw);
+    return { sent: false, raw };
   } catch (err) {
-    const why = err?.name === 'AbortError' ? 'The mail provider did not respond in time.' : String(err?.message || err);
-    console.error('Brevo send failed:', why);
-    return { sent: false, error: why };
+    const raw = err?.name === 'AbortError'
+      ? 'The mail provider did not respond in time.'
+      : String(err?.message || err);
+    console.error('Brevo send failed:', raw);
+    return { sent: false, raw };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Take an address off the transactional blocklist. A 404 means it was
+// not on it, which is as good as having removed it.
+async function unblock(email) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  try {
+    const resp = await fetch(`${BREVO_UNBLOCK_URL}/${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+      signal: ctl.signal,
+      headers: { 'api-key': key(), Accept: 'application/json' },
+    });
+    if (resp.ok || resp.status === 404) return { ok: true };
+
+    const body = await resp.json().catch(() => ({}));
+    return { ok: false, raw: body?.message || `Brevo returned ${resp.status}` };
+  } catch (err) {
+    return { ok: false, raw: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
   }
@@ -89,9 +155,12 @@ export function explain(raw) {
   const text = String(raw || '');
 
   if (/blacklist|blocked/i.test(text)) {
-    return 'That address is on the mail provider’s blocklist, so nothing can be emailed to it. '
-      + 'It gets there by bouncing, by somebody marking an earlier email as spam, or by unsubscribing. '
-      + 'Send them the link yourself, and remove the address in Brevo → Contacts → Blocklisted if it is a real one.';
+    // Reached only when unblocking and resending both failed, so the
+    // advice is what is left: the address is refusing mail for a reason
+    // this cannot clear.
+    return 'The mail provider will not deliver to that address, even after taking it off the blocklist. '
+      + 'That usually means the address does not exist — check it for a typo. '
+      + 'Send them the link yourself in the meantime.';
   }
 
   if (/invalid|not valid|malformed/i.test(text) && /email|recipient|to/i.test(text)) {

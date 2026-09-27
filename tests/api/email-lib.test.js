@@ -164,17 +164,81 @@ describe('templates', () => {
   });
 });
 
+describe('an address on the blocklist', () => {
+  // Brevo refuses everything to a blocklisted address, including the
+  // link a student is waiting on, and it gets there by bouncing once or
+  // by anybody pressing "spam". The teacher can neither see that list
+  // nor be expected to.
+  const blocked = { ok: false, status: 400, json: async () => ({ message: 'blocked : due to blacklist user' }) };
+  const fine = { ok: true, json: async () => ({ messageId: '1' }) };
+
+  it('takes it off the list and sends again', async () => {
+    const calls = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      calls.push(`${init.method} ${url}`);
+      if (init.method === 'DELETE') return { ok: true, json: async () => ({}) };
+      return calls.filter(c => c.startsWith('POST')).length === 1 ? blocked : fine;
+    }));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const hush = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out).toEqual({ sent: true, unblocked: true });
+    // The transactional blocklist, not the Contacts list: nothing in
+    // Lumen ever creates a contact.
+    expect(calls[1]).toBe('DELETE https://api.brevo.com/v3/smtp/blockedContacts/sara%40example.com');
+    expect(calls).toHaveLength(3);
+
+    quiet.mockRestore(); hush.mockRestore();
+  });
+
+  it('gives up after one retry rather than hammering a dead address', async () => {
+    // An address that does not exist will bounce again, and retrying
+    // that forever is how a sending domain earns a reputation it cannot
+    // spend.
+    const fetchMock = vi.fn(async (url, init) =>
+      init.method === 'DELETE' ? { ok: true, json: async () => ({}) } : blocked);
+    vi.stubGlobal('fetch', fetchMock);
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out.sent).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);   // send, unblock, send
+    expect(out.error).toMatch(/does not exist/i);
+
+    quiet.mockRestore();
+  });
+
+  it('leaves an ordinary refusal alone', async () => {
+    // Only a blocklist refusal is worth unblocking for. Anything else
+    // is reported as it came.
+    const fetchMock = vi.fn(async () => ({
+      ok: false, status: 400, json: async () => ({ message: 'sender not verified' }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out).toEqual({ sent: false, error: 'sender not verified' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    quiet.mockRestore();
+  });
+});
+
 describe('what a refusal is turned into', () => {
-  it('explains a blocklisted address, and what to do instead', () => {
-    // The one that actually happens. Brevo blocklists an address when
-    // mail to it bounces, or somebody reports it as spam, and then
-    // refuses transactional mail to it too — so the teacher needs to
-    // know the account is fine and the link has to go by hand.
+  it('explains a blocklisted address that could not be freed', () => {
+    // Only reached when unblocking and resending both failed, so the
+    // advice is what is left rather than "go and clear it yourself" —
+    // that part is done in code now.
     const out = explain('blocked : due to blacklist user');
 
     expect(out).toMatch(/blocklist/i);
+    expect(out).toMatch(/does not exist/i);
     expect(out).toMatch(/send them the link yourself/i);
-    expect(out).toMatch(/Brevo/);
   });
 
   it('passes an unfamiliar refusal through as it came', () => {
