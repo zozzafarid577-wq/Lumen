@@ -370,17 +370,54 @@ describe('acting on an existing student', () => {
     // by mistake could never register again: the link told them they
     // had already registered, and to wait for details nobody was
     // sending.
+    configureSupabaseMock({ results: {
+      ...withSubscription(),
+      'student_registrations.select': { data: [{ id: 'reg-1' }], error: null },
+    } });
+
     const res = await call({ action: 'delete', student_id: 'stu-1' });
 
     expect(res.statusCode).toBe(200);
+    expect(res.body.released).toBe(1);
 
     const [released] = getSupabaseCalls('student_registrations.update');
     expect(released, 'the registration was left holding the email').toBeTruthy();
     // 'rejected' is the one status both unique indexes exclude, which is
     // what actually frees the pair.
     expect(released.payload.status).toBe('rejected');
-    expect(released.filters.email_key).toBe('sara@example.com');
-    expect(released.filters['neq:status']).toBe('rejected');
+
+    // Found before the account went, and by every key the door checks:
+    // the row itself, the address, and both numbers. A student whose
+    // email was corrected after they registered is held by the number
+    // alone, and matching only the address would leave them locked out.
+    const looked = getSupabaseCalls('student_registrations.select')
+      .map(c => c.filters);
+    expect(looked.some(f => f.student_id === 'stu-1'), 'not matched by row').toBe(true);
+    expect(looked.some(f => f.email_key === 'sara@example.com'), 'not matched by email').toBe(true);
+    expect(looked.every(f => f['neq:status'] === 'rejected')).toBe(true);
+  });
+
+  it('releases a registration held by the number, not just the address', async () => {
+    // The case that locks somebody out quietly: they registered, the
+    // teacher corrected a typo in their email afterwards, and the row
+    // now matches on nothing but the phone. Matching only the address
+    // would delete the account and leave the number holding the door.
+    asUser(TEACHER_USER, { extraProfiles: { 'stu-1': {
+      ...mine, email: 'corrected@example.com', phone: '+20 101 234 5678', parent_phone: '+20 100 000 1111',
+    } } });
+    configureSupabaseMock({ results: {
+      ...withSubscription(),
+      'student_registrations.select': { data: [{ id: 'reg-1' }], error: null },
+    } });
+
+    await call({ action: 'delete', student_id: 'stu-1' });
+
+    const looked = getSupabaseCalls('student_registrations.select').map(c => c.filters);
+    // The last nine digits are what the unique index is built on, so
+    // they are what has to be searched for — both numbers, because
+    // either can be the one on the row.
+    expect(looked.some(f => f.phone_key === '012345678'), 'their own number').toBe(true);
+    expect(looked.some(f => f.phone_key === '000001111'), "the parent's number").toBe(true);
   });
 
   it('refuses an account that is not a student', async () => {

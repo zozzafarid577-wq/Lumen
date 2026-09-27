@@ -1,6 +1,6 @@
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, logActivity } from './_lib/auth.js';
-import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
+import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail, phoneKey } from './_lib/util.js';
 import { assertCanAddStudent } from './_lib/subscription.js';
 import { createStudentAccount } from './_lib/students.js';
 import { sendEmail, signInEmailChanged, loginUrlFor } from './_lib/email.js';
@@ -297,6 +297,40 @@ async function setActive(res, actor, teacherId, body) {
 async function deleteStudent(res, actor, teacherId, body) {
   const student = await getStudent(body.student_id, teacherId);
 
+  // Everything that would refuse them if they came back.
+  //
+  // Found BEFORE the account goes, because deleting it nulls the
+  // registration's student_id and the link back is lost — and matched
+  // on all three things the door checks, not just the address: a
+  // student who registered with one email and a number, then had the
+  // email corrected, is held by the number alone.
+  //
+  // Their registration row survives the account by design (SET NULL,
+  // not CASCADE), and while it stands at anything but 'rejected' it
+  // holds that email and that number inside the register-once indexes.
+  // 'rejected' is the status both indexes exclude, which is what
+  // releases them. The row itself is kept: it is the record that they
+  // came in through a link at all.
+  // One `.eq()` per thing rather than one `.or()` built by hand: an
+  // address with a comma in it turns a filter string into two more
+  // conditions, and the values here come out of a row somebody typed.
+  // Same reason api/join.js compares in JavaScript rather than in a
+  // filter.
+  const emailKey = (student.email || '').trim().toLowerCase();
+  const keys = [phoneKey(student.phone), phoneKey(student.parent_phone)].filter(Boolean);
+
+  const base = () => admin.from('student_registrations').select('id')
+    .eq('teacher_id', teacherId).neq('status', 'rejected');
+
+  const found = await Promise.all([
+    base().eq('student_id', student.id),
+    ...(emailKey ? [base().eq('email_key', emailKey)] : []),
+    ...keys.map(k => base().eq('phone_key', k)),
+  ]);
+
+  const held = [...new Set(found.flatMap(r => (r.data || []).map(x => x.id)))]
+    .map(id => ({ id }));
+
   // Deleting the auth user cascades to the profile and everything hanging
   // off it — results included. Teachers reach for this expecting
   // "remove from my list", so the portal asks for the student's name to be
@@ -304,30 +338,19 @@ async function deleteStudent(res, actor, teacherId, body) {
   const { error } = await admin.auth.admin.deleteUser(student.id);
   if (error) throw new HttpError(500, 'Could not delete that account.');
 
-  // Their registration goes with them.
-  //
-  // The row survives the account — student_id is SET NULL, not CASCADE —
-  // and while it is still 'approved' it holds that email and that
-  // number inside the "register once" indexes. So a student deleted by
-  // mistake could never register again: the link told them they were
-  // already registered and to wait for details that were never coming.
-  //
-  // 'rejected' is the status both indexes exclude, which is what
-  // releases the pair. Deleting the row instead would lose the record
-  // that they came in through a link at all.
-  await admin.from('student_registrations')
-    .update({
-      status: 'rejected',
-      review_note: 'Their account was deleted, so this registration was released.',
-      reviewed_by: actor.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq('teacher_id', teacherId)
-    .eq('email_key', (student.email || '').toLowerCase())
-    .neq('status', 'rejected');
+  if (held.length) {
+    await admin.from('student_registrations')
+      .update({
+        status: 'rejected',
+        review_note: 'Their account was deleted, so this registration was released.',
+        reviewed_by: actor.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .in('id', held.map(r => r.id));
+  }
 
   await logActivity(teacherId, actor, 'student_deleted', `${student.full_name} <${student.email}>`);
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, released: held.length });
 }
 
 // ── Shared ────────────────────────────────────────────────────────
