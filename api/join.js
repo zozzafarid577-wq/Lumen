@@ -2,6 +2,7 @@ import { admin } from './_lib/supabase.js';
 import { handler, HttpError } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanText, phoneKey } from './_lib/util.js';
 import { createStudentAccount } from './_lib/students.js';
+import { runSetPassword } from './_lib/set-password.js';
 
 // The one endpoint in api/ with no signed-in caller: a student opening
 // their teacher's batch link has no account yet, which is the whole
@@ -30,6 +31,16 @@ import { createStudentAccount } from './_lib/students.js';
 
 export default handler(async (req, res) => {
   const body = req.body || {};
+
+  // The other flow that arrives here with a link and no account:
+  // choosing a password from a set-up link. It lives in _lib and is
+  // routed from here because Vercel's Hobby plan allows twelve
+  // serverless functions per deployment, and api/ is at twelve — a
+  // thirteenth file fails the deployment outright, while the last good
+  // one carries on serving, so the site looks fine and simply stops
+  // changing.
+  if (body.flow === 'set-password') return runSetPassword(res, body);
+
   const action = body.action === 'submit' ? 'submit' : 'info';
   const invite = await openInvite(body.token);
 

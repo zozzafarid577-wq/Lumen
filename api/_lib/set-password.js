@@ -1,10 +1,18 @@
-import { admin } from './_lib/supabase.js';
-import { handler, HttpError } from './_lib/auth.js';
-import { openPasswordInvite } from './_lib/invite.js';
+import { admin } from './supabase.js';
+import { HttpError } from './auth.js';
+import { openPasswordInvite } from './invite.js';
 
-// The second endpoint in api/ with no signed-in caller, for the same
-// reason as the first: a student opening a set-up link has no password
-// yet, which is what they are here to fix.
+// A student opening a set-up link has no password yet, which is what
+// they are here to fix. No signed-in caller, for the same reason as
+// registering: there is nobody to sign in as.
+//
+// This lives in _lib and is reached through api/join.js rather than
+// being a route of its own, because Vercel's Hobby plan allows twelve
+// serverless functions per deployment and api/ was already at twelve.
+// A thirteenth file there fails the whole deployment — silently, as far
+// as the site is concerned, because the last good one carries on
+// serving. The two flows belong together anyway: both are a stranger
+// holding a link and nothing else.
 //
 // The token is the only credential, so everything is decided from it:
 //
@@ -16,15 +24,17 @@ import { openPasswordInvite } from './_lib/invite.js';
 //     ids, no anything about anybody else.
 //   * The link is spent the moment it works, in the same breath as the
 //     password is set.
-export default handler(async (req, res) => {
-  const body = req.body || {};
+//
+// Throws HttpError; api/join.js's handler wrapper turns those into
+// responses, as it does for everything else it runs.
+export async function runSetPassword(res, body) {
   const action = body.action === 'submit' ? 'submit' : 'info';
   const { invite, student } = await openPasswordInvite(body.token);
 
   return action === 'submit'
     ? submit(res, invite, student, body)
     : info(res, student);
-});
+}
 
 // ── What the student is looking at ────────────────────────────────
 async function info(res, student) {

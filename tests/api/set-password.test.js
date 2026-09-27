@@ -6,7 +6,7 @@ import {
   resetSupabaseMock, configureSupabaseMock, getSupabaseCalls, TEACHER_ID,
 } from '../helpers/supabase-mock.js';
 import { makeReq, makeRes } from '../helpers/http.js';
-import handler from '../../api/set-password.js';
+import handler from '../../api/join.js';
 
 // The second handler with no signed-in caller: a student opening a
 // set-up link has no password yet, which is what they are here to fix.
@@ -36,9 +36,13 @@ function withInvite(overrides = {}) {
   };
 }
 
+// Driven through api/join.js, which is where this flow now lives: the
+// Hobby plan allows twelve serverless functions and api/ is at twelve.
+// Testing the route rather than the module is the point — a flow nobody
+// can reach is not a working flow.
 async function call(body) {
   const res = makeRes();
-  await handler(makeReq({ body, token: null }), res);
+  await handler(makeReq({ body: { flow: 'set-password', ...body }, token: null }), res);
   return res;
 }
 

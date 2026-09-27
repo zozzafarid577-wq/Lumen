@@ -386,6 +386,21 @@ describe('links a teacher hands to somebody else', () => {
     expect(text).not.toMatch(/location\.origin|siteOrigin\(\)/);
   });
 
+  it('stays inside the twelve serverless functions the plan allows', () => {
+    // Vercel's Hobby plan builds at most twelve Serverless Functions,
+    // and every top-level .js in api/ is one. A thirteenth does not
+    // degrade anything: it fails the whole deployment, while the last
+    // good one carries on serving — so the site keeps working and
+    // silently stops changing, which is a far worse way to find out.
+    //
+    // That happened. The fix was to route the extra flow from an
+    // existing function; api/_lib/ is free, because nothing in there
+    // becomes a function.
+    const fns = readdirSync(join(ROOT, 'api')).filter(f => f.endsWith('.js'));
+    expect(fns.length, `api/ has ${fns.length} functions: ${fns.join(', ')}`)
+      .toBeLessThanOrEqual(12);
+  });
+
   it('leaves the password-reset redirect on the current origin', () => {
     // Supabase only redirects to URLs on its own allow-list, and the one
     // that always matches is the origin the request came from. Pinning
