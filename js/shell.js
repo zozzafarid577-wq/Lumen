@@ -33,6 +33,7 @@ const NAVS = {
     { section: 'Class' },
     { href: '/teacher/students.html',       icon: 'students',  label: 'Students' },
     { href: '/teacher/progress.html',       icon: 'chart',     label: 'Progress' },
+    { href: '/teacher/results.html',        icon: 'award',     label: 'Test results' },
     { section: 'Content' },
     { href: '/teacher/courses.html',        icon: 'courses',   label: 'Courses & lessons' },
     { href: '/teacher/question-bank.html',  icon: 'bank',      label: 'Question bank' },

@@ -413,7 +413,10 @@ describe('registering only once', () => {
     const res = await call({ ...GOOD, token: TOKEN });
     expect(res.statusCode).toBe(409);
     expect(res.body.error).toMatch(/already have an account/i);
-    expect(res.body.error).toMatch(/forgot password/i);
+    // Nobody sends sign-in details any more: the password is the one
+    // they chose, and a forgotten one is a link from their teacher.
+    expect(res.body.error).toMatch(/password you chose/i);
+    expect(res.body.error).toMatch(/ask your teacher/i);
   });
 
   it('matches an existing student by phone however it was typed', async () => {

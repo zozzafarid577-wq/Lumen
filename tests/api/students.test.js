@@ -363,6 +363,26 @@ describe('acting on an existing student', () => {
     });
   });
 
+  it('releases their registration when the account is deleted', async () => {
+    // The registration row outlives the account — student_id is SET
+    // NULL, not CASCADE — and while it stands it holds that email and
+    // that number inside the "register once" indexes. A student deleted
+    // by mistake could never register again: the link told them they
+    // had already registered, and to wait for details nobody was
+    // sending.
+    const res = await call({ action: 'delete', student_id: 'stu-1' });
+
+    expect(res.statusCode).toBe(200);
+
+    const [released] = getSupabaseCalls('student_registrations.update');
+    expect(released, 'the registration was left holding the email').toBeTruthy();
+    // 'rejected' is the one status both unique indexes exclude, which is
+    // what actually frees the pair.
+    expect(released.payload.status).toBe('rejected');
+    expect(released.filters.email_key).toBe('sara@example.com');
+    expect(released.filters['neq:status']).toBe('rejected');
+  });
+
   it('refuses an account that is not a student', async () => {
     asUser(TEACHER_USER, {
       extraProfiles: { 'asst-1': { id: 'asst-1', role: 'assistant', teacher_id: TEACHER_ID, full_name: 'X' } },

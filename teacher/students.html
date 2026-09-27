@@ -435,9 +435,12 @@
         </div>
         <div id="sd-courses" class="small" style="margin-bottom:14px"></div>
 
-        <div class="spread" style="margin-bottom:10px">
+        <div class="spread" style="margin-bottom:10px;gap:12px;flex-wrap:wrap">
           <span class="small muted">Tests done</span>
-          <a class="small" id="sd-progress" style="color:var(--primary);font-weight:600" href="/teacher/progress.html">Full progress →</a>
+          <span class="row" style="gap:12px">
+            <a class="small" id="sd-papers" style="color:var(--primary);font-weight:600" href="/teacher/results.html">Their papers →</a>
+            <a class="small" id="sd-progress" style="color:var(--primary);font-weight:600" href="/teacher/progress.html">Full progress →</a>
+          </span>
         </div>
         <div id="sd-results" class="small"></div>
       </div>
@@ -1298,6 +1301,7 @@ function openStudent(id) {
 
   document.getElementById('sd-courses').innerHTML = drawEnrolSummary(s);
   document.getElementById('sd-progress').href = `/teacher/progress.html?student=${s.id}`;
+  document.getElementById('sd-papers').href = `/teacher/results.html?student=${s.id}`;
 
   // The actions carry the id with them rather than being rebuilt as HTML,
   // so a name with an apostrophe in it cannot break them.

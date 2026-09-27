@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { emailStatus, sendEmail, studentWelcome, studentInvite, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
+import { emailStatus, sendEmail, explain, studentWelcome, studentInvite, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
 
 const ORIGINAL = { ...process.env };
 
@@ -161,6 +161,30 @@ describe('templates', () => {
     // Nothing in this flow touches the password, and saying so stops the
     // teacher hunting for one that was never sent.
     expect(html).toMatch(/password has not changed/i);
+  });
+});
+
+describe('what a refusal is turned into', () => {
+  it('explains a blocklisted address, and what to do instead', () => {
+    // The one that actually happens. Brevo blocklists an address when
+    // mail to it bounces, or somebody reports it as spam, and then
+    // refuses transactional mail to it too — so the teacher needs to
+    // know the account is fine and the link has to go by hand.
+    const out = explain('blocked : due to blacklist user');
+
+    expect(out).toMatch(/blocklist/i);
+    expect(out).toMatch(/send them the link yourself/i);
+    expect(out).toMatch(/Brevo/);
+  });
+
+  it('passes an unfamiliar refusal through as it came', () => {
+    // Summarising a message nobody predicted into "something went
+    // wrong" throws away the only clue there is.
+    expect(explain('Key not found')).toBe('Key not found');
+  });
+
+  it('survives a refusal with nothing in it', () => {
+    expect(explain(undefined)).toBe('');
   });
 });
 

@@ -57,9 +57,9 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({}));
-      const why = body?.message || `Brevo returned ${resp.status}`;
-      console.error('Brevo send failed:', why);
-      return { sent: false, error: why };
+      const raw = body?.message || `Brevo returned ${resp.status}`;
+      console.error('Brevo send failed:', raw);
+      return { sent: false, error: explain(raw) };
     }
     return { sent: true };
   } catch (err) {
@@ -69,6 +69,36 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Brevo's refusals are written for whoever set the account up, not for
+// a teacher in the middle of a lesson. The two that actually happen get
+// turned into something with an action in it; anything else goes
+// through as it came, because a message nobody predicted is more use
+// verbatim than summarised into "something went wrong".
+//
+// "blocked: due to blacklist user" is the common one, and it is worth
+// knowing what it means: Brevo keeps a blocklist per account, and an
+// address lands on it when a message to it hard-bounces (the address
+// does not exist), when somebody marks a message as spam, or when they
+// unsubscribe. Transactional mail is refused for a blocklisted address
+// too — so an address that was mistyped once keeps failing long after
+// it is corrected, until it is taken off the list in
+// Brevo → Contacts → Blocklisted.
+export function explain(raw) {
+  const text = String(raw || '');
+
+  if (/blacklist|blocked/i.test(text)) {
+    return 'That address is on the mail provider’s blocklist, so nothing can be emailed to it. '
+      + 'It gets there by bouncing, by somebody marking an earlier email as spam, or by unsubscribing. '
+      + 'Send them the link yourself, and remove the address in Brevo → Contacts → Blocklisted if it is a real one.';
+  }
+
+  if (/invalid|not valid|malformed/i.test(text) && /email|recipient|to/i.test(text)) {
+    return 'The mail provider will not accept that address — check it for a typo. Send them the link yourself in the meantime.';
+  }
+
+  return text;
 }
 
 // ── Templates ─────────────────────────────────────────────────────

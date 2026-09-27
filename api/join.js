@@ -302,18 +302,23 @@ function norm(name) {
   return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+// Both of these used to say the teacher would send sign-in details.
+// Nobody sends details any more: registering makes the account on the
+// spot with the password the student typed, so the thing to tell
+// somebody who is already here is to go and use it.
 function alreadyRegistered() {
   return new HttpError(409,
-    'You have already registered with this name, email or mobile number. '
-    + 'You only need to register once — your teacher will send your sign-in details. '
-    + 'If you have been waiting a while, message your teacher rather than filling this in again.');
+    'You have already registered with this name, email or mobile number — '
+    + 'once is all it takes, and your account is ready. '
+    + 'Sign in with the password you chose when you registered. '
+    + 'If you cannot remember it, ask your teacher to send you a link to choose a new one.');
 }
 
 function hasAccount() {
   return new HttpError(409,
-    'You already have an account in this space, so there is nothing to fill in. '
-    + 'Sign in at /login with the email and password your teacher sent you — '
-    + 'use "Forgot password" there if you no longer have them.');
+    'You already have an account in this space, so there is nothing to fill in here. '
+    + 'Sign in with the password you chose. '
+    + 'Forgotten it? Ask your teacher to send you a link to set a new one.');
 }
 
 function notOpen() {

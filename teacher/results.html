@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test results | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  /* ── The paper ──────────────────────────────────────────────────
+     A sat paper, marked, in the order the student answered it. It
+     replaces the list rather than opening over it, because the thing
+     a teacher does with it next is print it, and a modal prints
+     badly — the page behind it comes too. */
+  .paper-q {
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 15px 17px; margin-bottom: 12px; background: var(--card);
+  }
+  .paper-q.wrong { border-color: #E9B9C2; background: #FDF4F6; }
+  .paper-q.right { border-color: #BFE3D5; background: #F4FBF8; }
+  [data-theme="dark"] .paper-q.wrong { background: rgba(142,29,47,.14); }
+  [data-theme="dark"] .paper-q.right { background: rgba(15,94,67,.14); }
+
+  .paper-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .paper-n {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--primary); color: #fff; font-size: .72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .paper-text { flex: 1; font-size: .92rem; font-weight: 600; line-height: 1.5; }
+  .paper-mark { flex-shrink: 0; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .paper-mark.wrong { color: var(--danger); }
+  .paper-mark.right { color: var(--success); }
+  .paper-mark.blank { color: var(--muted); }
+
+  .opt {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px 11px; border-radius: 9px; font-size: .86rem; line-height: 1.45;
+    border: 1px solid transparent; margin-bottom: 5px;
+  }
+  .opt-letter {
+    flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+    border: 1.5px solid var(--border); font-size: .66rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; color: var(--muted);
+  }
+  /* The two that matter are marked; everything else stays quiet, so a
+     teacher's eye goes to the answer and the mistake and nowhere else. */
+  .opt.correct { background: #E7F4EF; border-color: #BFE3D5; }
+  .opt.correct .opt-letter { border-color: var(--success); color: var(--success); }
+  .opt.chosen-wrong { background: #FCEDEF; border-color: #F3CBD2; }
+  .opt.chosen-wrong .opt-letter { border-color: var(--danger); color: var(--danger); }
+  [data-theme="dark"] .opt.correct { background: rgba(15,94,67,.2); }
+  [data-theme="dark"] .opt.chosen-wrong { background: rgba(142,29,47,.2); }
+  .opt-tag { margin-left: auto; font-size: .66rem; font-weight: 700; white-space: nowrap; padding-left: 8px; }
+  .opt.correct .opt-tag { color: var(--success); }
+  .opt.chosen-wrong .opt-tag { color: var(--danger); }
+
+  .paper-why {
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+    font-size: .82rem; color: var(--text-2); line-height: 1.55;
+  }
+  .paper-hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+  .paper-score { font-size: 2rem; font-weight: 800; line-height: 1; font-family: 'Manrope', sans-serif; }
+
+  /* The most-missed list, which is the one thing here that is about the
+     class rather than about one student. */
+  .miss-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .miss-row:last-child { border-bottom: none; }
+  .miss-bar { flex: 1; height: 7px; border-radius: 4px; background: var(--bg); overflow: hidden; min-width: 60px; }
+  .miss-bar i { display: block; height: 100%; background: var(--danger); }
+  .miss-n { font-size: .74rem; font-weight: 700; color: var(--danger); white-space: nowrap; }
+
+  /* ── Printing ──────────────────────────────────────────────────
+     What goes on paper is the paper: no sidebar, no filters, no
+     buttons, and colours that survive a printer being asked not to
+     print backgrounds. */
+  @media print {
+    .sidebar, .sidebar-overlay, .topbar, .no-print { display: none !important; }
+    .main { margin: 0 !important; }
+    .content { padding: 0 !important; max-width: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+    .paper-q { break-inside: avoid; page-break-inside: avoid; }
+    .print-head { display: block !important; }
+    body { background: #fff !important; }
+    .opt, .paper-q { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  .print-head { display: none; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar no-print">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Test results</span>
+    </div>
+    <div class="topbar-right" id="paper-actions" style="display:none">
+      <button class="btn btn-outline btn-sm" onclick="closePaper()">← All results</button>
+      <button class="btn btn-primary btn-sm" onclick="window.print()">Print this paper</button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <!-- ── THE LIST ───────────────────────────────────────────── -->
+    <div id="list-view">
+      <div class="card mb16 no-print">
+        <div class="card-header" style="flex-wrap:wrap;gap:12px">
+          <div class="row" style="flex:1;min-width:240px;flex-wrap:wrap">
+            <input type="search" class="form-input" id="q" placeholder="Search by student or test…" style="max-width:280px" aria-label="Search">
+            <select class="form-select" id="test-filter" style="max-width:260px" aria-label="Filter by test">
+              <option value="">All tests</option>
+            </select>
+            <select class="form-select" id="course-filter" style="max-width:220px" aria-label="Filter by course">
+              <option value="">All courses</option>
+            </select>
+            <select class="form-select" id="outcome-filter" style="max-width:160px" aria-label="Filter by outcome">
+              <option value="">Passed and failed</option>
+              <option value="passed">Passed</option>
+              <option value="failed">Did not pass</option>
+            </select>
+          </div>
+          <span class="small muted" id="count">—</span>
+        </div>
+
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Student</th><th>Test</th><th class="num">Score</th><th class="num">Mark</th>
+                <th class="num">Time</th><th>Finished</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Only worth drawing once a single test is picked: "most missed"
+           across four different papers is not a question anybody asks. -->
+      <div class="card no-print" id="miss-card" style="display:none">
+        <div class="card-header">
+          <span class="card-title">Most missed in this test</span>
+          <span class="small muted" id="miss-sub"></span>
+        </div>
+        <div class="card-body" id="miss-body"></div>
+      </div>
+    </div>
+
+    <!-- ── ONE PAPER ──────────────────────────────────────────── -->
+    <div id="paper-view" style="display:none">
+      <!-- Shown only on paper: a printout with no name on it is no use
+           to anybody a week later. -->
+      <div class="print-head">
+        <div style="font-size:1.3rem;font-weight:800" id="pr-title">—</div>
+        <div class="small muted" id="pr-sub">—</div>
+      </div>
+
+      <div class="card mb16">
+        <div class="card-body">
+          <div class="paper-hdr">
+            <div>
+              <div style="font-size:1.15rem;font-weight:800" id="p-student">—</div>
+              <div class="small muted" id="p-test">—</div>
+            </div>
+            <div style="text-align:right">
+              <div class="paper-score" id="p-pct">—</div>
+              <div class="small muted" id="p-score">—</div>
+            </div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px" id="p-badges"></div>
+        </div>
+      </div>
+
+      <div id="p-questions"></div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let attempts = [];         // finished attempts, newest first
+let tests = [];            // this teacher's tests
+let questionsByTest = new Map();   // test_id -> ordered questions
+let openAttempt = null;
+
+const LETTERS = 'ABCDEFGHIJ';
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'students' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Test results' });
+
+  document.getElementById('rows').innerHTML = skeletonRows(7, 6);
+  await load();
+  render();
+
+  ['q', 'test-filter', 'course-filter', 'outcome-filter'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render));
+
+  // Arriving from a student's row on another page: show theirs first.
+  const wanted = new URLSearchParams(location.search).get('student');
+  if (wanted) {
+    document.getElementById('q').value =
+      attempts.find(a => a.student_id === wanted)?.student_name || '';
+    render();
+  }
+})();
+
+// ── Loading ───────────────────────────────────────────────────────
+// Three reads, not one per attempt. A tenant's tables are small and
+// joining them here costs nothing next to the round trips.
+async function load() {
+  const [rows, testRows, courses] = await Promise.all([
+    sb.from('test_attempts')
+      .select('id, student_id, test_id, answers, score, max_score, percentage, passed, time_taken_sec, completed_at, profiles(full_name, email)')
+      .eq('teacher_id', me.teacher_id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false }),
+    sb.from('practice_tests').select('id, title, course_id, passing_score_pct, courses(title)')
+      .eq('teacher_id', me.teacher_id).order('title'),
+    sb.from('courses').select('id, title').eq('teacher_id', me.teacher_id).order('title'),
+  ]);
+
+  if (rows.error) {
+    document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(rows.error.message));
+    return;
+  }
+
+  tests = testRows.data || [];
+  const testById = new Map(tests.map(t => [t.id, t]));
+
+  attempts = (rows.data || []).map(a => ({
+    ...a,
+    student_name: a.profiles?.full_name || 'A student',
+    student_email: a.profiles?.email || '',
+    test: testById.get(a.test_id) || null,
+  }));
+
+  document.getElementById('test-filter').innerHTML = '<option value="">All tests</option>'
+    + tests.map(t => `<option value="${t.id}">${escHtml(t.title)}</option>`).join('');
+  document.getElementById('course-filter').innerHTML = '<option value="">All courses</option>'
+    + (courses.data || []).map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('');
+}
+
+// A test's questions are only fetched when a paper is opened, because
+// most of them never will be.
+async function questionsFor(testId) {
+  if (questionsByTest.has(testId)) return questionsByTest.get(testId);
+  const { data } = await sb.from('test_questions')
+    .select('id, question_text, options, explanation, image_url, order_index, points')
+    .eq('teacher_id', me.teacher_id).eq('test_id', testId)
+    .order('order_index');
+  const list = data || [];
+  questionsByTest.set(testId, list);
+  return list;
+}
+
+// ── The list ──────────────────────────────────────────────────────
+function visible() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const testId = document.getElementById('test-filter').value;
+  const courseId = document.getElementById('course-filter').value;
+  const outcome = document.getElementById('outcome-filter').value;
+
+  return attempts.filter(a => {
+    if (testId && a.test_id !== testId) return false;
+    if (courseId && a.test?.course_id !== courseId) return false;
+    if (outcome === 'passed' && !a.passed) return false;
+    if (outcome === 'failed' && a.passed) return false;
+    if (q && !`${a.student_name} ${a.test?.title || ''}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function render() {
+  const list = visible();
+
+  document.getElementById('count').textContent =
+    `${list.length} of ${attempts.length} finished test${attempts.length === 1 ? '' : 's'}`;
+
+  const tbody = document.getElementById('rows');
+  if (!list.length) {
+    tbody.innerHTML = emptyRow(7, attempts.length
+      ? 'No results match those filters.'
+      : 'Nobody has finished a test yet.');
+  } else {
+    tbody.innerHTML = list.map(a => {
+      const pct = Math.round(parseFloat(a.percentage) || 0);
+      return `<tr>
+        <td>
+          <button class="link-name" onclick="openPaper('${a.id}')">${escHtml(a.student_name)}</button>
+          <div class="small muted">${escHtml(a.student_email)}</div>
+        </td>
+        <td class="small">${escHtml(a.test?.title || 'A deleted test')}
+          ${a.test?.courses?.title ? `<div class="small muted">${escHtml(a.test.courses.title)}</div>` : ''}</td>
+        <td class="num small">${a.score ?? '—'} / ${a.max_score ?? '—'}</td>
+        <td class="num"><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${pct}%</span></td>
+        <td class="num small muted">${fmtDuration(a.time_taken_sec)}</td>
+        <td class="small muted">${fmtDateTime(a.completed_at)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-outline btn-xs" onclick="openPaper('${a.id}')">See the paper</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  drawMostMissed(list);
+}
+
+function fmtDuration(sec) {
+  if (!Number.isFinite(sec) || sec <= 0) return '—';
+  const m = Math.floor(sec / 60);
+  return m < 1 ? `${sec}s` : `${m} min`;
+}
+
+// ── Most missed ───────────────────────────────────────────────────
+// The question a teacher actually wants answering after a test: which
+// ones did the class not get. Only drawn for a single test, where the
+// question means something.
+async function drawMostMissed(list) {
+  const testId = document.getElementById('test-filter').value;
+  const card = document.getElementById('miss-card');
+
+  if (!testId || list.length < 2) { card.style.display = 'none'; return; }
+
+  const questions = await questionsFor(testId);
+  if (!questions.length) { card.style.display = 'none'; return; }
+
+  const rows = questions.map((q, i) => {
+    let wrong = 0;
+    list.forEach(a => { if (!isRight(q, (a.answers || {})[q.id])) wrong++; });
+    return { q, i, wrong, pct: Math.round((wrong / list.length) * 100) };
+  }).filter(r => r.wrong).sort((a, b) => b.wrong - a.wrong).slice(0, 8);
+
+  document.getElementById('miss-sub').textContent =
+    `${list.length} student${list.length === 1 ? '' : 's'} sat it`;
+
+  document.getElementById('miss-body').innerHTML = rows.length
+    ? rows.map(r => `
+      <div class="miss-row">
+        <span class="small" style="flex:1;min-width:0">
+          <strong>Q${r.i + 1}.</strong> ${escHtml(trim(r.q.question_text, 90))}
+        </span>
+        <span class="miss-bar"><i style="width:${r.pct}%"></i></span>
+        <span class="miss-n">${r.wrong} wrong</span>
+      </div>`).join('')
+    : '<p class="small muted">Everybody got every question right.</p>';
+
+  card.style.display = 'block';
+}
+
+function trim(text, n) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+// ── Marking ───────────────────────────────────────────────────────
+// The same rule the portal scores by, written once here so the paper
+// and the most-missed list cannot disagree about what "wrong" means.
+//
+// A question can have more than one right answer, and a student only
+// scores by picking all of them and nothing else — so the comparison is
+// between two sets, not two values.
+function rightIndexes(q) {
+  return (q.options || []).map((o, i) => (o?.correct ? i : -1)).filter(i => i >= 0);
+}
+
+function givenIndexes(given) {
+  if (Array.isArray(given)) return given.map(Number).filter(n => Number.isInteger(n));
+  return Number.isInteger(given) ? [given] : [];
+}
+
+function isRight(q, given) {
+  const want = rightIndexes(q);
+  const got = givenIndexes(given);
+  if (!got.length || want.length !== got.length) return false;
+  return want.every(i => got.includes(i));
+}
+
+// ── One paper ─────────────────────────────────────────────────────
+async function openPaper(attemptId) {
+  const a = attempts.find(x => x.id === attemptId);
+  if (!a) return;
+  openAttempt = a;
+
+  const questions = await questionsFor(a.test_id);
+  const answers = a.answers || {};
+  const pct = Math.round(parseFloat(a.percentage) || 0);
+
+  document.getElementById('p-student').textContent = a.student_name;
+  document.getElementById('p-test').textContent =
+    `${a.test?.title || 'A deleted test'}${a.test?.courses?.title ? ' · ' + a.test.courses.title : ''}`;
+  document.getElementById('p-pct').textContent = `${pct}%`;
+  document.getElementById('p-score').textContent = `${a.score ?? '—'} of ${a.max_score ?? '—'} marks`;
+
+  // The same two lines, for the top of the printed sheet.
+  document.getElementById('pr-title').textContent = `${a.student_name} — ${a.test?.title || 'Test'}`;
+  document.getElementById('pr-sub').textContent =
+    `${pct}% · ${a.score ?? '—'}/${a.max_score ?? '—'} · finished ${fmtDateTime(a.completed_at)}`;
+
+  const wrong = questions.filter(q => !isRight(q, answers[q.id])).length;
+  const blank = questions.filter(q => !givenIndexes(answers[q.id]).length).length;
+
+  document.getElementById('p-badges').innerHTML = [
+    `<span class="badge ${a.passed ? 'b-green' : 'b-red'}">${a.passed ? 'Passed' : 'Did not pass'}</span>`,
+    a.test?.passing_score_pct != null ? `<span class="small muted">Pass mark ${a.test.passing_score_pct}%</span>` : '',
+    `<span class="small muted">${questions.length - wrong} right · ${wrong} wrong${blank ? ` · ${blank} left blank` : ''}</span>`,
+    `<span class="small muted">Took ${fmtDuration(a.time_taken_sec)}</span>`,
+    `<span class="small muted">Finished ${fmtDateTime(a.completed_at)}</span>`,
+  ].filter(Boolean).join('');
+
+  document.getElementById('p-questions').innerHTML = questions.length
+    ? questions.map((q, i) => drawQuestion(q, i, answers[q.id])).join('')
+    : '<div class="card"><div class="card-body"><p class="small muted">This test’s questions have been deleted, so the paper cannot be shown.</p></div></div>';
+
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('paper-view').style.display = 'block';
+  document.getElementById('paper-actions').style.display = 'flex';
+  window.scrollTo(0, 0);
+}
+
+function drawQuestion(q, i, given) {
+  const got = givenIndexes(given);
+  const right = isRight(q, given);
+  const blank = !got.length;
+
+  const mark = blank
+    ? '<span class="paper-mark blank">Left blank</span>'
+    : right ? '<span class="paper-mark right">Right</span>'
+            : '<span class="paper-mark wrong">Wrong</span>';
+
+  const options = (q.options || []).map((o, oi) => {
+    const isCorrect = !!o?.correct;
+    const chose = got.includes(oi);
+    // A chosen right answer needs one label, not two stacked on top of
+    // each other, so the tags are decided together rather than per flag.
+    const cls = isCorrect ? 'correct' : (chose ? 'chosen-wrong' : '');
+    const tag = isCorrect && chose ? 'Their answer · correct'
+      : isCorrect ? 'Correct answer'
+      : chose ? 'Their answer'
+      : '';
+    return `
+      <div class="opt ${cls}">
+        <span class="opt-letter">${LETTERS[oi] || oi + 1}</span>
+        <span>${escHtml(o?.text ?? '')}</span>
+        ${tag ? `<span class="opt-tag">${tag}</span>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="paper-q ${blank ? '' : right ? 'right' : 'wrong'}">
+      <div class="paper-head">
+        <span class="paper-n">${i + 1}</span>
+        <span class="paper-text">${escHtml(q.question_text)}</span>
+        ${mark}
+      </div>
+      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:10px;margin-bottom:12px">` : ''}
+      ${options}
+      ${q.explanation ? `<div class="paper-why"><strong>Why:</strong> ${escHtml(q.explanation)}</div>` : ''}
+    </div>`;
+}
+
+function closePaper() {
+  openAttempt = null;
+  document.getElementById('paper-view').style.display = 'none';
+  document.getElementById('paper-actions').style.display = 'none';
+  document.getElementById('list-view').style.display = 'block';
+}
+</script>
+</body>
+</html>

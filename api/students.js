@@ -304,6 +304,28 @@ async function deleteStudent(res, actor, teacherId, body) {
   const { error } = await admin.auth.admin.deleteUser(student.id);
   if (error) throw new HttpError(500, 'Could not delete that account.');
 
+  // Their registration goes with them.
+  //
+  // The row survives the account — student_id is SET NULL, not CASCADE —
+  // and while it is still 'approved' it holds that email and that
+  // number inside the "register once" indexes. So a student deleted by
+  // mistake could never register again: the link told them they were
+  // already registered and to wait for details that were never coming.
+  //
+  // 'rejected' is the status both indexes exclude, which is what
+  // releases the pair. Deleting the row instead would lose the record
+  // that they came in through a link at all.
+  await admin.from('student_registrations')
+    .update({
+      status: 'rejected',
+      review_note: 'Their account was deleted, so this registration was released.',
+      reviewed_by: actor.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('teacher_id', teacherId)
+    .eq('email_key', (student.email || '').toLowerCase())
+    .neq('status', 'rejected');
+
   await logActivity(teacherId, actor, 'student_deleted', `${student.full_name} <${student.email}>`);
   return res.status(200).json({ ok: true });
 }
