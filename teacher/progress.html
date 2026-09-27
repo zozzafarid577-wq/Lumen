@@ -34,6 +34,38 @@
   .tick { width: 16px; height: 16px; flex-shrink: 0; }
   .tick.done { color: var(--success); }
   .tick.not  { color: var(--border); }
+
+  /* ── Group chips ───────────────────────────────────────────────
+     A teacher thinks in classes, not in one long list, so the classes
+     are the first thing on the page and the rest follows whichever is
+     pressed. */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    display: inline-flex; align-items: baseline; gap: 7px; cursor: pointer;
+    padding: 8px 14px; border-radius: 9999px; font-size: .82rem; font-weight: 600;
+    background: var(--card); border: 1px solid var(--border); color: var(--text-2);
+    transition: .15s;
+  }
+  .chip:hover { border-color: var(--primary-l); color: var(--primary); }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .chip .when { font-weight: 500; font-size: .74rem; opacity: .75; }
+  .chip .n { font-size: .72rem; opacity: .75; }
+
+  /* ── The printed week ──────────────────────────────────────────
+     What goes on paper is the sheet: no sidebar, no chips, no buttons,
+     and the group and the dates at the top so it still means something
+     a fortnight later. */
+  @media print {
+    .main { margin: 0 !important; }
+    .content { padding: 0 !important; max-width: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+    .printable { position: static !important; }
+    .no-print, .sidebar, .topbar { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: #fff !important; }
+    .tbl tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  }
+  .print-only { display: none; }
 </style>
 </head>
 <body>
@@ -52,7 +84,7 @@
 
   <main class="content">
 
-    <div class="stats-grid">
+    <div class="stats-grid no-print">
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
         <div class="stat-n" id="s-avg">—</div>
@@ -79,7 +111,38 @@
       </div>
     </div>
 
-    <div class="card">
+    <!-- One chip per class. A teacher thinks in groups — "how did
+         Sunday do?" — not in a single list of everybody they teach. -->
+    <div class="chips no-print" id="group-chips"></div>
+
+    <!-- ── THIS WEEK ─────────────────────────────────────────────
+         A sheet for one week and one group, made to be printed and
+         handed over. `printable` is not decoration: portal.css prints
+         by hiding everything and showing that class back. -->
+    <div class="card mb16 printable" id="week-card">
+      <div class="card-header" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <span class="card-title" id="week-title">This week</span>
+          <div class="small muted" id="week-sub">—</div>
+        </div>
+        <div class="row no-print" style="gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="shiftWeek(-1)" aria-label="Previous week">‹</button>
+          <button class="btn btn-outline btn-sm" onclick="shiftWeek(1)" id="week-next" aria-label="Next week">›</button>
+          <button class="btn btn-outline btn-sm" onclick="shiftWeek(0, true)">This week</button>
+          <button class="btn btn-primary btn-sm" onclick="window.print()">Print</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Student</th><th>Tests sat this week</th><th class="num">Average</th><th class="num">Lessons</th></tr>
+          </thead>
+          <tbody id="week-rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card no-print">
       <div class="card-header" style="flex-wrap:wrap;gap:12px">
         <span class="card-title">Every student</span>
         <div class="row">
@@ -117,6 +180,45 @@ let summary = [];
 let allTests = [];
 let allLessons = [];
 let enrolmentsBy = new Map();
+let groups = [];              // every class, in the order they read best
+let pickedGroup = null;       // null = everybody
+let weekOffset = 0;           // 0 = the week we are in
+
+// The week runs Sunday to Saturday, which is the school week here and
+// also how `groups.days` is numbered (0 = Sunday), so the two never
+// need reconciling.
+function weekStart(offset = 0) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay() + offset * 7);
+  return d;
+}
+
+function weekRange(offset = 0) {
+  const from = weekStart(offset);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 7);
+  return [from, to];
+}
+
+// "21 – 27 September" — or across a month boundary, "28 September – 4 October".
+function weekLabel(offset = 0) {
+  const [from, to] = weekRange(offset);
+  const last = new Date(to); last.setDate(last.getDate() - 1);
+  const d = (x) => x.getDate();
+  const mon = (x) => x.toLocaleDateString('en-GB', { month: 'long' });
+  const year = last.getFullYear();
+  return from.getMonth() === last.getMonth()
+    ? `${d(from)} – ${d(last)} ${mon(last)} ${year}`
+    : `${d(from)} ${mon(from)} – ${d(last)} ${mon(last)} ${year}`;
+}
+
+// Which students are in the chosen class. A student on two courses can
+// be in two groups, so this asks whether they are in THIS one.
+function inPickedGroup(s) {
+  if (!pickedGroup) return true;
+  return (enrolmentsBy.get(s.id) || []).some(e => e.group_id === pickedGroup);
+}
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'reports' });
@@ -158,15 +260,34 @@ async function load() {
       .eq('teacher_id', me.teacher_id),
     sb.from('lessons').select('id, title, order_index, modules(id, title, course_id, order_index)')
       .eq('teacher_id', me.teacher_id),
-    sb.from('enrollments').select('student_id, course_id, courses(title)').eq('teacher_id', me.teacher_id),
+    // The group comes down with the enrolment: it is what the chips at
+    // the top of the page are made of, and what the weekly sheet is for.
+    sb.from('enrollments')
+      .select('student_id, course_id, group_id, courses(title), groups(id, name, days, start_time)')
+      .eq('teacher_id', me.teacher_id),
   ]);
 
   allTests = tests.data || [];
   allLessons = (lessons.data || []).filter(l => l.modules);
   enrolmentsBy = new Map();
+  const byId = new Map();
   (enrolments.data || []).forEach(e => {
     if (!enrolmentsBy.has(e.student_id)) enrolmentsBy.set(e.student_id, []);
     enrolmentsBy.get(e.student_id).push(e);
+    // Every class somebody is actually in. A group with nobody in it is
+    // a chip that filters to an empty page, so the enrolments decide
+    // which chips exist rather than the groups table.
+    if (e.groups?.id) byId.set(e.groups.id, e.groups);
+  });
+
+  // In the order a week runs, so the chips read like a timetable:
+  // Sunday's class first, then Monday's, and a group with no day set
+  // after the ones that have one.
+  groups = [...byId.values()].sort((a, b) => {
+    const day = (g) => (g.days || []).length ? Math.min(...g.days) : 9;
+    return day(a) - day(b)
+      || String(a.start_time || '').localeCompare(String(b.start_time || ''))
+      || a.name.localeCompare(b.name);
   });
 
   if (students.error) {
@@ -215,6 +336,7 @@ function render() {
   const sort = document.getElementById('sort').value;
 
   const list = summary
+    .filter(inPickedGroup)
     .filter(s => !q || `${s.full_name} ${s.email || ''}`.toLowerCase().includes(q))
     .sort((a, b) => {
       if (sort === 'name') return a.full_name.localeCompare(b.full_name);
@@ -224,6 +346,9 @@ function render() {
       const bv = b.avg == null ? -1 : b.avg;
       return sort === 'best' ? bv - av : av - bv;
     });
+
+  drawChips();
+  drawWeek();
 
   const tbody = document.getElementById('rows');
   if (!list.length) { tbody.innerHTML = emptyRow(7, summary.length ? 'Nobody matches that search.' : 'No active students yet.'); return; }
@@ -253,6 +378,92 @@ const open = new Set();
 function toggleStudent(id) {
   if (open.has(id)) open.delete(id); else open.add(id);
   render();
+}
+
+// ── The classes, as chips ─────────────────────────────────────────
+function drawChips() {
+  const host = document.getElementById('group-chips');
+  const count = (id) => summary.filter(s =>
+    (enrolmentsBy.get(s.id) || []).some(e => e.group_id === id)).length;
+
+  const chip = (id, name, when, n) => `
+    <button class="chip${pickedGroup === id ? ' on' : ''}" onclick="pickGroup(${id ? `'${id}'` : 'null'})">
+      <span>${escHtml(name)}</span>
+      ${when ? `<span class="when">${escHtml(when)}</span>` : ''}
+      <span class="n">${n}</span>
+    </button>`;
+
+  host.innerHTML = chip(null, 'All students', '', summary.length)
+    + groups.map(g => chip(g.id, g.name, groupWhen(g), count(g.id))).join('');
+}
+
+function pickGroup(id) {
+  pickedGroup = id;
+  render();
+}
+
+function shiftWeek(by, reset) {
+  weekOffset = reset ? 0 : weekOffset + by;
+  if (weekOffset > 0) weekOffset = 0;      // next week has not happened yet
+  drawWeek();
+}
+
+// ── One week, one class, on one sheet ─────────────────────────────
+function drawWeek() {
+  const [from, to] = weekRange(weekOffset);
+  const picked = groups.find(g => g.id === pickedGroup);
+
+  document.getElementById('week-title').textContent =
+    picked ? `${picked.name} — ${weekLabel(weekOffset)}` : weekLabel(weekOffset);
+  document.getElementById('week-sub').textContent = picked
+    ? [groupWhen(picked), me.teacher?.display_name].filter(Boolean).join(' · ')
+    : 'Every student' + (me.teacher?.display_name ? ' · ' + me.teacher.display_name : '');
+  document.getElementById('week-next').disabled = weekOffset >= 0;
+
+  const within = (iso) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return d >= from && d < to;
+  };
+
+  const rows = summary.filter(inPickedGroup).map(s => {
+    const sat = s.attempts.filter(a => within(a.completed_at));
+    const marks = sat.map(a => parseFloat(a.percentage)).filter(n => !isNaN(n));
+    const lessons = [...s.doneAt.values()].filter(within).length;
+    return { s, sat, marks, lessons };
+  });
+
+  const tbody = document.getElementById('week-rows');
+  const busy = rows.filter(r => r.sat.length || r.lessons);
+
+  if (!rows.length) {
+    tbody.innerHTML = emptyRow(4, 'Nobody is in this class yet.');
+    return;
+  }
+  if (!busy.length) {
+    tbody.innerHTML = emptyRow(4, 'Nothing was done in this week.');
+    return;
+  }
+
+  // Everybody in the class is listed, including the ones who did
+  // nothing: a sheet that quietly leaves them out is the sheet that
+  // stops anyone noticing.
+  tbody.innerHTML = rows.map(({ s, sat, marks, lessons }) => {
+    const avg = marks.length ? Math.round(marks.reduce((x, y) => x + y, 0) / marks.length) : null;
+    const titles = sat.map(a => {
+      const t = allTests.find(t => t.id === a.test_id);
+      const pct = Math.round(parseFloat(a.percentage) || 0);
+      return `<div class="small" style="margin-bottom:2px">${escHtml(t?.title || 'A test')}
+        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${pct}%</strong></div>`;
+    }).join('');
+
+    return `<tr>
+      <td><strong>${escHtml(s.full_name)}</strong></td>
+      <td>${titles || '<span class="small muted">Nothing this week</span>'}</td>
+      <td class="num">${avg == null ? '<span class="muted">—</span>' : `<span class="badge ${avg >= 50 ? 'b-green' : 'b-red'}">${avg}%</span>`}</td>
+      <td class="num small muted">${lessons || '—'}</td>
+    </tr>`;
+  }).join('');
 }
 
 function chevron() {
