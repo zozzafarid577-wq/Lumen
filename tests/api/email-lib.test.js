@@ -185,10 +185,34 @@ describe('an address on the blocklist', () => {
     const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
 
     expect(out).toEqual({ sent: true, unblocked: true });
-    // The transactional blocklist, not the Contacts list: nothing in
-    // Lumen ever creates a contact.
-    expect(calls[1]).toBe('DELETE https://api.brevo.com/v3/smtp/blockedContacts/sara%40example.com');
-    expect(calls).toHaveLength(3);
+    // Both lists, because Brevo refuses with the same sentence whichever
+    // one the address is on, and they are cleared in different places.
+    expect(calls).toContain('DELETE https://api.brevo.com/v3/smtp/blockedContacts/sara%40example.com');
+    expect(calls).toContain('PUT https://api.brevo.com/v3/contacts/sara%40example.com');
+    expect(calls).toHaveLength(4);
+
+    quiet.mockRestore(); hush.mockRestore();
+  });
+
+  it('clears the flag on a contact when that is what is blocking', async () => {
+    // The case that looks identical from outside and is cleared
+    // somewhere else: an address with no entry on the transactional
+    // list, but a contact carrying emailBlacklisted.
+    const seen = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      seen.push(init.method);
+      if (init.method === 'DELETE') return { ok: false, status: 404, json: async () => ({}) };
+      if (init.method === 'PUT') return { ok: true, json: async () => ({}) };
+      return seen.filter(m => m === 'POST').length === 1 ? blocked : fine;
+    }));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const hush = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    // A 404 from one list is not a failure: it says there was nothing
+    // of that kind to clear.
+    expect(out).toEqual({ sent: true, unblocked: true });
 
     quiet.mockRestore(); hush.mockRestore();
   });
@@ -205,7 +229,8 @@ describe('an address on the blocklist', () => {
     const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
 
     expect(out.sent).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(3);   // send, unblock, send
+    // send, clear both lists, send. And then stop.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(out.error).toMatch(/does not exist/i);
 
     quiet.mockRestore();

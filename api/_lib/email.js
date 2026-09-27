@@ -15,6 +15,10 @@ const BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
 // The transactional blocklist — not the Contacts list. Nothing in Lumen
 // ever creates a contact: every address is passed inline on the send.
 const BREVO_UNBLOCK_URL = 'https://api.brevo.com/v3/smtp/blockedContacts';
+// Only ever written to, and only to clear a flag on a contact that
+// already exists. A PUT to an address with no contact is a 404, which
+// creates nothing — Lumen still adds nobody to Contacts.
+const BREVO_CONTACTS_URL = 'https://api.brevo.com/v3/contacts';
 const TIMEOUT_MS = 8000;
 
 function key() { return (process.env.BREVO_API_KEY || '').trim(); }
@@ -115,21 +119,55 @@ async function post(payload) {
   }
 }
 
-// Take an address off the transactional blocklist. A 404 means it was
-// not on it, which is as good as having removed it.
+// Take an address off the blocklist — both of them.
+//
+// Brevo refuses a send with the same "blocked : due to blacklist user"
+// whichever of two lists the address is on, and they are cleared in
+// different places:
+//
+//   * the transactional blocklist, which is what a bounce or a spam
+//     report from a transactional message puts it on; and
+//   * the `emailBlacklisted` flag on a contact, if a contact for that
+//     address happens to exist — from an import, or a campaign, or an
+//     unsubscribe.
+//
+// Clearing only the first leaves an address that is still refused and
+// no clue as to why, so both are tried. Neither creates anything: a
+// 404 from either means there was nothing of that kind to clear, which
+// is as good as having cleared it.
 async function unblock(email) {
+  const [transactional, contact] = await Promise.all([
+    brevo('DELETE', `${BREVO_UNBLOCK_URL}/${encodeURIComponent(email)}`),
+    brevo('PUT', `${BREVO_CONTACTS_URL}/${encodeURIComponent(email)}`, { emailBlacklisted: false }),
+  ]);
+
+  // One of them having worked is enough; both 404ing means the address
+  // was on neither list, and whatever is refusing it is not a blocklist
+  // at all.
+  if (transactional.ok || contact.ok) return { ok: true };
+  return { ok: false, raw: transactional.raw || contact.raw };
+}
+
+// A call to Brevo that is allowed to find nothing. 404 is success here:
+// it says there is no such entry to clear.
+async function brevo(method, url, body) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    const resp = await fetch(`${BREVO_UNBLOCK_URL}/${encodeURIComponent(email)}`, {
-      method: 'DELETE',
+    const resp = await fetch(url, {
+      method,
       signal: ctl.signal,
-      headers: { 'api-key': key(), Accept: 'application/json' },
+      headers: {
+        'api-key': key(),
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
     });
-    if (resp.ok || resp.status === 404) return { ok: true };
+    if (resp.ok || resp.status === 404) return { ok: true, missing: resp.status === 404 };
 
-    const body = await resp.json().catch(() => ({}));
-    return { ok: false, raw: body?.message || `Brevo returned ${resp.status}` };
+    const out = await resp.json().catch(() => ({}));
+    return { ok: false, raw: out?.message || `Brevo returned ${resp.status}` };
   } catch (err) {
     return { ok: false, raw: String(err?.message || err) };
   } finally {
