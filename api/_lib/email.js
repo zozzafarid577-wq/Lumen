@@ -81,10 +81,36 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
 
   const second = await post(payload);
   if (second.sent) {
-    console.warn('Brevo: unblocked a blocked recipient and resent.');
-    return { sent: true, unblocked: true };
+    // Which of the two lists it came off, or neither. "Neither" is the
+    // interesting one: it means Brevo refused a send for an address
+    // that is on no list anybody can look at, and the retry happened
+    // to work anyway.
+    console.warn(freed.found
+      ? `Brevo: cleared ${freed.found} and resent to a blocked recipient.`
+      : 'Brevo: refused as blocked, but the address was on neither blocklist. Resent, and it went.');
+    return { sent: true, unblocked: true, found: freed.found };
+  }
+
+  // Refused twice, with nothing on either list to have caused it. That
+  // is not a recipient problem and no amount of unblocking will fix
+  // it, so say where to look instead of blaming the address.
+  if (!freed.found && isBlocked(second.raw)) {
+    return { sent: false, error: accountLevelBlock() };
   }
   return { sent: false, error: explain(second.raw) };
+}
+
+// Brevo says "blocked" for an address on neither of its blocklists when
+// the block is on the account rather than the recipient — an unverified
+// sender, a free account that has run out of its daily allowance, or a
+// sending domain that has been suspended. None of that is visible in
+// the blocklist, which is why an empty list and a blocked send look
+// like a contradiction.
+function accountLevelBlock() {
+  return 'Brevo refused this as blocked, but the address is on neither of its blocklists \u2014 '
+    + 'so the block is on the Lumen sending account, not on the recipient. '
+    + 'Check Brevo for a sender that needs verifying, a daily sending limit that has been reached, '
+    + 'or a notice on the account itself. The details can be handed over by WhatsApp in the meantime.';
 }
 
 const isBlocked = (raw) => /blacklist|blocked/i.test(String(raw || ''));
@@ -141,10 +167,16 @@ async function unblock(email) {
     brevo('PUT', `${BREVO_CONTACTS_URL}/${encodeURIComponent(email)}`, { emailBlacklisted: false }),
   ]);
 
-  // One of them having worked is enough; both 404ing means the address
-  // was on neither list, and whatever is refusing it is not a blocklist
-  // at all.
-  if (transactional.ok || contact.ok) return { ok: true };
+  // What was actually cleared, as opposed to what was merely asked.
+  // A 404 from both says the address was on neither list — so whatever
+  // is refusing it is not a blocklist at all, and saying "unblocked" in
+  // that case sends the next person looking in the wrong place.
+  const found = [
+    transactional.ok && !transactional.missing ? 'the transactional blocklist' : null,
+    contact.ok && !contact.missing ? 'a blacklisted contact' : null,
+  ].filter(Boolean).join(' and ');
+
+  if (transactional.ok || contact.ok) return { ok: true, found: found || null };
   return { ok: false, raw: transactional.raw || contact.raw };
 }
 

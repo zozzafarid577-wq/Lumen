@@ -184,7 +184,10 @@ describe('an address on the blocklist', () => {
 
     const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
 
-    expect(out).toEqual({ sent: true, unblocked: true });
+    // `found` names what was actually cleared, as opposed to what was
+    // asked: a 404 from a list is not an entry removed from it.
+    expect(out).toMatchObject({ sent: true, unblocked: true });
+    expect(out.found).toMatch(/transactional blocklist/);
     // Both lists, because Brevo refuses with the same sentence whichever
     // one the address is on, and they are cleared in different places.
     expect(calls).toContain('DELETE https://api.brevo.com/v3/smtp/blockedContacts/sara%40example.com');
@@ -211,10 +214,34 @@ describe('an address on the blocklist', () => {
     const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
 
     // A 404 from one list is not a failure: it says there was nothing
-    // of that kind to clear.
-    expect(out).toEqual({ sent: true, unblocked: true });
+    // of that kind to clear. What it must not do is claim to have
+    // cleared it.
+    expect(out).toMatchObject({ sent: true, unblocked: true });
+    expect(out.found).toBe('a blacklisted contact');
 
     quiet.mockRestore(); hush.mockRestore();
+  });
+
+  it('names an account-level block when the address is on no list', async () => {
+    // The contradiction a teacher actually meets: Brevo says "blocked"
+    // and the blocklist is empty. That is a block on the sending
+    // account — an unverified sender, a daily limit, a suspension —
+    // and no amount of unblocking a recipient will move it.
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      if (init.method !== 'POST') return { ok: false, status: 404, json: async () => ({}) };
+      return blocked;
+    }));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const out = await sendEmail({ to: 'sara@example.com', subject: 'Hi', html: '<p>Hi</p>' });
+
+    expect(out.sent).toBe(false);
+    expect(out.error).toMatch(/neither of its blocklists/i);
+    expect(out.error).toMatch(/sending account, not on the recipient/i);
+    // And it does not tell them to go looking at the recipient.
+    expect(out.error).not.toMatch(/does not exist/i);
+
+    quiet.mockRestore();
   });
 
   it('gives up after one retry rather than hammering a dead address', async () => {
