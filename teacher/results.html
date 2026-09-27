@@ -77,10 +77,14 @@
      buttons, and colours that survive a printer being asked not to
      print backgrounds. */
   @media print {
-    .sidebar, .sidebar-overlay, .topbar, .no-print { display: none !important; }
     .main { margin: 0 !important; }
     .content { padding: 0 !important; max-width: none !important; }
     .card { border: none !important; box-shadow: none !important; }
+    /* portal.css pins .printable to inset:0, which is right for a
+       result card that fits on one screen and wrong for a paper that
+       runs over several pages: pinned, everything past page one is
+       cropped away. */
+    .printable { position: static !important; }
     .paper-q { break-inside: avoid; page-break-inside: avoid; }
     .print-head { display: block !important; }
     body { background: #fff !important; }
@@ -155,7 +159,10 @@
     </div>
 
     <!-- ── ONE PAPER ──────────────────────────────────────────── -->
-    <div id="paper-view" style="display:none">
+    <!-- `printable` is not decoration: portal.css prints by hiding
+         everything and showing that class back, so a page without it
+         prints a blank sheet. -->
+    <div id="paper-view" class="printable" style="display:none">
       <!-- Shown only on paper: a printout with no name on it is no use
            to anybody a week later. -->
       <div class="print-head">
