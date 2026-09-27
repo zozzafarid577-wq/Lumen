@@ -2,7 +2,7 @@ import { admin } from './supabase.js';
 import { HttpError } from './auth.js';
 import { generatePassword, findUserByEmail } from './util.js';
 import { assertCanAddStudent } from './subscription.js';
-import { sendEmail, studentWelcome, loginUrlFor } from './email.js';
+import { sendEmail, accountReady, loginUrlFor } from './email.js';
 import { sendPasswordInvite } from './invite.js';
 
 // Creating a student account, from either direction: a teacher typing one
@@ -98,9 +98,12 @@ export async function createStudentAccount({
   // is the convenience, and a provider having a bad afternoon must not
   // leave a teacher with no way to let their student in.
   if (chosen) {
+    // Their own password goes back to them in writing, in both
+    // languages, because the one they just typed is the one they will
+    // have forgotten by the next session.
     const mail = await sendEmail({
       to: email, toName: fullName,
-      ...studentWelcome({ name: fullName, email, spaceName, loginUrl: loginUrlFor(req) }),
+      ...accountReady({ name: fullName, email, password, spaceName, loginUrl: loginUrlFor(req) }),
     });
     return { studentId, email, inviteUrl: null, emailSent: mail.sent, emailError: mail.error || null };
   }

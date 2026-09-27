@@ -117,7 +117,9 @@ describe('choosing the password', () => {
     const res = await call({ action: 'submit', token: TOKEN, password: 'a-good-password' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ email: 'sara@example.com' });
+    // The address, and whether the written copy of it reached them.
+    expect(res.body.email).toBe('sara@example.com');
+    expect(res.body).toHaveProperty('email_sent');
 
     const [set] = getSupabaseCalls('auth.admin.updateUserById');
     expect(set.payload).toEqual({ id: STUDENT.id, password: 'a-good-password' });

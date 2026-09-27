@@ -1,6 +1,7 @@
 import { admin } from './supabase.js';
 import { HttpError } from './auth.js';
 import { openPasswordInvite } from './invite.js';
+import { sendEmail, accountReady, siteUrlFor } from './email.js';
 
 // A student opening a set-up link has no password yet, which is what
 // they are here to fix. No signed-in caller, for the same reason as
@@ -27,12 +28,12 @@ import { openPasswordInvite } from './invite.js';
 //
 // Throws HttpError; api/join.js's handler wrapper turns those into
 // responses, as it does for everything else it runs.
-export async function runSetPassword(res, body) {
+export async function runSetPassword(res, body, req) {
   const action = body.action === 'submit' ? 'submit' : 'info';
   const { invite, student } = await openPasswordInvite(body.token);
 
   return action === 'submit'
-    ? submit(res, invite, student, body)
+    ? submit(res, invite, student, body, req)
     : info(res, student);
 }
 
@@ -49,7 +50,7 @@ async function info(res, student) {
 }
 
 // ── Choosing it ───────────────────────────────────────────────────
-async function submit(res, invite, student, body) {
+async function submit(res, invite, student, body, req) {
   const password = typeof body.password === 'string' ? body.password : '';
 
   // The same floor the portal's own change-password screen uses. Checked
@@ -70,7 +71,23 @@ async function submit(res, invite, student, body) {
   // The one thing this flow exists to make true.
   await admin.from('profiles').update({ must_change_pw: false }).eq('id', student.id);
 
+  // And a written copy of what they now sign in with, in both
+  // languages. Nothing can recover this password later — not the
+  // teacher, not us — so the moment it exists is the only moment there
+  // is to put it somewhere they can find it again.
+  const { data: space } = await admin
+    .from('teachers').select('display_name').eq('id', student.teacher_id).maybeSingle();
+
+  const mail = await sendEmail({
+    to: student.email, toName: student.full_name,
+    ...accountReady({
+      name: student.full_name, email: student.email, password,
+      spaceName: space?.display_name || null, loginUrl: siteUrlFor(req, '/login.html'),
+    }),
+  });
+
   // Handed back so the page can sign them in with what they just chose,
-  // rather than asking them to type it a third time.
-  return res.status(200).json({ email: student.email });
+  // rather than asking them to type it a third time, and can say
+  // whether the copy in writing actually went.
+  return res.status(200).json({ email: student.email, email_sent: mail.sent });
 }

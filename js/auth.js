@@ -212,8 +212,14 @@ async function guardPage(roles, { perm } = {}) {
   // cleanUrls redirects /teacher/settings.html to /teacher/settings, so
   // a check that insisted on the extension never matched the page it had
   // just sent the user to — and sent them again, and again.
-  if (profile.must_change_pw && profile.role !== 'owner' && !isPage('settings')) {
-    location.replace((profile.role === 'student' ? '/portal/' : '/teacher/') + 'settings.html?first=1');
+  // Somebody who has never chosen a password gets one screen that asks
+  // for one, rather than the settings page with a warning on it among
+  // everything else settings does. Settings is still allowed through:
+  // it is where somebody who wants to change a password they already
+  // chose goes.
+  if (profile.must_change_pw && profile.role !== 'owner'
+      && !isPage('set-password') && !isPage('settings')) {
+    location.replace('/set-password.html');
     return null;
   }
 
@@ -520,8 +526,11 @@ async function handlePostLogin(next) {
   if (!profile) { location.replace('/login.html'); return; }
   try { localStorage.setItem('lumen_role', profile.role); } catch (_) {}
 
+  // Straight from signing in to the one thing they have not done. No
+  // token needed: they are signed in, which is proof enough that the
+  // account is theirs.
   if (profile.must_change_pw && profile.role !== 'owner') {
-    location.replace((profile.role === 'student' ? '/portal/' : '/teacher/') + 'settings.html?first=1');
+    location.replace('/set-password.html');
     return;
   }
   // Honour ?next= only when it is a path on this site. An absolute URL

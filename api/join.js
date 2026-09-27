@@ -39,7 +39,7 @@ export default handler(async (req, res) => {
   // thirteenth file fails the deployment outright, while the last good
   // one carries on serving, so the site looks fine and simply stops
   // changing.
-  if (body.flow === 'set-password') return runSetPassword(res, body);
+  if (body.flow === 'set-password') return runSetPassword(res, body, req);
 
   const action = body.action === 'submit' ? 'submit' : 'info';
   const invite = await openInvite(body.token);

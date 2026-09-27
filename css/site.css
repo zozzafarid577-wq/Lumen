@@ -331,6 +331,31 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 .auth-foot { margin-top: 26px; font-size: .86rem; text-align: center; }
 .auth-foot a { color: var(--primary); font-weight: 600; }
 
+/* ── WHAT YOU SIGN IN WITH ───────────────────────────────────────
+   Shown once, to a student who has just chosen a password, on their
+   own screen. Big on purpose: the alternative to reading this is a
+   message to their teacher in a fortnight, and nothing can recover a
+   password once it is set — so this is the only moment it can be
+   written down. */
+.creds {
+  background: var(--cream, #FBF7F9); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 20px;
+}
+.creds-l {
+  font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px;
+}
+.creds-v {
+  font-size: 1.05rem; font-weight: 700; color: var(--ink, #1B1519);
+  font-family: ui-monospace, Menlo, monospace; word-break: break-all; line-height: 1.4;
+}
+/* The one they will mistype. Bigger, spaced, and selectable in one
+   tap rather than one careful drag. */
+.creds-pw {
+  font-size: 1.5rem; letter-spacing: .04em; color: var(--primary);
+  user-select: all; -webkit-user-select: all;
+}
+
 /* ── THE WALKTHROUGH ─────────────────────────────────────────────
    The onboarding video, playing in the panel beside the sign-in form
    rather than over it. A 16:9 box held open by padding rather than by

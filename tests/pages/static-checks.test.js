@@ -365,15 +365,18 @@ describe('links a teacher hands to somebody else', () => {
   });
 
   it('never puts a student password in a message a teacher sends', () => {
-    // Students are sent a link and choose their own password. A page that
-    // starts writing "Password: …" into a WhatsApp message again has put
-    // back the thing this flow exists to remove.
-    for (const rel of ['teacher/students.html', 'join.html']) {
-      const html = PAGES.find(p => p.rel === rel)?.html;
-      expect(html, `${rel} not found`).toBeTruthy();
-      expect(html, `${rel} is handing over a password again`)
-        .not.toMatch(/Password: \$\{/);
-    }
+    // A teacher hands over a link, never a password: they have none to
+    // hand over, and a page that starts writing "Password: …" into a
+    // WhatsApp message has put back the thing this flow removed.
+    //
+    // Only the teacher's page. A student copying their own password off
+    // their own screen, seconds after typing it, is the opposite thing
+    // — it is the written record they were asked to keep — and
+    // join.html and set-password.html both do exactly that on purpose.
+    const html = PAGES.find(p => p.rel === 'teacher/students.html')?.html;
+    expect(html, 'teacher/students.html not found').toBeTruthy();
+    expect(html, 'the teacher page is handing over a password again')
+      .not.toMatch(/Password: \$\{/);
   });
 
   it('hands over the set-up link the server built, not one of its own', () => {

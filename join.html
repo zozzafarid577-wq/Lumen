@@ -118,16 +118,32 @@
            nothing here for them to write down — which is the point of
            having asked them for it rather than issuing one. -->
       <div id="done" style="display:none">
-        <h1>You're in</h1>
+        <h1>You're in · تم تسجيلك</h1>
         <p class="lead" id="done-text"></p>
-        <div class="form-msg ok" style="display:block">
-          Sign in with <strong id="done-email" style="word-break:break-all"></strong>
-          and the password you just chose.
+
+        <p class="lead" style="margin-bottom:18px">
+          Write these down before you close this page.<br>
+          <span dir="rtl" style="display:block;margin-top:4px">احتفظ بهذه البيانات قبل إغلاق الصفحة.</span>
+        </p>
+
+        <div class="creds">
+          <div class="creds-l">Your email · بريدك الإلكتروني</div>
+          <div class="creds-v" id="done-email">—</div>
+          <div class="creds-l" style="margin-top:16px">Your password · كلمة المرور</div>
+          <div class="creds-v creds-pw" id="done-pw">—</div>
         </div>
-        <a class="btn btn-primary btn-block btn-lg" href="/login.html" style="margin-top:16px">Sign in now</a>
+
+        <button type="button" class="btn btn-outline btn-block" id="copy-creds" onclick="copyCreds()" style="margin-top:14px">
+          Copy my details · نسخ البيانات
+        </button>
+        <a class="btn btn-primary btn-block btn-lg" href="/login.html" style="margin-top:10px">
+          Sign in now · تسجيل الدخول
+        </a>
+
         <p class="small muted" id="done-mail" style="margin-top:14px"></p>
-        <p class="auth-foot" style="margin-top:18px;color:var(--muted)">
-          Forgotten it already? Ask your teacher and they will send you a link to choose a new one.
+        <p class="auth-foot" style="margin-top:10px;color:var(--muted);font-size:.82rem">
+          Forget it and nobody can look it up — your teacher sends you a new link instead.<br>
+          <span dir="rtl" style="display:block;margin-top:4px">إذا نسيتها فلا يمكن لأحد استرجاعها — اطلب من مدرّسك رابطًا جديدًا.</span>
         </p>
       </div>
 
@@ -222,9 +238,13 @@ el('join-form').addEventListener('submit', async e => {
       ? `You have an account with ${out.space_name}${out.course_title ? ` for ${out.course_title}` : ''}.`
       : 'Your account is ready.';
     el('done-email').textContent = out.email || payload.email.trim();
-    el('done-mail').textContent = out.email_sent
-      ? 'We have emailed you a copy of this as well.'
-      : '';
+    // The password they typed a moment ago, back on screen: they are
+    // about to close this tab, and nothing can recover it afterwards.
+    el('done-pw').textContent = payload.password;
+    chosen = { email: out.email || payload.email.trim(), password: payload.password };
+    el('done-mail').innerHTML = out.email_sent
+    ? 'We have emailed you a copy as well.<span dir="rtl" style="display:block">أرسلنا نسخة إلى بريدك أيضًا.</span>'
+    : 'We could not email you a copy, so keep the above safe.<span dir="rtl" style="display:block">لم نتمكن من إرسال نسخة بريدية، فاحتفظ بها.</span>';
     show('done');
   } catch (err) {
     // 409 is "you are already here" — a finished state, not a failed
@@ -236,6 +256,35 @@ el('join-form').addEventListener('submit', async e => {
     say('err', err.message);
   }
 });
+
+// Some of them will rather tap than copy 20 characters by eye.
+// execCommand is the fallback because clipboard.writeText needs a
+// permission some in-app browsers — the ones a WhatsApp link opens in
+// — refuse.
+let chosen = null;
+async function copyCreds() {
+  if (!chosen) return;
+  const text = `Lumen: ${siteOrigin()}/login.html\nEmail: ${chosen.email}\nPassword: ${chosen.password}`;
+  const btn = el('copy-creds');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.style.position = 'fixed';
+    box.style.opacity = '0';
+    document.body.appendChild(box);
+    box.select();
+    try { document.execCommand('copy'); } catch (__) {
+      document.body.removeChild(box);
+      btn.textContent = 'Press and hold the password to copy it';
+      return;
+    }
+    document.body.removeChild(box);
+  }
+  btn.textContent = 'Copied \u00b7 \u062a\u0645 \u0627\u0644\u0646\u0633\u062e';
+  setTimeout(() => { btn.textContent = 'Copy my details \u00b7 \u0646\u0633\u062e \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a'; }, 2500);
+}
 
 // Typing a password you cannot see, on a phone, is how a student ends
 // up locked out of an account they made thirty seconds ago.

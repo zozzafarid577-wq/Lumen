@@ -126,7 +126,25 @@ const MUTED = '#8B8089';
 const LINE = '#EDDDE6';
 const FONT = '-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif';
 
-function layout({ heading, intro, rows = [], highlight, bullets = [], note, loginUrl, cta = 'Sign in to Lumen' }) {
+function layout({ heading, intro, rows = [], highlight, bullets = [], note, loginUrl, cta = 'Sign in to Lumen', arabic = null }) {
+  // The same message again, in Arabic, under a rule. Two rules it has to
+  // follow to arrive readable: dir="rtl" on the block, because Arabic
+  // punctuation lands on the wrong side of a sentence without it, and
+  // text-align:right, because several clients ignore dir on a <td> and
+  // honour the alignment.
+  //
+  // The credentials are not repeated — an address and a password read
+  // the same in both languages, and a second copy of them is one more
+  // thing to mistype. Their labels carry both languages instead.
+  const rtl = arabic ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" style="margin:24px 0 0;padding-top:22px;border-top:1px solid ${LINE}">
+            <tr><td style="text-align:right;direction:rtl">
+              <h2 style="margin:0 0 10px;font-size:19px;line-height:1.4;color:${INK}">${arabic.heading}</h2>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.8;color:${INK_2}">${arabic.intro}</p>
+              ${arabic.note ? `<p style="margin:0;font-size:13px;line-height:1.8;color:${MUTED}">${arabic.note}</p>` : ''}
+            </td></tr>
+          </table>` : '';
+
   // The first row needs no rule above it; the rest are separated by one.
   const line = ([label, value], i) => {
     const rule = i ? `border-top:1px solid ${LINE};` : '';
@@ -189,6 +207,7 @@ ${detail}${chip}${list}
           </table>
 
           <p style="margin:0;padding-top:18px;border-top:1px solid ${LINE};font-size:13px;line-height:1.6;color:${MUTED}">${note}</p>
+${rtl}
         </td></tr>
       </table>
       <p style="max-width:520px;margin:18px auto 0;font-size:12px;color:${MUTED};font-family:${FONT};text-align:center">
@@ -233,29 +252,59 @@ export function studentInvite({ name, email, spaceName, setupUrl, days = 14, kin
       note: `This link works once, and for ${days} days. After that, or if you have already used it, ask your teacher to send you another.`,
       loginUrl: setupUrl,
       cta: welcome ? 'Choose my password' : 'Choose a new password',
+      arabic: {
+        heading: welcome
+          ? '\u0645\u0631\u062d\u0628\u064b\u0627 \u0628\u0643 \u0641\u064a Lumen'
+          : '\u0627\u062e\u062a\u0631 \u0643\u0644\u0645\u0629 \u0645\u0631\u0648\u0631 \u062c\u062f\u064a\u062f\u0629',
+        intro: welcome
+          ? '\u0623\u0646\u0634\u0623 \u0644\u0643 \u0645\u062f\u0631\u0651\u0633\u0643 \u062d\u0633\u0627\u0628\u064b\u0627. \u0627\u0636\u063a\u0637 \u0639\u0644\u0649 \u0627\u0644\u0632\u0631 \u0628\u0627\u0644\u0623\u0639\u0644\u0649 \u0648\u0627\u062e\u062a\u0631 \u0643\u0644\u0645\u0629 \u0645\u0631\u0648\u0631 \u062e\u0627\u0635\u0629 \u0628\u0643 \u2014 \u0623\u0646\u062a \u0648\u062d\u062f\u0643 \u0645\u0646 \u064a\u0639\u0631\u0641\u0647\u0627\u060c \u0648\u0644\u0627 \u064a\u0631\u0627\u0647\u0627 \u0623\u062d\u062f \u063a\u064a\u0631\u0643.'
+          : '\u0623\u0631\u0633\u0644 \u0644\u0643 \u0645\u062f\u0631\u0651\u0633\u0643 \u0631\u0627\u0628\u0637\u064b\u0627 \u062c\u062f\u064a\u062f\u064b\u0627. \u0627\u0636\u063a\u0637 \u0639\u0644\u0649 \u0627\u0644\u0632\u0631 \u0628\u0627\u0644\u0623\u0639\u0644\u0649 \u0648\u0627\u062e\u062a\u0631 \u0643\u0644\u0645\u0629 \u0645\u0631\u0648\u0631 \u062c\u062f\u064a\u062f\u0629. \u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631 \u0627\u0644\u0642\u062f\u064a\u0645\u0629 \u0644\u0645 \u062a\u0639\u062f \u062a\u0639\u0645\u0644.',
+        note: `\u064a\u0639\u0645\u0644 \u0647\u0630\u0627 \u0627\u0644\u0631\u0627\u0628\u0637 \u0645\u0631\u0629 \u0648\u0627\u062d\u062f\u0629 \u0641\u0642\u0637\u060c \u0648\u0644\u0645\u062f\u0629 ${days} \u064a\u0648\u0645\u064b\u0627. `
+          + '\u0628\u0639\u062f \u0630\u0644\u0643 \u0627\u0637\u0644\u0628 \u0645\u0646 \u0645\u062f\u0631\u0651\u0633\u0643 \u0625\u0631\u0633\u0627\u0644 \u0631\u0627\u0628\u0637 \u062c\u062f\u064a\u062f.',
+      },
     }),
   };
 }
 
-// For a student who registered themselves and chose their password on
-// the way in. Nothing needs setting up, so this only says where the
-// door is and what is behind it.
-export function studentWelcome({ name, email, spaceName, loginUrl }) {
+// Sent the moment a student has a working account and a password they
+// chose — from registering through a batch link, or from opening a
+// set-up link. One template for both, because from the student's side
+// it is the same event: they are in, and these are the two things they
+// have to keep.
+//
+// It carries the password back. That is a deliberate trade, not an
+// oversight: the address it goes to is the one that can already reset
+// this account through "forgotten password", so it widens nothing —
+// and a student who cannot find their password is a message to their
+// teacher and a lesson spent on it. What it costs is a plaintext
+// password sitting in an inbox, which is why it also says not to pass
+// it on. Drop `highlight` here and the email keeps working without it.
+//
+// In both languages, because half these students read the Arabic and
+// skip the English, and the ones who need this most are the ones least
+// likely to puzzle it out.
+export function accountReady({ name, email, password, spaceName, loginUrl }) {
+  const where = spaceName ? ` on <strong>${esc(spaceName)}</strong>` : '';
+
   return {
-    subject: `Your ${spaceName || 'Lumen'} account is ready 🎉`,
+    subject: `Your ${spaceName || 'Lumen'} sign-in details 🎉 — بيانات الدخول`,
     html: layout({
-      heading: `Welcome${name ? ', ' + firstName(name) : ''}!`,
-      intro: `You are registered${spaceName ? ` on <strong>${esc(spaceName)}</strong>` : ''}, and your account is ready. Sign in with the email below and the password you chose.`,
-      rows: [['Your email', email]],
-      bullets: [
-        '<strong>Recordings and materials</strong> for every lesson, kept for the whole term',
-        '<strong>Tests</strong> that give you your score the moment you finish',
-        '<strong>Homework</strong> to hand in, and the feedback that comes back',
-        '<strong>Your progress</strong>, so you always know where you stand',
-      ],
-      note: 'Forgotten your password already? Ask your teacher and they will send you a link to choose a new one.',
+      heading: `You're in${name ? ', ' + firstName(name) : ''}!`,
+      intro: `Your account${where} is ready. These are the two things you sign in with — <strong>write them down somewhere you will find them again.</strong>`,
+      rows: [['Your email · بريدك الإلكتروني', email]],
+      highlight: password ? ['Your password · كلمة المرور', password] : null,
+      note: 'Keep this to yourself — anybody with these can open your account. '
+        + 'If you forget your password, ask your teacher to send you a new link: nobody can look it up for you.',
       loginUrl,
-      cta: 'Sign in and take a look',
+      cta: 'Sign in',
+      arabic: {
+        heading: 'تم تفعيل حسابك!',
+        intro: 'حسابك جاهز الآن. البيانات الموجودة بالأعلى هي ما ستستخدمه لتسجيل الدخول في كل مرة — '
+          + '<strong>احتفظ بها في مكان آمن ولا تنساها.</strong>',
+        note: 'لا تشارك هذه البيانات مع أحد. '
+          + 'إذا نسيت كلمة المرور، اطلب من مدرّسك إرسال رابط جديد، '
+          + 'فلا يستطيع أحد استرجاعها نيابة عنك.',
+      },
     }),
   };
 }

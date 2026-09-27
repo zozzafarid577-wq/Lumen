@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { emailStatus, sendEmail, explain, studentWelcome, studentInvite, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
+import { emailStatus, sendEmail, explain, accountReady, studentInvite, teacherWelcome, signInEmailChanged, loginUrlFor } from '../../api/_lib/email.js';
 
 const ORIGINAL = { ...process.env };
 
@@ -88,7 +88,7 @@ describe('templates', () => {
   const args = { name: 'Sara Ahmed', email: 'sara@example.com', password: 'Abc!2345', spaceName: 'Advanced Biology', loginUrl: 'https://lumen.test/login.html' };
 
   it('carry the address and the link, whatever they are for', () => {
-    for (const build of [studentWelcome, teacherWelcome]) {
+    for (const build of [accountReady, teacherWelcome]) {
       const { subject, html } = build(args);
       expect(subject.length).toBeGreaterThan(5);
       expect(html).toContain('sara@example.com');
@@ -99,15 +99,15 @@ describe('templates', () => {
   });
 
   it('escape what goes into them', () => {
-    const { html } = studentWelcome({ ...args, spaceName: '<script>alert(1)</script>' });
+    const { html } = accountReady({ ...args, spaceName: '<script>alert(1)</script>' });
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
   });
 
   it('name the teacher’s space, not the product', () => {
-    expect(studentWelcome(args).subject).toContain('Advanced Biology');
+    expect(accountReady(args).subject).toContain('Advanced Biology');
     // With no space name it still has to read as a sentence.
-    expect(studentWelcome({ ...args, spaceName: null }).subject).toContain('Lumen');
+    expect(accountReady({ ...args, spaceName: null }).subject).toContain('Lumen');
   });
 
   it('invite a student with a link and no password at all', () => {
@@ -138,7 +138,7 @@ describe('templates', () => {
     // A gradient no client is obliged to honour, over a background colour
     // every client does: the band must never render as a white gap.
     for (const html of [
-      studentWelcome(args).html,
+      accountReady(args).html,
       studentInvite({ ...args, setupUrl: 'https://lumen.test/setup/AbC123' }).html,
     ]) {
       expect(html).toMatch(/bgcolor="#A2509F"/);
