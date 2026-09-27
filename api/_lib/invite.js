@@ -53,15 +53,39 @@ export async function issuePasswordInvite({ studentId, teacherId, createdBy = nu
 export async function sendPasswordInvite({ student, teacherId, createdBy = null, spaceName = null, req, kind = 'welcome' }) {
   const invite = await issuePasswordInvite({ studentId: student.id, teacherId, createdBy, req });
 
-  const mail = await sendEmail({
-    to: student.email, toName: student.full_name,
-    ...studentInvite({
-      name: student.full_name, email: student.email,
-      spaceName, setupUrl: invite.url, days: INVITE_DAYS, kind,
-    }),
+  const message = studentInvite({
+    name: student.full_name, email: student.email,
+    spaceName, setupUrl: invite.url, days: INVITE_DAYS, kind,
   });
 
-  return { ...invite, emailSent: mail.sent, emailError: mail.error || null };
+  const mail = await sendEmail({ to: student.email, toName: student.full_name, ...message });
+  if (mail.sent) return { ...invite, emailSent: true, sentTo: student.email, emailError: null };
+
+  // The student's address did not take it, so try their parent's.
+  //
+  // A student who mistyped their own address, or whose mailbox is full,
+  // or whose provider is refusing today, is otherwise a student who
+  // cannot get in and does not know why. The parent's address is on the
+  // account because a teacher is required to collect it, and a set-up
+  // link reaching a parent is how half of these get opened anyway.
+  //
+  // The link is the same one either way. It is theirs, it works once,
+  // and whoever opens it is choosing a password for that student —
+  // which is exactly what a parent does at this age.
+  const parent = (student.parent_email || '').trim();
+  const same = parent.toLowerCase() === (student.email || '').trim().toLowerCase();
+
+  if (parent && !same) {
+    const second = await sendEmail({ to: parent, ...message });
+    if (second.sent) {
+      return { ...invite, emailSent: true, sentTo: parent, viaParent: true, emailError: null };
+    }
+    // Both refused. The first refusal is the useful one to report: it is
+    // about the address this was meant for.
+    return { ...invite, emailSent: false, sentTo: null, emailError: mail.error || second.error };
+  }
+
+  return { ...invite, emailSent: false, sentTo: null, emailError: mail.error || null };
 }
 
 // The other half: what the public page does with the token it was

@@ -109,7 +109,7 @@ export async function createStudentAccount({
   }
 
   const invite = await sendPasswordInvite({
-    student: { id: studentId, email, full_name: fullName },
+    student: { id: studentId, email, full_name: fullName, parent_email: parentEmail },
     teacherId, createdBy, spaceName, req, kind: 'welcome',
   });
 

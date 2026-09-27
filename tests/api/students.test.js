@@ -348,6 +348,55 @@ describe('acting on an existing student', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
+    it('tries the parent when the student\u2019s own address refuses it', async () => {
+      // A student who mistyped their address, or whose mailbox is full,
+      // is otherwise a student who cannot get in and does not know why.
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': {
+        ...waiting, email: 'typo@example.com', parent_email: 'mum@example.com',
+      } } });
+      process.env.BREVO_API_KEY = 'xkeysib-test';
+      process.env.BREVO_SENDER_EMAIL = 'hello@example.com';
+
+      const sentTo = [];
+      vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+        if (init.method !== 'POST') return { ok: true, json: async () => ({}) };
+        const to = JSON.parse(init.body).to[0].email;
+        sentTo.push(to);
+        return to === 'typo@example.com'
+          ? { ok: false, status: 400, json: async () => ({ message: 'invalid recipient email' }) }
+          : { ok: true, json: async () => ({ messageId: '1' }) };
+      }));
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await call({ action: 'send_invite', student_id: 'stu-1' });
+
+      expect(res.body.sent).toBe(1);
+      expect(res.body.via_parent).toBe(1);
+      expect(sentTo).toEqual(['typo@example.com', 'mum@example.com']);
+
+      quiet.mockRestore();
+    });
+
+    it('does not send the same link twice when both addresses match', async () => {
+      asUser(TEACHER_USER, { extraProfiles: { 'stu-1': {
+        ...waiting, email: 'same@example.com', parent_email: 'SAME@example.com',
+      } } });
+      process.env.BREVO_API_KEY = 'xkeysib-test';
+      process.env.BREVO_SENDER_EMAIL = 'hello@example.com';
+      const fetchMock = vi.fn(async (url, init) => init.method !== 'POST'
+        ? { ok: true, json: async () => ({}) }
+        : { ok: false, status: 400, json: async () => ({ message: 'invalid recipient email' }) });
+      vi.stubGlobal('fetch', fetchMock);
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await call({ action: 'send_invite', student_id: 'stu-1' });
+
+      expect(res.body.sent).toBe(0);
+      expect(fetchMock.mock.calls.filter(c => c[1].method === 'POST')).toHaveLength(1);
+
+      quiet.mockRestore();
+    });
+
     it('reports a mail provider that refuses, rather than claiming a send', async () => {
       asUser(TEACHER_USER, { extraProfiles: { 'stu-1': waiting } });
       process.env.BREVO_API_KEY = 'xkeysib-test';

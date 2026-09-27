@@ -1587,9 +1587,15 @@ async function remindAll() {
 function reportReminders(data, oneName) {
   const skipped = data.skipped || [];
   if (data.sent) {
-    showToast(oneName && data.sent === 1
+    // Worth saying when it reached a parent instead: the student is
+    // waiting on a link that went to somebody else's inbox.
+    const parent = data.via_parent
+      ? ` ${data.via_parent === data.sent ? 'Their own address refused it, so it went to the parent.' : `${data.via_parent} went to a parent instead.`}`
+      : '';
+    showToast((oneName && data.sent === 1
       ? `Link emailed to ${oneName}.`
-      : `Link emailed to ${data.sent} student${data.sent === 1 ? '' : 's'}.`, 'success');
+      : `Link emailed to ${data.sent} student${data.sent === 1 ? '' : 's'}.`) + parent,
+      'success');
   }
   if (skipped.length) {
     showToast(skipped.length === 1

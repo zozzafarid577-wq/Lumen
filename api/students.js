@@ -200,6 +200,7 @@ async function resetPassword(res, actor, teacherId, body, req) {
   return res.status(200).json({
     email: student.email, invite_url: invite.url, expires_at: invite.expiresAt,
     email_sent: invite.emailSent, email_error: invite.emailError,
+    sent_to: invite.sentTo || null, via_parent: !!invite.viaParent,
   });
 }
 
@@ -233,6 +234,8 @@ async function remindPassword(res, actor, teacherId, body, req) {
   // Only meaningful when one student was named, where it is the link the
   // teacher will hand over themselves.
   let lastUrl = null;
+  // Whose inbox it reached, when it was not the student's own.
+  const viaParent = [];
 
   for (const id of ids) {
     let student;
@@ -261,8 +264,12 @@ async function remindPassword(res, actor, teacherId, body, req) {
     });
     lastUrl = invite.url;
 
-    if (invite.emailSent) sent.push(student.full_name);
-    else skipped.push({ name: student.full_name, why: invite.emailError || 'the email could not be sent' });
+    if (invite.emailSent) {
+      sent.push(student.full_name);
+      if (invite.viaParent) viaParent.push(student.full_name);
+    } else {
+      skipped.push({ name: student.full_name, why: invite.emailError || 'the email could not be sent' });
+    }
   }
 
   if (sent.length) {
@@ -272,6 +279,7 @@ async function remindPassword(res, actor, teacherId, body, req) {
 
   return res.status(200).json({
     sent: sent.length, skipped,
+    via_parent: viaParent.length,
     invite_url: bulk ? null : lastUrl,
   });
 }
