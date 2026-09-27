@@ -164,6 +164,32 @@ describe('templates', () => {
   });
 });
 
+describe('where a reply goes', () => {
+  it('sets reply-to from the environment', async () => {
+    // Mail has to be sent from a domain the sender owns, which usually
+    // means no-reply@ — but a parent answering a progress report is
+    // replying to a person.
+    process.env.BREVO_REPLY_TO = 'teacher@example.com';
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await sendEmail({ to: 'a@b.com', subject: 'Hi', html: 'x' });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.replyTo).toEqual({ email: 'teacher@example.com' });
+    delete process.env.BREVO_REPLY_TO;
+  });
+
+  it('leaves it off when nothing is configured', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await sendEmail({ to: 'a@b.com', subject: 'Hi', html: 'x' });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).replyTo).toBeUndefined();
+  });
+});
+
 describe('an address on the blocklist', () => {
   // Brevo refuses everything to a blocklisted address, including the
   // link a student is waiting on, and it gets there by bouncing once or

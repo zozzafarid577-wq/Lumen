@@ -29,6 +29,18 @@ function sender() {
   return email ? { email, name } : null;
 }
 
+// Where a reply goes, when the address mail is sent FROM is not one
+// anybody reads.
+//
+// Mail has to be sent from a domain the sender owns or receivers refuse
+// it — which usually means no-reply@… — but a parent answering a
+// progress report, or a student answering a set-up link, is replying to
+// a person. BREVO_REPLY_TO is that person's address.
+function replyAddress(explicit) {
+  const to = (explicit || process.env.BREVO_REPLY_TO || '').trim();
+  return to ? { email: to } : undefined;
+}
+
 // Brevo refuses anything from an address that has not been verified in
 // the dashboard, so a missing sender is a configuration problem worth
 // naming rather than a silent no-op.
@@ -46,7 +58,7 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
   const payload = {
     sender: sender(),
     to: [{ email: to, name: toName || undefined }],
-    replyTo: replyTo ? { email: replyTo } : undefined,
+    replyTo: replyAddress(replyTo),
     subject,
     htmlContent: html,
   };

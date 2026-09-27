@@ -7,9 +7,34 @@
 // It reports only whether each variable is SET, never what it contains —
 // a public endpoint must not become a way to read the service-role key.
 const REQUIRED = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
-const OPTIONAL = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'PUBLIC_URL'];
+const OPTIONAL = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'BREVO_REPLY_TO', 'PUBLIC_URL'];
 
 const isSet = (name) => Boolean((process.env[name] || '').trim());
+
+// Sending as gmail.com, yahoo.com or the like through anybody else is
+// the commonest reason a transactional email never arrives, and it
+// fails in a way that looks like something else entirely.
+//
+// Gmail refuses a message claiming to come from @gmail.com that Google
+// did not send. Brevo records that refusal as a bounce, a bounce puts
+// the recipient on Brevo's blocklist, and the NEXT send is refused with
+// "blocked : due to blacklist user" — a message about the recipient,
+// for a problem with the sender. Clearing the blocklist only starts the
+// loop again.
+//
+// The fix is a domain you own, authenticated with the provider. Named
+// here because this endpoint is where somebody looks when mail is not
+// arriving.
+const FREE_MAIL = /@(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|aol)\./i;
+
+function senderWarning() {
+  const from = (process.env.BREVO_SENDER_EMAIL || '').trim();
+  if (!from || !FREE_MAIL.test(from)) return null;
+  return `Mail is sent as ${from}, which is a free mailbox rather than a domain you own. `
+    + 'Receivers reject or filter that, the rejection is recorded as a bounce, and the bounce '
+    + 'blocklists the recipient — so the next send is refused as "blacklist user". '
+    + 'Authenticate your own domain with the mail provider and send as an address on it.';
+}
 
 export default function handler(req, res) {
   const missing = REQUIRED.filter(n => !isSet(n));
@@ -21,11 +46,16 @@ export default function handler(req, res) {
   // spot a deployment pointed at the wrong database.
   const url = (process.env.SUPABASE_URL || '').trim();
 
+  const warn = senderWarning();
+
   return res.status(missing.length ? 503 : 200).json({
     ok: missing.length === 0,
     node: process.version,
     supabase_url: url || null,
     email_ready: isSet('BREVO_API_KEY') && isSet('BREVO_SENDER_EMAIL'),
+    // Named, not hidden: this is the one setting that makes mail vanish
+    // while every other check says the deployment is fine.
+    email_warning: warn,
     env,
     missing,
     hint: missing.length
