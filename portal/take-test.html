@@ -165,6 +165,16 @@ function chosenFor(qid) {
   return Array.isArray(given) ? given : [given];
 }
 
+// All of them and none of the others. No part marks: on a two-from-five
+// question they would let a student tick all five and still score,
+// which is not knowing the answer. The mark and the review both ask
+// this, so a question cannot score and still be listed as wrong.
+function gotRight(q) {
+  const chosen = chosenFor(q.id);
+  const right = rightAnswers(q);
+  return chosen.length === right.length && right.every(j => chosen.includes(j));
+}
+
 function renderQuestions() {
   document.getElementById('wrap').innerHTML = questions.map((q, i) => {
     const multi = isMulti(q);
@@ -238,12 +248,7 @@ async function submitTest(auto = false) {
   questions.forEach(q => {
     const points = q.points || 1;
     maxScore += points;
-    const chosen = chosenFor(q.id);
-    const right = rightAnswers(q);
-    // All of them and none of the others. No part marks: on a two-from-five
-    // question they would let a student tick all five and still score,
-    // which is not knowing the answer.
-    if (chosen.length === right.length && right.every(j => chosen.includes(j))) score += points;
+    if (gotRight(q)) score += points;
   });
   const percentage = maxScore ? Math.round((score / maxScore) * 10000) / 100 : 0;
   const passed = percentage >= test.passing_score_pct;
@@ -319,11 +324,26 @@ function showResult(row, outcome) {
       </div>
     </div>
 
-    <div class="section-head"><div><h2>Review</h2><div class="sub">What you put, and what was right</div></div></div>
-    ${questions.map((q, i) => reviewBlock(q, i)).join('')}`;
+    ${reviewSection()}`;
 
   document.getElementById('leave-btn').textContent = 'Done';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Only what went wrong. A student who got forty-six of fifty has four
+// things to look at, and scrolling past the forty-six to find them is
+// how the four get skipped. A blank counts as wrong: it scored zero and
+// they still need the answer. Each keeps the number it had in the test,
+// so "question 31" means the same thing here as it did to the teacher.
+function reviewSection() {
+  const missed = questions.map((q, i) => ({ q, i })).filter(({ q }) => !gotRight(q));
+  if (!missed.length) {
+    return `<div class="card"><div class="card-body">${emptyState('Nothing to go over',
+      `You got all ${questions.length} question${questions.length === 1 ? '' : 's'} right.`)}</div></div>`;
+  }
+  return `
+    <div class="section-head"><div><h2>What you got wrong</h2><div class="sub">${missed.length} of ${questions.length} question${questions.length === 1 ? '' : 's'} — what you put, and what was right</div></div></div>
+    ${missed.map(({ q, i }) => reviewBlock(q, i)).join('')}`;
 }
 
 function reviewBlock(q, i) {
