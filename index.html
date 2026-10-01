@@ -43,11 +43,15 @@
     for (var i = 0; i < localStorage.length; i++) {
       if (/^sb-.+-auth-token$/.test(localStorage.key(i))) { signedIn = true; break; }
     }
-    if (!signedIn) return;
+    // The server keeps a copy of the sign-in too (api/_lib/session.js), and
+    // says so in this cookie — still there after Safari has wiped
+    // localStorage, which is exactly when it matters.
+    var kept = (document.cookie.match(/(?:^|;\s*)lumen_in=([a-z]+)/) || [])[1];
+    if (!signedIn && !kept) return;
     var home = { student: '/portal/courses.html', teacher: '/teacher/', assistant: '/teacher/', owner: '/admin/' };
     // No remembered role: the sign-in page works out where they belong
     // and forwards them without asking for anything.
-    location.replace(home[localStorage.getItem('lumen_role')] || '/login.html');
+    location.replace(home[localStorage.getItem('lumen_role')] || home[kept] || '/login.html');
   } catch (e) { /* storage blocked: show the public page as before */ }
 })();
 </script>

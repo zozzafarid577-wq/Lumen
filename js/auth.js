@@ -95,7 +95,81 @@ function homeFor(role) { return HOME_FOR[role] || '/login.html'; }
 
 async function getSession() {
   const { data: { session } } = await withTimeout(sb.auth.getSession(), SESSION_TIMEOUT_MS, 'the session');
-  return session;
+  if (session) return session;
+  // Nothing in this browser. That can be a real sign-out, or Safari having
+  // wiped the site's storage after a week away — so ask the server for the
+  // copy it keeps before sending anybody to the sign-in page.
+  return await restoreKeptSession();
+}
+
+// ── The kept sign-in ──────────────────────────────────────────────
+// See api/_lib/session.js. The refresh token is copied to a cookie the server
+// sets, which Safari's seven-day clean-out does not touch, and copied
+// again each time it rotates. Every call here is best-effort: failing to
+// keep a copy costs nothing until the day it would have been needed.
+let restoreTried = false;
+
+async function restoreKeptSession() {
+  if (restoreTried || !sb) return null;
+  restoreTried = true;
+  try {
+    const resp = await withTimeout(fetch('/api/join', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Lumen': '1' },
+      body: JSON.stringify({ flow: 'session', action: 'restore' }),
+    }), SESSION_TIMEOUT_MS, 'your saved sign-in');
+    const data = await resp.json().catch(() => ({}));
+    if (!data.restored) return null;
+    const { data: set } = await sb.auth.setSession({
+      access_token: data.access_token, refresh_token: data.refresh_token,
+    });
+    return set?.session || null;
+  } catch (_) { return null; }
+}
+
+let keptToken = null;
+async function keepSession(session) {
+  const rt = session?.refresh_token;
+  if (!rt || rt === keptToken) return;
+  // Once per token, not once per page: the same token is only sent again
+  // after it has rotated. Remembered across pages in this tab.
+  try { if (sessionStorage.getItem('lumen_kept') === rt.slice(-12)) { keptToken = rt; return; } } catch (_) {}
+  keptToken = rt;
+  try {
+    const resp = await fetch('/api/join', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Lumen': '1', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ flow: 'session', action: 'keep', refresh_token: rt }),
+    });
+    if (resp.ok) { try { sessionStorage.setItem('lumen_kept', rt.slice(-12)); } catch (_) {} }
+    else keptToken = null;
+  } catch (_) { keptToken = null; }
+}
+
+function forgetKeptSession() {
+  keptToken = null;
+  try { sessionStorage.removeItem('lumen_kept'); } catch (_) {}
+  return fetch('/api/join', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-Lumen': '1' },
+    body: JSON.stringify({ flow: 'session', action: 'forget' }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+if (sb) {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+      // Off the auth callback's own turn: supabase-js warns against
+      // awaiting other work inside it.
+      setTimeout(() => keepSession(session), 0);
+    } else if (event === 'SIGNED_OUT') {
+      forgetKeptSession();
+    }
+  });
 }
 
 // A test sits open far longer than an access token lasts. autoRefreshToken
@@ -189,6 +263,7 @@ async function guardPage(roles, { perm } = {}) {
     return null;
   }
 
+  try { localStorage.setItem('lumen_role', profile.role); } catch (_) {}
   if (allowed && !allowed.includes(profile.role)) { location.replace(homeFor(profile.role)); return null; }
 
   profile.email = session.user?.email || profile.email || '';
@@ -516,6 +591,9 @@ async function apiPost(path, body) {
 
 async function signOut() {
   try { localStorage.removeItem('lumen_role'); } catch (_) {}
+  // Before the sign-out, not after: the next page must not find the
+  // server's copy and quietly sign them straight back in.
+  await forgetKeptSession();
   await sb.auth.signOut();
   location.replace('/login.html');
 }

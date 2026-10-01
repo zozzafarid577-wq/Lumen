@@ -28,6 +28,26 @@
 <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
 <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
 <link rel="stylesheet" href="/css/site.css">
+<script>
+// Signed in already? Then this page has nothing to ask. Go straight to
+// their own home before the form is drawn, from what the browser
+// remembers or from the server's kept copy (api/_lib/session.js). Not when
+// ?next is set: that is a page's guard sending them here because their
+// session did not work, and the check further down decides then.
+(function () {
+  try {
+    if (/[?&]next=/.test(location.search)) return;
+    var signedIn = false;
+    for (var i = 0; i < localStorage.length; i++) {
+      if (/^sb-.+-auth-token$/.test(localStorage.key(i))) { signedIn = true; break; }
+    }
+    var kept = (document.cookie.match(/(?:^|;\s*)lumen_in=([a-z]+)/) || [])[1];
+    var home = { student: '/portal/courses.html', teacher: '/teacher/', assistant: '/teacher/', owner: '/admin/' };
+    var where = home[localStorage.getItem('lumen_role')] || home[kept];
+    if ((signedIn || kept) && where) location.replace(where);
+  } catch (e) { /* storage blocked: the form, as before */ }
+})();
+</script>
 </head>
 <body>
 

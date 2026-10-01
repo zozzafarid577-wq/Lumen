@@ -3,6 +3,7 @@ import { handler, HttpError } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanText, phoneKey } from './_lib/util.js';
 import { createStudentAccount } from './_lib/students.js';
 import { runSetPassword } from './_lib/set-password.js';
+import { runSession } from './_lib/session.js';
 
 // The one endpoint in api/ with no signed-in caller: a student opening
 // their teacher's batch link has no account yet, which is the whole
@@ -40,6 +41,9 @@ export default handler(async (req, res) => {
   // one carries on serving, so the site looks fine and simply stops
   // changing.
   if (body.flow === 'set-password') return runSetPassword(res, body, req);
+  // The server's kept copy of a sign-in — see _lib/session.js. Here for
+  // the same reason.
+  if (body.flow === 'session') return runSession(req, res);
 
   const action = body.action === 'submit' ? 'submit' : 'info';
   const invite = await openInvite(body.token);
