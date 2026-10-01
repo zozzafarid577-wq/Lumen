@@ -392,14 +392,16 @@ function friendlyError(message) {
   onBodyReady(mount);
 })();
 
-// ── Install hint ──────────────────────────────────────────────────
+// ── Install button ────────────────────────────────────────────────
 // Lumen installs like an app: added to the home screen it gets its own
 // icon, opens without the browser's bars, and keeps the student signed
-// in. Phones do not offer that on their own, so say how — once, plainly,
-// and never inside the installed app itself.
+// in. One button offers it.
 //
-// Chrome on Android announces that it can install the page before any
-// code asks; the event is kept so the button below can use it later.
+// Chrome on Android can install the page itself, and announces that it
+// can before anything asks; the event is kept so the button can use it.
+// An iPhone has no such thing — Apple lets nothing but the person add a
+// site to the home screen, through Share — so there the same button
+// opens a two-step picture of where to tap.
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
 
@@ -410,56 +412,130 @@ function isInstalledApp() {
   } catch (_) { return false; }
 }
 
-function mountInstallHint(host, { dismissible = true } = {}) {
-  if (!host || isInstalledApp()) return;
+function installDevice() {
   const ua = navigator.userAgent || '';
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  const android = /Android/.test(ua);
-  if (!ios && !android) return;   // a computer has nothing to install
-  try { if (dismissible && localStorage.getItem('lumen_install_hint') === 'off') return; } catch (_) {}
+  return {
+    ios,
+    android: /Android/.test(ua),
+    // Safari's Share button is at the bottom on an iPhone; the arrow
+    // points at it only there.
+    iphoneSafari: /iPhone|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua),
+    // WhatsApp, Instagram and Facebook open links in a browser of their
+    // own, which can install nothing and forgets the sign-in on close.
+    inApp: /FBAN|FBAV|Instagram|WhatsApp|Line\/|Snapchat|TikTok/i.test(ua),
+  };
+}
 
-  // WhatsApp, Instagram and Facebook open links in a browser of their
-  // own that forgets the sign-in as soon as it closes — the commonest
-  // reason a student is asked for their password again and again. That
-  // browser cannot install anything either, so the first step is out.
-  const inApp = /FBAN|FBAV|Instagram|WhatsApp|Line\/|Snapchat|TikTok/i.test(ua);
-  const share = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M12 3v12"/><polyline points="8 7 12 3 16 7"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
-  const how = inApp
-    ? `You opened this inside another app, which forgets your sign-in. Open it in ${ios ? 'Safari' : 'Chrome'} instead: tap <strong>⋯</strong> and choose <strong>Open in ${ios ? 'Safari' : 'browser'}</strong>.`
-    : ios
-      ? `Tap ${share} <strong>Share</strong> at the bottom of the screen, then <strong>Add to Home Screen</strong>. You stay signed in from then on.`
-      : `Tap <strong>⋮</strong> at the top right, then <strong>Install app</strong> or <strong>Add to Home screen</strong>. You stay signed in from then on.`;
+const INSTALL_ICONS = {
+  down:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><path d="M5 20h14"/></svg>',
+  share: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="8 7 12 3 16 7"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+  plus:  '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+  dots:  '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+};
 
-  const box = document.createElement('div');
-  box.className = 'install-hint';
-  box.style.cssText = 'display:flex;gap:12px;align-items:flex-start;margin:16px 0;padding:13px 15px;border:1px solid var(--border,#e6dfe8);border-radius:13px;background:var(--card,#fff);font-size:.84rem;line-height:1.5;text-align:left';
-  box.innerHTML = `
-    <img src="/assets/app/icon-192.png" alt="" width="38" height="38" style="border-radius:9px;flex-shrink:0">
-    <div style="flex:1;min-width:0">
-      <div style="font-weight:800;margin-bottom:2px">Get the Lumen app</div>
-      <div class="install-how">${how}</div>
-      ${android && !inApp ? '<button type="button" class="btn btn-primary btn-sm install-go" style="margin-top:8px;display:none">Install Lumen</button>' : ''}
+function installStyles() {
+  if (document.getElementById('install-css')) return;
+  const css = document.createElement('style');
+  css.id = 'install-css';
+  css.textContent = `
+    .install-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      font: 700 .86rem/1 Manrope, system-ui, sans-serif; color:#fff; background:#A2509F;
+      border:0; border-radius:9999px; padding:11px 18px; cursor:pointer;
+      box-shadow:0 4px 14px rgba(162,80,159,.28); -webkit-tap-highlight-color:transparent; }
+    .install-btn:active { transform:scale(.97); }
+    .install-btn.block { display:flex; width:100%; padding:14px 18px; font-size:.95rem; }
+    .install-btn.soft { color:#A2509F; background:rgba(162,80,159,.1); box-shadow:none; padding:9px 14px; font-size:.8rem; }
+    .install-veil { position:fixed; inset:0; z-index:10000; background:rgba(20,10,22,.55);
+      display:flex; align-items:flex-end; justify-content:center; animation:inst-fade .2s ease; }
+    .install-sheet { width:100%; max-width:440px; background:#fff; color:#1c1720; border-radius:22px 22px 0 0;
+      padding:22px 22px calc(26px + env(safe-area-inset-bottom)); box-shadow:0 -10px 40px rgba(0,0,0,.18);
+      animation:inst-up .26s cubic-bezier(.2,.8,.2,1); font-family:Manrope, system-ui, sans-serif; }
+    .install-sheet h3 { margin:12px 0 4px; font-size:1.15rem; font-weight:800; text-align:center; }
+    .install-sheet .lead { margin:0 0 18px; color:#6f6672; font-size:.86rem; text-align:center; line-height:1.45; }
+    .install-step { display:flex; align-items:center; gap:14px; padding:13px 14px; border-radius:14px;
+      background:#f7f1f7; margin-bottom:10px; font-size:.92rem; line-height:1.35; }
+    .install-step .n { width:26px; height:26px; flex-shrink:0; border-radius:50%; background:#A2509F; color:#fff;
+      font-weight:800; font-size:.8rem; display:flex; align-items:center; justify-content:center; }
+    .install-step .ic { margin-left:auto; color:#2f7cf6; display:flex; }
+    .install-close { display:block; margin:16px auto 0; background:none; border:0; color:#8b8089;
+      font:700 .88rem Manrope, system-ui, sans-serif; cursor:pointer; padding:8px 16px; }
+    .install-arrow { position:fixed; left:50%; bottom:calc(8px + env(safe-area-inset-bottom)); z-index:10001;
+      transform:translateX(-50%); color:#fff; animation:inst-bob 1s ease-in-out infinite; pointer-events:none; }
+    /* With the arrow, the sheet floats clear of the bottom edge so the
+       arrow can sit under it, pointing at Safari's own Share button. */
+    .install-veil.with-arrow { padding:0 10px calc(64px + env(safe-area-inset-bottom)); }
+    .install-veil.with-arrow .install-sheet { border-radius:22px; padding-bottom:22px; }
+    @keyframes inst-fade { from { opacity:0 } }
+    @keyframes inst-up { from { transform:translateY(100%) } }
+    @keyframes inst-bob { 50% { transform:translate(-50%, 8px) } }
+  `;
+  document.head.appendChild(css);
+}
+
+function openInstallGuide() {
+  const d = installDevice();
+  installStyles();
+  const step = (n, text, ic) =>
+    `<div class="install-step"><span class="n">${n}</span><span>${text}</span>${ic ? `<span class="ic">${ic}</span>` : ''}</div>`;
+
+  let steps;
+  if (d.inApp) {
+    steps = step(1, `Tap <strong>⋯</strong> at the top of this screen`, INSTALL_ICONS.dots)
+      + step(2, `Choose <strong>Open in ${d.ios ? 'Safari' : 'browser'}</strong>`)
+      + step(3, `Tap <strong>Install app</strong> there`);
+  } else if (d.ios) {
+    steps = step(1, `Tap the <strong>Share</strong> button ${d.iphoneSafari ? 'at the bottom of the screen' : 'in the address bar'}`, INSTALL_ICONS.share)
+      + step(2, `Tap <strong>Add to Home Screen</strong>`, INSTALL_ICONS.plus)
+      + step(3, `Tap <strong>Add</strong>`);
+  } else {
+    steps = step(1, `Tap <strong>⋮</strong> at the top right`, INSTALL_ICONS.dots)
+      + step(2, `Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>`, INSTALL_ICONS.plus);
+  }
+
+  const veil = document.createElement('div');
+  const arrow = d.iphoneSafari && !d.inApp;
+  veil.className = 'install-veil' + (arrow ? ' with-arrow' : '');
+  veil.innerHTML = `
+    <div class="install-sheet" role="dialog" aria-modal="true" aria-label="Install Lumen">
+      <div style="text-align:center"><img src="/assets/app/icon-192.png" alt="" width="64" height="64" style="border-radius:15px"></div>
+      <h3>Put Lumen on your home screen</h3>
+      <p class="lead">${d.inApp
+        ? 'This app’s browser can’t install Lumen, and it forgets your sign-in.'
+        : 'It opens like an app, and you stay signed in.'}</p>
+      ${steps}
+      <button type="button" class="install-close">Not now</button>
     </div>
-    ${dismissible ? '<button type="button" class="install-x" aria-label="Hide this" style="background:none;border:0;font-size:1.1rem;line-height:1;color:var(--muted,#888);cursor:pointer;padding:2px">×</button>' : ''}`;
-  host.appendChild(box);
+    ${arrow ? `<div class="install-arrow">${INSTALL_ICONS.down.replace(/17/g, '34')}</div>` : ''}`;
+  const close = () => veil.remove();
+  veil.addEventListener('click', e => { if (e.target === veil) close(); });
+  veil.querySelector('.install-close').onclick = close;
+  document.body.appendChild(veil);
+}
 
-  // Where Chrome offers it, one tap does the whole thing.
-  const go = box.querySelector('.install-go');
-  const offer = () => { if (go && deferredInstall) go.style.display = ''; };
-  offer();
-  window.addEventListener('beforeinstallprompt', offer);
-  if (go) go.onclick = async () => {
-    if (!deferredInstall) return;
-    deferredInstall.prompt();
-    try { await deferredInstall.userChoice; } catch (_) {}
-    deferredInstall = null;
-    box.remove();
-  };
-  window.addEventListener('appinstalled', () => box.remove());
+// The button. `style` is 'block' (full width, for the sign-in page),
+// 'soft' (small, for a top bar) or '' (a normal pill).
+function mountInstallButton(host, { style = '', label = 'Install the app' } = {}) {
+  if (!host || isInstalledApp()) return;
+  const d = installDevice();
+  if (!d.ios && !d.android) return;   // a computer has nothing to install
+  installStyles();
 
-  const x = box.querySelector('.install-x');
-  if (x) x.onclick = () => {
-    try { localStorage.setItem('lumen_install_hint', 'off'); } catch (_) {}
-    box.remove();
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'install-btn' + (style ? ' ' + style : '');
+  btn.innerHTML = INSTALL_ICONS.down + `<span>${escHtml(label)}</span>`;
+  btn.onclick = async () => {
+    // Where Chrome offers it, one tap is the whole thing.
+    if (deferredInstall && !d.inApp) {
+      const ev = deferredInstall;
+      deferredInstall = null;
+      ev.prompt();
+      try { if ((await ev.userChoice).outcome === 'accepted') btn.remove(); } catch (_) {}
+      return;
+    }
+    openInstallGuide();
   };
+  host.appendChild(btn);
+  window.addEventListener('appinstalled', () => btn.remove());
 }

@@ -205,6 +205,7 @@
       <span class="page-title">My courses</span>
     </div>
     <div class="topbar-right">
+      <span id="install-slot"></span>
       <select class="form-select" id="course-pick" style="max-width:240px;display:none" aria-label="Choose a course"></select>
     </div>
   </header>
@@ -218,7 +219,6 @@
     <!-- The units, with their own name written down the side of them.
          The label is decoration, not information, so it is hidden from
          anything that reads the page aloud. -->
-    <div id="install-slot"></div>
     <div class="courses-rail">
       <div class="rail-label" aria-hidden="true"><span>your courses</span></div>
       <div id="units" style="flex:1;min-width:0"><div class="skel" style="height:120px;margin-bottom:16px"></div><div class="skel" style="height:120px"></div></div>
@@ -259,9 +259,9 @@ function rememberUnit(id, open) {
   me = await requireAuth('student');
   if (!me) return;
   renderShell('student', me, { title: 'My courses' });
-  // Above the units, until they install it or say no: a student who
-  // never visits the sign-in page again would otherwise never be told.
-  mountInstallHint(document.getElementById('install-slot'));
+  // In the top bar, small: a student who never visits the sign-in page
+  // again would otherwise never be offered it.
+  mountInstallButton(document.getElementById('install-slot'), { style: 'soft', label: 'Install app' });
 
   // The group comes along with the enrolment: which sitting of this
   // course they attend is part of what the course is, to them.

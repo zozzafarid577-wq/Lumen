@@ -92,10 +92,9 @@
 
       <p class="auth-foot"><a href="/forgot-password.html">Forgotten your password?</a></p>
 
-      <!-- How to put Lumen on the home screen. Phones only, and never
-           inside the installed app. Not dismissible here: this is the
-           one page every student passes through. -->
-      <div id="install-home"></div>
+      <!-- One button that puts Lumen on the home screen. Phones only,
+           and never inside the installed app itself. -->
+      <div id="install-home" style="margin:18px 0 6px"></div>
 
       <!-- Where the walkthrough lands on a narrow screen, the aside that
            normally holds it being hidden there. Empty on a wide one. -->
@@ -174,7 +173,7 @@ const REASONS = {
   signed_out: 'You have been signed out.',
   reset: 'Your password has been changed. Please sign in with the new one.',
 };
-mountInstallHint(document.getElementById('install-home'), { dismissible: false });
+mountInstallButton(document.getElementById('install-home'), { style: 'block', label: 'Install the Lumen app' });
 if (REASONS[params.get('e')]) say(params.get('e') === 'reset' ? 'ok' : 'err', REASONS[params.get('e')]);
 
 // Already signed in? Don't make them do it again — send them where they
