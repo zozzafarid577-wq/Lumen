@@ -43,6 +43,12 @@ window.LUMEN_CONFIG = {
   // without being asked twice. Leave this empty and the player does not
   // appear at all.
   STUDENT_GUIDE_URL: '/assets/student-guide.mp4',
+
+  // The Android app, as a file students download and install themselves,
+  // without Google Play. The Install button on an Android phone offers
+  // this instead of adding the site to the home screen. Leave it empty
+  // and Android gets the home-screen install like an iPhone.
+  ANDROID_APK_URL: '/download/lumen.apk',
   SUPABASE_URL: 'https://ivguwplraowoelewroxw.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2Z3V3cGxyYW93b2VsZXdyb3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDAzOTAsImV4cCI6MjEwNTY3NjM5MH0.gk2qncKT0qU20gpnFvyzvLPrXQetOecyjHDXEDSM15w',
 };

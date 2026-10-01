@@ -407,7 +407,10 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
 
 function isInstalledApp() {
   try {
-    return window.navigator.standalone === true
+    // The Lumen phone app says so in its user agent; inside it there is
+    // nothing left to install.
+    return /LumenApp\//.test(navigator.userAgent || '')
+      || window.navigator.standalone === true
       || window.matchMedia('(display-mode: standalone)').matches;
   } catch (_) { return false; }
 }
@@ -473,6 +476,10 @@ function installStyles() {
   document.head.appendChild(css);
 }
 
+function apkUrl() {
+  try { return (window.LUMEN_CONFIG || {}).ANDROID_APK_URL || ''; } catch (_) { return ''; }
+}
+
 function openInstallGuide() {
   const d = installDevice();
   installStyles();
@@ -488,6 +495,11 @@ function openInstallGuide() {
     steps = step(1, `Tap the <strong>Share</strong> button ${d.iphoneSafari ? 'at the bottom of the screen' : 'in the address bar'}`, INSTALL_ICONS.share)
       + step(2, `Tap <strong>Add to Home Screen</strong>`, INSTALL_ICONS.plus)
       + step(3, `Tap <strong>Add</strong>`);
+  } else if (apkUrl()) {
+    // The download has already started by the time this shows.
+    steps = step(1, `Wait for <strong>lumen.apk</strong> to finish downloading`)
+      + step(2, `Tap it to open it — if your phone asks, allow installing from this browser`)
+      + step(3, `Tap <strong>Install</strong>, then <strong>Open</strong>`);
   } else {
     steps = step(1, `Tap <strong>⋮</strong> at the top right`, INSTALL_ICONS.dots)
       + step(2, `Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>`, INSTALL_ICONS.plus);
@@ -499,12 +511,12 @@ function openInstallGuide() {
   veil.innerHTML = `
     <div class="install-sheet" role="dialog" aria-modal="true" aria-label="Install Lumen">
       <div style="text-align:center"><img src="/assets/app/icon-192.png" alt="" width="64" height="64" style="border-radius:15px"></div>
-      <h3>Put Lumen on your home screen</h3>
+      <h3>${d.android && !d.inApp && apkUrl() ? 'Installing the Lumen app' : 'Put Lumen on your home screen'}</h3>
       <p class="lead">${d.inApp
         ? 'This app’s browser can’t install Lumen, and it forgets your sign-in.'
         : 'It opens like an app, and you stay signed in.'}</p>
       ${steps}
-      <button type="button" class="install-close">Not now</button>
+      <button type="button" class="install-close">${d.android && !d.inApp && apkUrl() ? 'Done' : 'Not now'}</button>
     </div>
     ${arrow ? `<div class="install-arrow">${INSTALL_ICONS.down.replace(/17/g, '34')}</div>` : ''}`;
   const close = () => veil.remove();
@@ -526,6 +538,19 @@ function mountInstallButton(host, { style = '', label = 'Install the app' } = {}
   btn.className = 'install-btn' + (style ? ' ' + style : '');
   btn.innerHTML = INSTALL_ICONS.down + `<span>${escHtml(label)}</span>`;
   btn.onclick = async () => {
+    // On Android, the app itself: a file they download and install,
+    // with its steps on screen while it downloads. Not from inside
+    // WhatsApp or Instagram, whose browsers cannot install a file.
+    if (d.android && !d.inApp && apkUrl()) {
+      const a = document.createElement('a');
+      a.href = apkUrl();
+      a.download = 'lumen.apk';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      openInstallGuide();
+      return;
+    }
     // Where Chrome offers it, one tap is the whole thing.
     if (deferredInstall && !d.inApp) {
       const ev = deferredInstall;
