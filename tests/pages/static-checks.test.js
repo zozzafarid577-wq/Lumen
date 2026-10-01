@@ -429,8 +429,14 @@ describe('links a teacher hands to somebody else', () => {
     // the sign-in button works \u2014 on a phone on mobile data, most of a
     // second. It is also a supply chain: whatever they serve, this site
     // runs.
+    //
+    // One exception, asked for by the owner: Google Analytics. It cannot be
+    // vendored — Google serves it per property — so it is allowed by its
+    // exact address, and only with `async`, so the page never waits on it.
+    const ALLOWED = /^<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-[A-Z0-9]+"/;
     for (const { rel, html } of PAGES) {
-      const remote = [...html.matchAll(/<script[^>]+src=["'](https?:)?\/\/[^"']+["']/g)];
+      const remote = [...html.matchAll(/<script[^>]+src=["'](https?:)?\/\/[^"']+["']/g)]
+        .filter(m => !ALLOWED.test(m[0]));
       expect(remote.map(m => m[0]), `${rel} loads a script from another host`).toEqual([]);
     }
   });
