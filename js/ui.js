@@ -391,3 +391,75 @@ function friendlyError(message) {
   try { if (localStorage.getItem(KEY) === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (_) {}
   onBodyReady(mount);
 })();
+
+// ── Install hint ──────────────────────────────────────────────────
+// Lumen installs like an app: added to the home screen it gets its own
+// icon, opens without the browser's bars, and keeps the student signed
+// in. Phones do not offer that on their own, so say how — once, plainly,
+// and never inside the installed app itself.
+//
+// Chrome on Android announces that it can install the page before any
+// code asks; the event is kept so the button below can use it later.
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
+
+function isInstalledApp() {
+  try {
+    return window.navigator.standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches;
+  } catch (_) { return false; }
+}
+
+function mountInstallHint(host, { dismissible = true } = {}) {
+  if (!host || isInstalledApp()) return;
+  const ua = navigator.userAgent || '';
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const android = /Android/.test(ua);
+  if (!ios && !android) return;   // a computer has nothing to install
+  try { if (dismissible && localStorage.getItem('lumen_install_hint') === 'off') return; } catch (_) {}
+
+  // WhatsApp, Instagram and Facebook open links in a browser of their
+  // own that forgets the sign-in as soon as it closes — the commonest
+  // reason a student is asked for their password again and again. That
+  // browser cannot install anything either, so the first step is out.
+  const inApp = /FBAN|FBAV|Instagram|WhatsApp|Line\/|Snapchat|TikTok/i.test(ua);
+  const share = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M12 3v12"/><polyline points="8 7 12 3 16 7"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+  const how = inApp
+    ? `You opened this inside another app, which forgets your sign-in. Open it in ${ios ? 'Safari' : 'Chrome'} instead: tap <strong>⋯</strong> and choose <strong>Open in ${ios ? 'Safari' : 'browser'}</strong>.`
+    : ios
+      ? `Tap ${share} <strong>Share</strong> at the bottom of the screen, then <strong>Add to Home Screen</strong>. You stay signed in from then on.`
+      : `Tap <strong>⋮</strong> at the top right, then <strong>Install app</strong> or <strong>Add to Home screen</strong>. You stay signed in from then on.`;
+
+  const box = document.createElement('div');
+  box.className = 'install-hint';
+  box.style.cssText = 'display:flex;gap:12px;align-items:flex-start;margin:16px 0;padding:13px 15px;border:1px solid var(--border,#e6dfe8);border-radius:13px;background:var(--card,#fff);font-size:.84rem;line-height:1.5;text-align:left';
+  box.innerHTML = `
+    <img src="/assets/app/icon-192.png" alt="" width="38" height="38" style="border-radius:9px;flex-shrink:0">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800;margin-bottom:2px">Get the Lumen app</div>
+      <div class="install-how">${how}</div>
+      ${android && !inApp ? '<button type="button" class="btn btn-primary btn-sm install-go" style="margin-top:8px;display:none">Install Lumen</button>' : ''}
+    </div>
+    ${dismissible ? '<button type="button" class="install-x" aria-label="Hide this" style="background:none;border:0;font-size:1.1rem;line-height:1;color:var(--muted,#888);cursor:pointer;padding:2px">×</button>' : ''}`;
+  host.appendChild(box);
+
+  // Where Chrome offers it, one tap does the whole thing.
+  const go = box.querySelector('.install-go');
+  const offer = () => { if (go && deferredInstall) go.style.display = ''; };
+  offer();
+  window.addEventListener('beforeinstallprompt', offer);
+  if (go) go.onclick = async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    try { await deferredInstall.userChoice; } catch (_) {}
+    deferredInstall = null;
+    box.remove();
+  };
+  window.addEventListener('appinstalled', () => box.remove());
+
+  const x = box.querySelector('.install-x');
+  if (x) x.onclick = () => {
+    try { localStorage.setItem('lumen_install_hint', 'off'); } catch (_) {}
+    box.remove();
+  };
+}

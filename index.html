@@ -6,7 +6,36 @@
 <title>Lumen — Educate with Excellence</title>
 <meta name="description" content="Lumen is a learning platform: your courses, recordings and materials in one place, with tests that mark themselves and progress you can follow. Sign in with the details your teacher gave you.">
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#A2509F">
 <link rel="stylesheet" href="/css/site.css">
+<script>
+// Somebody who is already signed in has no use for the front door: a
+// student who types lumenlearn.site should land on their courses, not on
+// a page with a "Sign in" button that reads as being signed out. Run
+// before anything is drawn, so the public page never flashes up first.
+// Only the presence of a session is read here; whether it still works is
+// the portal's guard's business, and a dead one is sent to sign in from
+// there. ?site keeps the public page reachable for whoever wants it.
+(function () {
+  try {
+    if (/[?&]site\b/.test(location.search)) return;
+    var signedIn = false;
+    for (var i = 0; i < localStorage.length; i++) {
+      if (/^sb-.+-auth-token$/.test(localStorage.key(i))) { signedIn = true; break; }
+    }
+    if (!signedIn) return;
+    var home = { student: '/portal/courses.html', teacher: '/teacher/', assistant: '/teacher/', owner: '/admin/' };
+    // No remembered role: the sign-in page works out where they belong
+    // and forwards them without asking for anything.
+    location.replace(home[localStorage.getItem('lumen_role')] || '/login.html');
+  } catch (e) { /* storage blocked: show the public page as before */ }
+})();
+</script>
 </head>
 <body>
 

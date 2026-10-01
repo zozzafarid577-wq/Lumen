@@ -6,6 +6,12 @@
 <title>Sign in | Lumen</title>
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#A2509F">
 <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
@@ -86,6 +92,11 @@
 
       <p class="auth-foot"><a href="/forgot-password.html">Forgotten your password?</a></p>
 
+      <!-- How to put Lumen on the home screen. Phones only, and never
+           inside the installed app. Not dismissible here: this is the
+           one page every student passes through. -->
+      <div id="install-home"></div>
+
       <!-- Where the walkthrough lands on a narrow screen, the aside that
            normally holds it being hidden there. Empty on a wide one. -->
       <div id="guide-home"></div>
@@ -163,6 +174,7 @@ const REASONS = {
   signed_out: 'You have been signed out.',
   reset: 'Your password has been changed. Please sign in with the new one.',
 };
+mountInstallHint(document.getElementById('install-home'), { dismissible: false });
 if (REASONS[params.get('e')]) say(params.get('e') === 'reset' ? 'ok' : 'err', REASONS[params.get('e')]);
 
 // Already signed in? Don't make them do it again — send them where they
