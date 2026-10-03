@@ -282,3 +282,51 @@ describe('where there is anything to practise', () => {
     expect(getSupabaseCalls('question_bank.select')).toHaveLength(0);
   });
 });
+
+describe('practising from the tests as well as the bank', () => {
+  const TQ = {
+    id: 'tq-1', test_id: 'test-1', question_text: 'She ____ to school every day.',
+    explanation: null, options: [{ text: 'go' }, { text: 'goes', correct: true }],
+  };
+
+  function withTests({ bank = [], active = true } = {}) {
+    world({ bank });
+    configureSupabaseMock({
+      results: {
+        'practice_tests.select': { data: active ? [{ id: 'test-1', module_id: UNIT, lesson_id: null, section_id: null }] : [], error: null },
+        'test_questions.select': (call) => call.single
+          ? { data: { ...TQ, practice_tests: { teacher_id: TEACHER_ID, module_id: UNIT, is_active: active } }, error: null }
+          : { data: [TQ], error: null },
+      },
+    });
+  }
+
+  it('offers a course with an empty bank the questions on its open tests', async () => {
+    withTests();
+    const res = await call({ action: 'available', course_id: COURSE });
+    expect(res.body).toEqual({ units: { [UNIT]: 1 } });
+  });
+
+  it('serves a test question without its answer, and marks it', async () => {
+    withTests();
+    const { body } = await call({ module_id: UNIT });
+    expect(body.questions).toHaveLength(1);
+    expect(body.questions[0].id).toBe('t:tq-1');
+    expect(JSON.stringify(body)).not.toMatch(/correct/);
+
+    const marked = await call({ action: 'check', question_id: 't:tq-1', chosen: [1] });
+    expect(marked.body.correct).toBe(true);
+  });
+
+  it('offers a question that is in the bank and on a test only once', async () => {
+    withTests({ bank: [{ ...BANK[0], id: 'b-1', question_text: TQ.question_text, options: TQ.options }] });
+    const { body } = await call({ module_id: UNIT });
+    expect(body.questions.map(q => q.id)).toEqual(['b-1']);
+  });
+
+  it('will not mark a question from a test that has been switched off', async () => {
+    withTests({ active: false });
+    const res = await call({ action: 'check', question_id: 't:tq-1', chosen: [1] });
+    expect(res.statusCode).toBe(403);
+  });
+});

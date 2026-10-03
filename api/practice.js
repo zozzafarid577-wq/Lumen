@@ -61,9 +61,7 @@ async function available(req, res, profile, body) {
   const openIds = (units || []).filter(u => u.is_done && (!u.open_at || new Date(u.open_at) <= now)).map(u => u.id);
   if (!openIds.length) return res.status(200).json({ units: {} });
 
-  const { data: rows } = await admin.from('question_bank')
-    .select('module_id').eq('teacher_id', profile.teacher_id)
-    .eq('is_published', true).eq('practice_ok', true).in('module_id', openIds);
+  const rows = await loadPool(profile.teacher_id, openIds);
 
   const counts = {};
   (rows || []).forEach(r => { counts[r.module_id] = (counts[r.module_id] || 0) + 1; });
@@ -95,9 +93,7 @@ async function menu(req, res, profile, body) {
   const open = (units || []).filter(u => u.is_done && (!u.open_at || new Date(u.open_at) <= now));
   if (!open.length) return res.status(200).json({ courses: courses.map(c => ({ ...c, units: [] })) });
 
-  const { data: rows } = await admin.from('question_bank')
-    .select('module_id, lesson_id, section_id').eq('teacher_id', profile.teacher_id)
-    .eq('is_published', true).eq('practice_ok', true).in('module_id', open.map(u => u.id));
+  const rows = await loadPool(profile.teacher_id, open.map(u => u.id));
   const { data: sections } = await admin.from('test_sections')
     .select('id, name, color, order_index').eq('teacher_id', profile.teacher_id);
   const sectionById = new Map((sections || []).map(s => [s.id, s]));
@@ -142,14 +138,6 @@ async function menu(req, res, profile, body) {
 async function serve(req, res, profile, body) {
   const unit = await openUnitFor(profile, body.module_id);
 
-  let q = admin.from('question_bank')
-    .select('id, question_text, options, difficulty, topic, lesson_id')
-    .eq('teacher_id', profile.teacher_id)
-    .eq('module_id', unit.id)
-    .eq('is_published', true)
-    // Held back for the paper. See practice_ok in supabase-migration-v3.
-    .eq('practice_ok', true);
-
   // Lessons narrow it further — one, or several picked together — for
   // practising one evening's work rather than the whole unit. 'unfiled'
   // stands for the unit's questions that sit on no lesson.
@@ -157,24 +145,16 @@ async function serve(req, res, profile, body) {
   const real = lessonIds.filter(id => id !== 'unfiled');
   const wantLoose = lessonIds.includes('unfiled');
   for (const id of real) await lessonInUnit(id, unit, profile.teacher_id);
-  if (real.length === 1 && !wantLoose) q = q.eq('lesson_id', real[0]);
-  else if (real.length && !wantLoose) q = q.in('lesson_id', real);
-  else if (!real.length && wantLoose) q = q.is('lesson_id', null);
-  // Lessons and the unit's loose questions together are narrowed below,
-  // once the rows are in.
 
-  // Vocabulary, Grammar, or both: by the section the teacher filed each
-  // question under. No sections named means everything.
+  // Vocabulary, Grammar, or both: by the section each question is filed
+  // under. No sections named means everything.
   const sectionIds = (Array.isArray(body.section_ids) ? body.section_ids : [])
     .filter(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id));
-  if (sectionIds.length) q = q.in('section_id', sectionIds);
 
-  const { data, error } = await q.limit(500);
-  if (error) throw new HttpError(500, 'Those questions could not be loaded. Please try again.');
-
-  const pool = real.length && wantLoose
-    ? (data || []).filter(r => !r.lesson_id || real.includes(r.lesson_id))
-    : (data || []);
+  const pool = (await loadPool(profile.teacher_id, [unit.id],
+    { full: true, lessons: real, loose: wantLoose, sections: sectionIds })).filter(r =>
+    (!lessonIds.length || (r.lesson_id ? real.includes(r.lesson_id) : wantLoose))
+    && (!sectionIds.length || sectionIds.includes(r.section_id)));
   const rows = shuffle(pool).slice(0, clampCount(body.count));
 
   return res.status(200).json({
@@ -198,22 +178,7 @@ async function serve(req, res, profile, body) {
 // ── Marking one answer ────────────────────────────────────────────
 
 async function check(req, res, profile, body) {
-  const { data: row, error } = await admin.from('question_bank')
-    .select('id, teacher_id, module_id, options, explanation, is_published, practice_ok')
-    .eq('id', body.question_id || '').single();
-
-  if (error || !row) throw new HttpError(404, 'That question no longer exists.');
-  // practice_ok is checked here as well as on the way out: a teacher who
-  // holds a question back while a student has it on screen must not have
-  // its answer handed over by the mark that follows.
-  if (row.teacher_id !== profile.teacher_id || !row.is_published || row.practice_ok === false) {
-    throw new HttpError(403, 'That question is not yours to practise.');
-  }
-  // Checked again on the way back, not just on the way out: an id kept
-  // from an earlier session must not outlive the student's access to the
-  // unit it came from.
-  await openUnitFor(profile, row.module_id);
-
+  const row = await poolQuestion(profile, String(body.question_id || ''));
   const right = (row.options || []).map((o, i) => (o?.correct ? i : -1)).filter(i => i >= 0);
   const chosen = [...new Set(
     (Array.isArray(body.chosen) ? body.chosen : [body.chosen])
@@ -225,6 +190,93 @@ async function check(req, res, profile, body) {
   const correct = chosen.length === right.length && right.every(i => chosen.includes(i));
 
   return res.status(200).json({ correct, right, explanation: row.explanation || null });
+}
+
+// ── What there is to practise ─────────────────────────────────────
+// Two sources, merged: the question bank (published, and not held back
+// for a paper), and the questions on the tests already open to students
+// in that unit — so a course whose bank is empty still has everything on
+// its tests to practise. A question that is in both is offered once.
+//
+// Test questions carry their test's unit, lesson and section. Their ids
+// go out as "t:<id>" so `check` knows where to mark them.
+async function loadPool(teacherId, moduleIds, { full = false, lessons = [], loose = false, sections = [] } = {}) {
+  if (!moduleIds.length) return [];
+  const cols = full ? 'id, question_text, options, explanation, difficulty, topic, ' : 'id, question_text, options, ';
+  let bankQ = admin.from('question_bank').select(cols + 'module_id, lesson_id, section_id')
+    .eq('teacher_id', teacherId);
+  bankQ = moduleIds.length === 1 ? bankQ.eq('module_id', moduleIds[0]) : bankQ.in('module_id', moduleIds);
+  bankQ = bankQ.eq('is_published', true)
+    // Held back for the paper. See practice_ok in supabase-migration-v3.
+    .eq('practice_ok', true);
+  // Narrowed in the query where it can be; lessons together with the
+  // unit's loose questions are narrowed in serve() once the rows are in.
+  if (lessons.length === 1 && !loose) bankQ = bankQ.eq('lesson_id', lessons[0]);
+  else if (lessons.length && !loose) bankQ = bankQ.in('lesson_id', lessons);
+  else if (!lessons.length && loose) bankQ = bankQ.is('lesson_id', null);
+  if (sections.length) bankQ = bankQ.in('section_id', sections);
+  const [{ data: bank }, { data: tests }] = await Promise.all([
+    bankQ.limit(5000),
+    admin.from('practice_tests').select('id, module_id, lesson_id, section_id')
+      .eq('teacher_id', teacherId).eq('is_active', true).in('module_id', moduleIds),
+  ]);
+  const testById = new Map((tests || []).map(t => [t.id, t]));
+  let fromTests = [];
+  if (testById.size) {
+    const { data } = await admin.from('test_questions')
+      .select((full ? 'id, question_text, options, explanation, ' : 'id, question_text, options, ') + 'test_id')
+      .in('test_id', [...testById.keys()]).limit(10000);
+    fromTests = (data || []).map(q => {
+      const t = testById.get(q.test_id);
+      return { ...q, id: 't:' + q.id, module_id: t.module_id, lesson_id: t.lesson_id, section_id: t.section_id };
+    });
+  }
+  // Every bank question; a test question only when the bank does not
+  // already hold it (the bank is often filled from those same tests), and
+  // only once when two tests share it.
+  const out = [...(bank || [])];
+  const seen = new Set(out.filter(r => r.question_text).map(sameQuestion));
+  for (const r of fromTests) {
+    const key = sameQuestion(r);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+function sameQuestion(r) {
+  const norm = (t) => String(t || '').toLowerCase().replace(/[\s.…_]+/g, ' ').trim();
+  return norm(r.question_text) + '|' + (r.options || []).map(o => norm(o?.text)).join('|');
+}
+
+// One question to mark, from whichever source its id names, checked
+// against the same rules it was served under.
+async function poolQuestion(profile, id) {
+  if (id.startsWith('t:')) {
+    const { data: q } = await admin.from('test_questions')
+      .select('id, options, explanation, test_id, practice_tests(teacher_id, module_id, is_active)')
+      .eq('id', id.slice(2)).single();
+    const t = q?.practice_tests;
+    if (!q || !t) throw new HttpError(404, 'That question no longer exists.');
+    if (t.teacher_id !== profile.teacher_id || !t.is_active) throw new HttpError(403, 'That question is not yours to practise.');
+    await openUnitFor(profile, t.module_id);
+    return q;
+  }
+  const { data: row, error } = await admin.from('question_bank')
+    .select('id, teacher_id, module_id, options, explanation, is_published, practice_ok')
+    .eq('id', id).single();
+  if (error || !row) throw new HttpError(404, 'That question no longer exists.');
+  // practice_ok is checked here as well as on the way out: a teacher who
+  // holds a question back while a student has it on screen must not have
+  // its answer handed over by the mark that follows.
+  if (row.teacher_id !== profile.teacher_id || !row.is_published || row.practice_ok === false) {
+    throw new HttpError(403, 'That question is not yours to practise.');
+  }
+  // Checked again on the way back: an id kept from an earlier session
+  // must not outlive the student's access to the unit it came from.
+  await openUnitFor(profile, row.module_id);
+  return row;
 }
 
 // ── The two things that have to be true ───────────────────────────
