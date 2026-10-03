@@ -133,7 +133,8 @@ function normaliseQuestions(list) {
     }
 
     return {
-      question_text: text.slice(0, 2000),
+      // Room for a reading passage above the question it belongs to.
+      question_text: text.slice(0, 4000),
       options: cleaned,
       explanation: cleanText(raw?.explanation, { max: 2000 }),
       image_url: cleanText(raw?.image_url, { max: 500 }),
