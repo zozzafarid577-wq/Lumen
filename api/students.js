@@ -303,7 +303,7 @@ async function emailProgress(res, actor, teacherId, body, req) {
   }
 
   const [attempts, tests, completions, enrolments, space] = await Promise.all([
-    admin.from('test_attempts').select('test_id, percentage, passed, completed_at')
+    admin.from('test_attempts').select('test_id, percentage, score, max_score, passed, completed_at')
       .eq('teacher_id', teacherId).eq('student_id', student.id).not('completed_at', 'is', null),
     admin.from('practice_tests').select('id, title').eq('teacher_id', teacherId),
     admin.from('lesson_completions').select('lesson_id')
@@ -323,7 +323,10 @@ async function emailProgress(res, actor, teacherId, body, req) {
     if (!cur || p > parseFloat(cur.percentage)) best.set(a.test_id, a);
   });
   const bests = [...best.values()];
-  const marks = bests.map(a => parseFloat(a.percentage));
+  // Shown as marks, not percentages: the best attempts added up, and the
+  // single best one as its own 18/20.
+  const counted = bests.filter(a => a.score != null && a.max_score != null);
+  const top = bests.reduce((a, b) => (!a || parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a), null);
 
   // Only what a student could actually have watched: a unit their
   // teacher has not released yet is not something they are behind on.
@@ -343,7 +346,8 @@ async function emailProgress(res, actor, teacherId, body, req) {
     .slice(0, 5)
     .map(a => ({
       title: titles.get(a.test_id) || 'A test',
-      percentage: parseFloat(a.percentage) || 0,
+      score: a.score,
+      maxScore: a.max_score,
       passed: !!a.passed,
     }));
 
@@ -355,8 +359,10 @@ async function emailProgress(res, actor, teacherId, body, req) {
       teacherEmail: space.data?.contact_email || null,
       stats: {
         testsTaken: bests.length,
-        average: marks.length ? marks.reduce((s, n) => s + n, 0) / marks.length : null,
-        best: marks.length ? Math.max(...marks) : null,
+        totalScore: counted.length ? counted.reduce((s, a) => s + Number(a.score), 0) : null,
+        totalMax: counted.length ? counted.reduce((s, a) => s + Number(a.max_score), 0) : null,
+        bestScore: top?.score ?? null,
+        bestMax: top?.max_score ?? null,
         lessonsDone: (completions.data || []).length,
         lessonsTotal,
       },

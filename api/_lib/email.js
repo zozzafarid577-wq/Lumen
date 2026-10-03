@@ -523,12 +523,13 @@ export function accountReady({ name, email, password, spaceName, loginUrl }) {
 // to them, not to us.
 export function progressReport({ studentName, spaceName, stats, recent = [], teacherEmail }) {
   const when = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const pct = (n) => (n == null ? '—' : `${Math.round(n)}%`);
+  // Marks, as the teacher sees them: 18/20, never a percentage.
+  const marks = (score, max) => (score == null || max == null ? '—' : `${score}/${max}`);
 
   const rows = [
     ['Tests taken · عدد الاختبارات', String(stats.testsTaken)],
-    ['Average · المتوسط', pct(stats.average)],
-    ['Best mark · أفضل درجة', pct(stats.best)],
+    ['Total marks · مجموع الدرجات', marks(stats.totalScore, stats.totalMax)],
+    ['Best mark · أفضل درجة', marks(stats.bestScore, stats.bestMax)],
   ];
   if (stats.lessonsTotal) {
     rows.push(['Lessons watched · الدروس المشاهَدة',
@@ -544,7 +545,7 @@ export function progressReport({ studentName, spaceName, stats, recent = [], tea
       bullets: recent.length ? [
         '<strong>The last few tests</strong>',
         ...recent.map(r =>
-          `${esc(r.title)} — <strong>${Math.round(r.percentage)}%</strong>`
+          `${esc(r.title)} — <strong>${esc(marks(r.score, r.maxScore))}</strong>`
           + `${r.passed ? '' : ' (below the pass mark)'}`),
       ] : [],
       note: 'This was sent by your child’s teacher. Reply to them directly if you would like to talk it through '

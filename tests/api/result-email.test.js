@@ -60,9 +60,8 @@ describe('emailing a result to a parent', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ sent: true });
     expect(sent[0].to).toBe('parent@example.com');
-    expect(sent[0].subject).toBe('Sara Farid — Unit 1 quiz — 82%');
-    expect(sent[0].html).toMatch(/82%/);
-    expect(sent[0].html).toMatch(/41 out of 50/);
+    expect(sent[0].subject).toBe('Sara Farid — Unit 1 quiz — 41/50');
+    expect(sent[0].html).toMatch(/41\/50/);
   });
 
   it('reads the mark from the database, not from the request', async () => {
@@ -71,9 +70,9 @@ describe('emailing a result to a parent', () => {
     world();
     await call({ test_id: TEST, percentage: 100, score: 50, passed: true });
 
-    expect(sent[0].subject).toMatch(/82%/);
+    expect(sent[0].subject).toMatch(/41\/50/);
     // The big figure in the email is the one the database holds.
-    expect(sent[0].html).toMatch(/>82%<\/div>/);
+    expect(sent[0].html).toMatch(/>41\/50<\/div>/);
     expect(sent[0].html).not.toMatch(/>100%<\/div>/);
   });
 

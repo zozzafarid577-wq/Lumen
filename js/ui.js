@@ -135,6 +135,25 @@ function pct(n, digits = 0) {
   return Number(n).toFixed(digits) + '%';
 }
 
+// A mark as the marks it is — 18/20 — which is how Lumen shows every
+// score. Percentages are still stored and still decide pass, colour and
+// order; they are just not what anybody reads. An attempt saved without
+// its marks (none should be) falls back to its percentage.
+function marks(score, max) {
+  if (score == null || max == null || isNaN(score) || isNaN(max)) return '—';
+  return `${+score}/${+max}`;
+}
+// The pass mark in marks — "10/20" — once the test's total is known.
+// The setting itself stays a percentage; this is only how it reads.
+function passMarks(passPct, max) {
+  if (passPct == null || !max) return passPct == null ? '—' : passPct + '%';
+  return marks(Math.ceil((Number(passPct) / 100) * Number(max) - 1e-9), max);
+}
+function mark(attempt) {
+  if (attempt?.score != null && attempt?.max_score != null) return marks(attempt.score, attempt.max_score);
+  return pct(attempt?.percentage);
+}
+
 // ── Toasts ────────────────────────────────────────────────────────
 
 function showToast(msg, type = '') {

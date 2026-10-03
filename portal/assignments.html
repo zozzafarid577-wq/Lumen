@@ -201,7 +201,7 @@ async function drawSetTests() {
     sb.from('test_assignments')
       .select('id, due_at, test_id, practice_tests(id, title, is_active, time_limit_min, passing_score_pct, test_sections(name, color), courses(title))')
       .order('due_at', { nullsFirst: false }),
-    sb.from('test_attempts').select('test_id, percentage, passed')
+    sb.from('test_attempts').select('test_id, percentage, score, max_score, passed')
       .eq('student_id', me.id).not('completed_at', 'is', null),
   ]);
 
@@ -238,7 +238,7 @@ async function drawSetTests() {
             <div class="lr-sub">${escHtml(bits)}</div>
           </div>
           ${done
-            ? `<span class="badge ${done.passed ? 'b-green' : 'b-red'}">${pct(done.percentage)}</span>`
+            ? `<span class="badge ${done.passed ? 'b-green' : 'b-red'}">${mark(done)}</span>`
             : late ? '<span class="badge b-red">Late</span>' : ''}
           <a href="/portal/take-test.html?id=${t.id}" class="btn ${done ? 'btn-outline' : 'btn-primary'} btn-xs">${done ? 'Try again' : 'Start'}</a>
         </div>`;

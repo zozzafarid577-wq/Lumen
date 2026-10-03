@@ -494,9 +494,9 @@ describe('acting on an existing student', () => {
       configureSupabaseMock({ results: {
         ...withSubscription(),
         'test_attempts.select': { data: [
-          { test_id: 't1', percentage: '40', passed: false, completed_at: '2026-09-01T10:00:00Z' },
-          { test_id: 't1', percentage: '90', passed: true,  completed_at: '2026-09-08T10:00:00Z' },
-          { test_id: 't2', percentage: '70', passed: true,  completed_at: '2026-09-10T10:00:00Z' },
+          { test_id: 't1', percentage: '40', score: 8,  max_score: 20, passed: false, completed_at: '2026-09-01T10:00:00Z' },
+          { test_id: 't1', percentage: '90', score: 18, max_score: 20, passed: true,  completed_at: '2026-09-08T10:00:00Z' },
+          { test_id: 't2', percentage: '70', score: 21, max_score: 30, passed: true,  completed_at: '2026-09-10T10:00:00Z' },
         ], error: null },
         'practice_tests.select': { data: [{ id: 't1', title: 'Unit 1' }, { id: 't2', title: 'Unit 2' }], error: null },
         'lesson_completions.select': { data: [{ lesson_id: 'l1' }], error: null },
@@ -511,11 +511,13 @@ describe('acting on an existing student', () => {
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
       expect(body.to).toEqual([{ email: 'mum@example.com' }]);
-      // Two tests sat, best marks 90 and 70, so the average is 80 —
-      // not 66, which is what counting the abandoned 40 would give.
+      // Two tests sat, best attempts 18/20 and 21/30, so the total is
+      // 39/50 — not 47/70, which is what counting the abandoned 8/20
+      // would give. Marks, never percentages.
       expect(body.htmlContent).toMatch(/Tests taken[\s\S]*?2/);
-      expect(body.htmlContent).toMatch(/80%/);
-      expect(body.htmlContent).toMatch(/90%/);
+      expect(body.htmlContent).toMatch(/Total marks[\s\S]*?39\/50/);
+      expect(body.htmlContent).toMatch(/Best mark[\s\S]*?18\/20/);
+      expect(body.htmlContent).not.toMatch(/>[^<]*\d+%[^<]*</);
       // And it is readable by a parent who does not read English.
       expect(body.htmlContent).toMatch(/dir="rtl"/);
       expect(body.subject).toMatch(/\u062a\u0642\u0631\u064a\u0631/);

@@ -119,8 +119,8 @@
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
         <div class="stat-n" id="s-avg">—</div>
-        <div class="stat-l">Class average</div>
-        <div class="stat-hint">Best attempt per test</div>
+        <div class="stat-l">Class marks</div>
+        <div class="stat-hint">Everyone's best attempts, added up</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
@@ -166,7 +166,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th>Tests sat this week</th><th class="num">Average</th><th class="num">Lessons</th></tr>
+            <tr><th>Student</th><th>Tests sat this week</th><th class="num">Marks this week</th><th class="num">Lessons</th></tr>
           </thead>
           <tbody id="week-rows"></tbody>
         </table>
@@ -188,7 +188,7 @@
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr><th>Student</th><th class="num">Tests done</th><th class="num">Average</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th><th></th></tr>
+            <tr><th>Student</th><th class="num">Tests done</th><th class="num">Total marks</th><th class="num">Best</th><th class="num">Lessons</th><th>Last seen</th><th></th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -284,7 +284,7 @@ async function load() {
       .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
     // Every attempt, not just the best: "passed on the third go" is a
     // different fact about a student than "passed".
-    sb.from('test_attempts').select('student_id, test_id, percentage, passed, completed_at')
+    sb.from('test_attempts').select('student_id, test_id, percentage, score, max_score, passed, completed_at')
       .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null),
     sb.from('lesson_completions').select('student_id, lesson_id, completed_at').eq('teacher_id', me.teacher_id),
     sb.from('practice_tests').select('id, title, course_id, passing_score_pct, is_active')
@@ -350,11 +350,17 @@ async function load() {
       sat: best.length,
       avg,
       top: best.length ? Math.round(Math.max(...best.map(a => parseFloat(a.percentage)))) : null,
+      // What is shown: marks, not percentages. avg and top above still
+      // sort the list and pick the badge colour.
+      totalMarks: bestTotalMarks(s.attempts),
+      topMark: bestMark(s.attempts),
     };
   });
 
   const withMarks = summary.filter(s => s.avg != null);
-  setStat('s-avg', withMarks.length ? Math.round(withMarks.reduce((t, s) => t + s.avg, 0) / withMarks.length) : null, '%');
+  // The class's best attempts added up as marks, like each student's.
+  const classTotal = bestTotals(summary.flatMap(s => s.attempts.map(a => ({ ...a, test_id: s.id + ':' + a.test_id }))));
+  setStat('s-avg', classTotal ? marks(classTotal.score, classTotal.max) : null);
   setStat('s-pass', summary.filter(s => s.avg != null && s.avg >= 60).length);
   setStat('s-risk', summary.filter(s => s.avg == null || s.avg < 50).length);
   setStat('s-lessons', summary.reduce((t, s) => t + s.lessons, 0));
@@ -391,8 +397,8 @@ function render() {
         <div class="small muted">${escHtml(s.email || '')}</div>
       </td>
       <td class="num">${s.sat}</td>
-      <td class="num">${s.avg == null ? '<span class="muted">—</span>' : `<span class="badge ${badgeFor(s.avg)}">${s.avg}%</span>`}</td>
-      <td class="num muted">${s.top == null ? '—' : s.top + '%'}</td>
+      <td class="num">${s.avg == null ? '<span class="muted">—</span>' : `<span class="badge ${badgeFor(s.avg)}">${s.totalMarks}</span>`}</td>
+      <td class="num muted">${s.topMark == null ? '—' : s.topMark}</td>
       <td class="num muted">${s.lessons}</td>
       <td class="small muted">${s.lastSeen ? timeAgo(s.lastSeen) : 'Never'}</td>
       <td style="text-align:right"><span class="row-chev">${chevron()}</span></td>
@@ -483,18 +489,25 @@ function drawWeek() {
     const avg = marks.length ? Math.round(marks.reduce((x, y) => x + y, 0) / marks.length) : null;
     const titles = sat.map(a => {
       const t = allTests.find(t => t.id === a.test_id);
-      const pct = Math.round(parseFloat(a.percentage) || 0);
       return `<div class="small" style="margin-bottom:2px">${escHtml(t?.title || 'A test')}
-        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${pct}%</strong></div>`;
+        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${mark(a)}</strong></div>`;
     }).join('');
 
     return `<tr>
       <td><strong>${escHtml(s.full_name)}</strong></td>
       <td>${titles || '<span class="small muted">Nothing this week</span>'}</td>
-      <td class="num">${avg == null ? '<span class="muted">—</span>' : `<span class="badge ${avg >= 50 ? 'b-green' : 'b-red'}">${avg}%</span>`}</td>
+      <td class="num">${avg == null ? '<span class="muted">—</span>' : `<span class="badge ${avg >= 50 ? 'b-green' : 'b-red'}">${weekMarks(sat)}</span>`}</td>
       <td class="num small muted">${lessons || '—'}</td>
     </tr>`;
   }).join('');
+}
+
+// The week's tests added up as marks: every attempt that week counts,
+// since the sheet is about what they did, not their best.
+function weekMarks(sat) {
+  const done = sat.filter(a => a.score != null && a.max_score != null);
+  if (!done.length) return '—';
+  return marks(done.reduce((t, a) => t + Number(a.score), 0), done.reduce((t, a) => t + Number(a.max_score), 0));
 }
 
 function chevron() {
@@ -571,12 +584,12 @@ function testDetail(s, courseIds) {
     // The exact mark, not a band — and every attempt after the first,
     // because improving from 41 to 78 is the thing worth seeing.
     const others = tries.length > 1
-      ? ' · tried ' + tries.length + ' times: ' + tries.map(a => pct(a.percentage)).join(', ')
+      ? ' · tried ' + tries.length + ' times: ' + tries.map(a => mark(a)).join(', ')
       : '';
     return `<div class="mini-row">
       <div class="mini-name"><div>${escHtml(t.title)}</div>
-        <div class="mini-sub">${fmtDate(best.completed_at)} · pass at ${t.passing_score_pct}%${others}</div></div>
-      <span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>
+        <div class="mini-sub">${fmtDate(best.completed_at)} · pass mark ${passMarks(t.passing_score_pct, best.max_score)}${others}</div></div>
+      <span class="badge ${best.passed ? 'b-green' : 'b-red'}">${mark(best)}</span>
     </div>`;
   }).join('');
 }

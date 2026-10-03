@@ -275,7 +275,7 @@ async function closeHelp(id) {
 
 async function loadRecentAttempts() {
   const { data } = await sb.from('test_attempts')
-    .select('percentage, passed, completed_at, profiles(full_name), practice_tests(title)')
+    .select('percentage, score, max_score, passed, completed_at, profiles(full_name), practice_tests(title)')
     .eq('teacher_id', me.teacher_id)
     .not('completed_at', 'is', null)
     .order('completed_at', { ascending: false }).limit(6);
@@ -286,7 +286,7 @@ async function loadRecentAttempts() {
   tbody.innerHTML = data.map(a => `<tr>
       <td style="font-weight:600">${escHtml(a.profiles?.full_name ?? '—')}</td>
       <td class="muted">${escHtml(a.practice_tests?.title ?? '—')}</td>
-      <td><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${pct(a.percentage)}</span></td>
+      <td><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${mark(a)}</span></td>
       <td class="muted">${timeAgo(a.completed_at)}</td>
     </tr>`).join('');
 }

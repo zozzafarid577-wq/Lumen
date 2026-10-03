@@ -330,7 +330,7 @@ function rememberUnit(id, open) {
   // Their own marks, so a test already done shows what they got rather
   // than inviting them to do it again as if it were new.
   const { data: attempts } = await sb.from('test_attempts')
-    .select('test_id, percentage, passed, completed_at')
+    .select('test_id, percentage, score, max_score, passed, completed_at')
     .eq('student_id', me.id).not('completed_at', 'is', null);
   (attempts || []).forEach(a => {
     const p = parseFloat(a.percentage);
@@ -660,7 +660,7 @@ function testRow(t, under) {
         ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
       <div class="lr-sub">${escHtml(bits)}</div>
     </div>
-    ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${pct(best.percentage)}</span>`
+    ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${mark(best)}</span>`
       : late ? '<span class="badge b-red">Late</span>' : ''}
     ${action}
   </div>`;

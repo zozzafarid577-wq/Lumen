@@ -1377,7 +1377,7 @@ function drawEnrolSummary(s) {
 // that saves going there.
 async function loadStudentResults(id) {
   const { data, error } = await sb.from('test_attempts')
-    .select('percentage, passed, completed_at, practice_tests(title)')
+    .select('percentage, score, max_score, passed, completed_at, practice_tests(title)')
     .eq('teacher_id', me.teacher_id).eq('student_id', id)
     .not('completed_at', 'is', null)
     .order('completed_at', { ascending: false }).limit(6);
@@ -1393,7 +1393,7 @@ async function loadStudentResults(id) {
 
   host.innerHTML = list.map(a => `<div class="spread" style="margin-bottom:3px">
     <span>${escHtml(a.practice_tests?.title || 'Test')} <span class="muted">· ${fmtDate(a.completed_at)}</span></span>
-    <span class="badge ${a.passed ? 'b-green' : 'b-red'}">${Math.round(parseFloat(a.percentage) || 0)}%</span>
+    <span class="badge ${a.passed ? 'b-green' : 'b-red'}">${mark(a)}</span>
   </div>`).join('');
 }
 

@@ -51,14 +51,17 @@ export default handler(async (req, res) => {
   const to = (student?.parent_email || '').trim();
   if (!to) return res.status(200).json({ sent: false, why: 'no-parent-email' });
 
-  const percentage = Math.round(parseFloat(attempt.percentage) || 0);
+  // The mark as marks — 18/20 — which is how Lumen shows every score.
+  const shown = attempt.score != null && attempt.max_score != null
+    ? `${attempt.score}/${attempt.max_score}`
+    : `${Math.round(parseFloat(attempt.percentage) || 0)}%`;
   const mail = await sendEmail({
     to,
-    subject: `${student.full_name} — ${test?.title || 'test'} — ${percentage}%`,
+    subject: `${student.full_name} — ${test?.title || 'test'} — ${shown}`,
     html: resultEmail({
       student: student.full_name,
       test: test?.title || 'a test',
-      percentage,
+      shown,
       score: attempt.score,
       maxScore: attempt.max_score,
       passed: attempt.passed,
@@ -83,7 +86,7 @@ export default handler(async (req, res) => {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-function resultEmail({ student, test, percentage, score, maxScore, passed, passMark, space, when }) {
+function resultEmail({ student, test, shown, score, maxScore, passed, passMark, space, when }) {
   const colour = passed ? '#147A57' : '#C62F45';
   const date = when ? new Date(when).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   return `<!DOCTYPE html>
@@ -97,9 +100,9 @@ function resultEmail({ student, test, percentage, score, maxScore, passed, passM
           <p style="margin:0 0 22px;color:#8B8089;font-size:14px">${esc(test)}${date ? ` · ${esc(date)}` : ''}</p>
 
           <div style="text-align:center;background:#FAF8FA;border:1px solid #EDDDE6;border-radius:14px;padding:22px">
-            <div style="font-size:42px;font-weight:800;line-height:1;color:${colour}">${percentage}%</div>
+            <div style="font-size:42px;font-weight:800;line-height:1;color:${colour}">${esc(shown)}</div>
             <div style="margin-top:8px;font-size:14px;color:#554C53">
-              ${score != null && maxScore != null ? `${esc(score)} out of ${esc(maxScore)} · ` : ''}${passed ? 'Passed' : 'Did not pass'}${passMark != null ? ` (pass mark ${esc(passMark)}%)` : ''}
+              ${passed ? 'Passed' : 'Did not pass'}${passMark != null ? ` (pass mark ${esc(passMark)}%)` : ''}
             </div>
           </div>
 

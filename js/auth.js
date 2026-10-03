@@ -662,6 +662,29 @@ function bestAverage(attempts) {
   return Math.round(list.reduce((s, a) => s + parseFloat(a.percentage), 0) / list.length);
 }
 
+// The same best attempts, added up as marks: 412/520 across every test
+// they have sat. What an average is shown as, now that scores are shown as
+// numbers — tests of different lengths cannot be averaged into one 18/20.
+// null when they have not finished any test yet.
+function bestTotals(attempts) {
+  const list = bestAttempts(attempts).filter(a => a.score != null && a.max_score != null);
+  if (!list.length) return null;
+  return {
+    score: list.reduce((s, a) => s + Number(a.score), 0),
+    max: list.reduce((s, a) => s + Number(a.max_score), 0),
+  };
+}
+function bestTotalMarks(attempts) {
+  const t = bestTotals(attempts);
+  return t ? marks(t.score, t.max) : null;
+}
+// The single best attempt — highest percentage — shown as its own marks.
+function bestMark(attempts) {
+  const list = bestAttempts(attempts);
+  if (!list.length) return null;
+  return mark(list.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a)));
+}
+
 // Is this test open to a student right now? The database enforces the same
 // window on the questions; this is what draws the lock.
 function testWindow(t, now = new Date()) {

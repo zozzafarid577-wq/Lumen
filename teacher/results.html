@@ -169,7 +169,7 @@
           <table class="tbl">
             <thead>
               <tr>
-                <th>Student</th><th>Test</th><th class="num">Score</th><th class="num">Mark</th>
+                <th>Student</th><th>Test</th><th class="num">Mark</th><th class="num">Result</th>
                 <th class="num">Time</th><th>Finished</th><th></th>
               </tr>
             </thead>
@@ -339,7 +339,6 @@ function render() {
       : 'Nobody has finished a test yet.');
   } else {
     tbody.innerHTML = list.map(a => {
-      const pct = Math.round(parseFloat(a.percentage) || 0);
       return `<tr>
         <td>
           <button class="link-name" onclick="openPaper('${a.id}')">${escHtml(a.student_name)}</button>
@@ -347,8 +346,8 @@ function render() {
         </td>
         <td class="small">${escHtml(a.test?.title || 'A deleted test')}
           ${a.test?.courses?.title ? `<div class="small muted">${escHtml(a.test.courses.title)}</div>` : ''}</td>
-        <td class="num small">${a.score ?? '—'} / ${a.max_score ?? '—'}</td>
-        <td class="num"><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${pct}%</span></td>
+        <td class="num"><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${mark(a)}</span></td>
+        <td class="num small">${a.passed ? 'Passed' : 'Not passed'}</td>
         <td class="num small muted">${fmtDuration(a.time_taken_sec)}</td>
         <td class="small muted">${fmtDateTime(a.completed_at)}</td>
         <td style="text-align:right;white-space:nowrap">
@@ -439,25 +438,23 @@ async function openPaper(attemptId) {
 
   const questions = await questionsFor(a.test_id);
   const answers = a.answers || {};
-  const pct = Math.round(parseFloat(a.percentage) || 0);
-
   document.getElementById('p-student').textContent = a.student_name;
   document.getElementById('p-test').textContent =
     `${a.test?.title || 'A deleted test'}${a.test?.courses?.title ? ' · ' + a.test.courses.title : ''}`;
-  document.getElementById('p-pct').textContent = `${pct}%`;
-  document.getElementById('p-score').textContent = `${a.score ?? '—'} of ${a.max_score ?? '—'} marks`;
+  document.getElementById('p-pct').textContent = mark(a);
+  document.getElementById('p-score').textContent = a.passed ? 'Passed' : 'Not passed';
 
   // The same two lines, for the top of the printed sheet.
   document.getElementById('pr-title').textContent = `${a.student_name} — ${a.test?.title || 'Test'}`;
   document.getElementById('pr-sub').textContent =
-    `${pct}% · ${a.score ?? '—'}/${a.max_score ?? '—'} · finished ${fmtDateTime(a.completed_at)}`;
+    `${mark(a)} · finished ${fmtDateTime(a.completed_at)}`;
 
   const wrong = questions.filter(q => !isRight(q, answers[q.id])).length;
   const blank = questions.filter(q => !givenIndexes(answers[q.id]).length).length;
 
   document.getElementById('p-badges').innerHTML = [
     `<span class="badge ${a.passed ? 'b-green' : 'b-red'}">${a.passed ? 'Passed' : 'Did not pass'}</span>`,
-    a.test?.passing_score_pct != null ? `<span class="small muted">Pass mark ${a.test.passing_score_pct}%</span>` : '',
+    a.test?.passing_score_pct != null ? `<span class="small muted">Pass mark ${passMarks(a.test.passing_score_pct, a.max_score)}</span>` : '',
     `<span class="small muted">${questions.length - wrong} right · ${wrong} wrong${blank ? ` · ${blank} left blank` : ''}</span>`,
     `<span class="small muted">Took ${fmtDuration(a.time_taken_sec)}</span>`,
     `<span class="small muted">Finished ${fmtDateTime(a.completed_at)}</span>`,

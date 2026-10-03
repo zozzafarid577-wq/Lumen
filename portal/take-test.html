@@ -144,7 +144,7 @@ let submitted = false;
   document.getElementById('t-title').textContent = test.title;
   document.getElementById('t-sub').textContent =
     [test.courses?.title, `${questions.length} question${questions.length === 1 ? '' : 's'}`,
-     `pass at ${test.passing_score_pct}%`].filter(Boolean).join(' · ');
+     `pass mark ${passMarks(test.passing_score_pct, questions.reduce((t, q) => t + (q.points || 1), 0))}`].filter(Boolean).join(' · ');
   document.getElementById('submit-btn').style.display = 'inline-flex';
 
   renderQuestions();
@@ -343,11 +343,11 @@ function showResult(row, outcome) {
     ${notice}
     <div class="card mb24 printable">
       <div class="result-hero">
-        <div class="result-pct" style="color:${row.passed ? 'var(--success)' : 'var(--danger)'}">${row.percentage}%</div>
+        <div class="result-pct" style="color:${row.passed ? 'var(--success)' : 'var(--danger)'}">${marks(row.score, row.max_score)}</div>
         <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;margin:12px 0 6px">
           ${row.passed ? 'Passed' : 'Not passed this time'}
         </div>
-        <p class="small muted">${row.score} of ${row.max_score} marks · pass mark ${test.passing_score_pct}% · ${Math.round(row.time_taken_sec / 60)} min</p>
+        <p class="small muted">${row.score} out of ${row.max_score} marks · pass mark ${passMarks(test.passing_score_pct, row.max_score)} · ${Math.round(row.time_taken_sec / 60)} min</p>
         <div class="row" style="justify-content:center;margin-top:20px">
           <a href="/portal/scores.html" class="btn btn-outline btn-sm">My scores</a>
           <a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my courses</a>
