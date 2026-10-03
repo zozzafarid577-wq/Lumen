@@ -60,6 +60,13 @@
   .q-verdict { font-size: .84rem; font-weight: 700; margin-top: 14px; }
   .score-dots { display: flex; gap: 5px; flex-wrap: wrap; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .sound-btn { padding: 6px 9px; }
+  .sound-btn svg { width: 18px; height: 18px; }
+  .q-block.pop-right { animation: popRight .45s ease; }
+  .q-block.shake { animation: shake .4s ease; }
+  @keyframes popRight { 0% { transform: scale(1); } 40% { transform: scale(1.02); } 100% { transform: scale(1); } }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+  @media (prefers-reduced-motion: reduce) { .q-block.pop-right, .q-block.shake { animation: none; } }
   .dot.hit  { background: var(--success); }
   .dot.miss { background: var(--danger); }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.2rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
@@ -119,6 +126,7 @@
     </div>
     <div class="topbar-right">
       <div class="score-dots" id="dots"></div>
+      <button type="button" class="btn btn-ghost btn-sm sound-btn" id="sound-btn" onclick="toggleSound()" aria-label="Sound on" title="Sound on or off"></button>
       <a href="/portal/courses.html" class="btn btn-ghost btn-sm" id="back-link">Back to my course</a>
     </div>
   </header>
@@ -366,6 +374,74 @@ async function start() {
   drawQuestion();
 }
 
+// ── Sounds ────────────────────────────────────────────────────────
+// A bright two-note chime for a right answer, a soft low buzz for a
+// wrong one, and a little run of notes at the end of a good round. Made
+// with the Web Audio API, so there are no sound files to load. The
+// speaker button turns them off, and the choice is remembered.
+let audio = null;
+let soundOn = (() => { try { return localStorage.getItem('lumen_practice_sound') !== 'off'; } catch (_) { return true; } })();
+
+const SPEAKER_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+const SPEAKER_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+
+function drawSoundBtn() {
+  const b = document.getElementById('sound-btn');
+  if (!b) return;
+  b.innerHTML = soundOn ? SPEAKER_ON : SPEAKER_OFF;
+  b.setAttribute('aria-label', soundOn ? 'Sound on' : 'Sound off');
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  try { localStorage.setItem('lumen_practice_sound', soundOn ? 'on' : 'off'); } catch (_) {}
+  drawSoundBtn();
+  if (soundOn) { wakeAudio(); playRight(); }
+}
+
+// Browsers only let sound start from a tap, so this runs inside the click
+// that checks an answer, before the wait for the server.
+function wakeAudio() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+  } catch (_) { audio = null; }
+}
+
+function tone(freq, start, length, { type = 'sine', volume = 0.18, slideTo = null } = {}) {
+  const t0 = audio.currentTime + start;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + length);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + length);
+  osc.connect(gain).connect(audio.destination);
+  osc.start(t0);
+  osc.stop(t0 + length + 0.02);
+}
+
+function playRight() {
+  if (!soundOn || !audio) return;
+  tone(880, 0, 0.16, { type: 'triangle' });          // A5
+  tone(1318.5, 0.09, 0.32, { type: 'triangle' });    // E6
+}
+
+function playWrong() {
+  if (!soundOn || !audio) return;
+  tone(220, 0, 0.18, { type: 'square', volume: 0.07, slideTo: 180 });
+  tone(165, 0.16, 0.28, { type: 'square', volume: 0.07, slideTo: 130 });
+}
+
+function playFinish(good) {
+  if (!soundOn || !audio) return;
+  const notes = good ? [523.25, 659.25, 783.99, 1046.5] : [392, 349.23, 329.63];
+  notes.forEach((f, i) => tone(f, i * 0.12, good && i === notes.length - 1 ? 0.5 : 0.2, { type: 'triangle', volume: 0.15 }));
+}
+
 function drawDots() {
   document.getElementById('dots').innerHTML = questions.map((_, i) => {
     const r = results[i];
@@ -408,6 +484,7 @@ function drawQuestion() {
 async function checkAnswer() {
   if (marked || !chosen.length) return;
   marked = true;
+  wakeAudio();
 
   const btn = document.getElementById('check-btn');
   btn.disabled = true;
@@ -428,6 +505,9 @@ async function checkAnswer() {
 
   results[at] = verdict.correct;
   drawDots();
+  if (verdict.correct) playRight(); else playWrong();
+  const block = document.getElementById('q-block');
+  block.classList.add(verdict.correct ? 'pop-right' : 'shake');
 
   // The right answer is shown either way — a wrong answer a student is
   // not shown the truth of is a wrong answer they will give again.
@@ -454,6 +534,7 @@ function next() { at++; drawQuestion(); }
 function finish() {
   const right = results.filter(Boolean).length;
   const good = right / questions.length >= 0.6;
+  playFinish(good);
   // A mark as a number — 7/10 — like every other score in Lumen.
   stage(`
     <div class="card"><div class="card-body" style="text-align:center;padding:40px 24px">
@@ -466,6 +547,7 @@ function finish() {
       </div>
     </div></div>`);
 }
+drawSoundBtn();
 </script>
 </body>
 </html>
