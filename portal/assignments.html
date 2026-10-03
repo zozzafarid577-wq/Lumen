@@ -255,6 +255,9 @@ async function handIn() {
     return;
   }
 
+  // Student view: nothing is handed in on the teacher's behalf.
+  if (me.preview) { showToast('Student view — nothing was handed in.', 'info'); return; }
+
   const btn = document.getElementById('hm-save');
   btn.disabled = true;
   btn.textContent = 'Handing in…';

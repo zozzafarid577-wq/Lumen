@@ -130,6 +130,9 @@ let me = null;
 
 (async () => {
   me = await requireAuth('student');
+  // Student view: a student's settings page would be the teacher's own
+  // account underneath, so send them back to the course page instead.
+  if (me?.preview) { location.replace('/portal/courses.html'); return; }
   if (!me) return;
   renderShell('student', me, { title: 'Settings' });
 

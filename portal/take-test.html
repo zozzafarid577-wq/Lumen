@@ -298,6 +298,14 @@ async function submitTest(auto = false) {
     completed_at: new Date().toISOString(),
   };
 
+  // Student view: the teacher sees the result screen a student would, and
+  // nothing goes to the database or to a parent.
+  if (me.preview) {
+    showResult(row, { saved: true });
+    showToast('Student view — this result was not saved.', 'info');
+    return;
+  }
+
   const outcome = await save(row);
   showResult(row, outcome);
 

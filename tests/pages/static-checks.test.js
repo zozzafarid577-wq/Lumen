@@ -73,7 +73,8 @@ describe.each(PAGES)('$rel', ({ rel, html }) => {
   it('links only to files that exist', () => {
     const hrefs = [...html.matchAll(/\b(?:href|src)=["'](\/[^"'#?]*)["']/g)].map(m => m[1]);
     for (const href of hrefs) {
-      const target = href.endsWith('/') ? join(ROOT, href, 'index.html') : join(ROOT, href);
+      const path = href.split('?')[0];   // "View as student" carries ?preview=1
+      const target = path.endsWith('/') ? join(ROOT, path, 'index.html') : join(ROOT, path);
       expect(existsSync(target), `${rel} → ${href}`).toBe(true);
     }
   });
@@ -128,7 +129,8 @@ describe('the nav in js/shell.js', () => {
     const hrefs = [...shell.matchAll(/href:\s*'([^']+)'/g)].map(m => m[1]);
     expect(hrefs.length).toBeGreaterThan(10);
     for (const href of hrefs) {
-      const target = href.endsWith('/') ? join(ROOT, href, 'index.html') : join(ROOT, href);
+      const path = href.split('?')[0];   // "View as student" carries ?preview=1
+      const target = path.endsWith('/') ? join(ROOT, path, 'index.html') : join(ROOT, path);
       expect(existsSync(target), href).toBe(true);
     }
   });

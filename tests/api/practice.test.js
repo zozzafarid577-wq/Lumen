@@ -174,9 +174,18 @@ describe('who may practise', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('is for students, not staff', async () => {
+  it('lets the teacher in through "View as student", inside their own space and without enrolment', async () => {
     asUser(TEACHER_USER);
-    world();
+    world({ enrolled: false });
+    const res = await call({ module_id: UNIT });
+    expect(res.statusCode).toBe(200);
+    const [query] = getSupabaseCalls('question_bank.select');
+    expect(query.filters.teacher_id).toBe(TEACHER_ID);
+  });
+
+  it('still refuses a teacher another space\'s unit', async () => {
+    asUser(TEACHER_USER);
+    world({ unit: { teacher_id: OTHER_TEACHER_ID } });
     const res = await call({ module_id: UNIT });
     expect(res.statusCode).toBe(403);
   });

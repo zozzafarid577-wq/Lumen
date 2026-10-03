@@ -40,6 +40,7 @@ const NAVS = {
     { href: '/teacher/tests.html',          icon: 'tests',     label: 'Tests' },
     { href: '/teacher/assignments.html',    icon: 'tasks',     label: 'Assignments' },
     { href: '/teacher/announcements.html',  icon: 'bell',      label: 'Announcements' },
+    { href: '/portal/courses.html?preview=1', icon: 'students', label: 'View as student' },
     { section: 'Your space' },
     { href: '/teacher/team.html',           icon: 'team',      label: 'Assistants', teacherOnly: true },
     { href: '/teacher/subscription.html',   icon: 'card',      label: 'Subscription', teacherOnly: true },
@@ -86,7 +87,28 @@ function renderShell(which, profile, { title } = {}) {
 
   // Lumi rides along on every student page, not just the dashboard: a
   // page that will not load is exactly the page they are stuck on.
-  if (which === 'student') mountHelper(profile);
+  if (which === 'student' && !profile.preview) mountHelper(profile);
+  if (profile.preview) mountPreviewBanner();
+}
+
+// The strip across the top of every student page a teacher is
+// previewing: what they are looking at, that nothing is saved, and the
+// way back.
+function mountPreviewBanner() {
+  if (document.getElementById('preview-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'preview-banner';
+  bar.className = 'no-print';
+  bar.style.cssText = 'position:sticky;top:0;z-index:300;display:flex;align-items:center;justify-content:center;gap:12px;'
+    + 'flex-wrap:wrap;padding:9px 16px;background:#1B1519;color:#fff;font-size:.82rem;font-weight:600;text-align:center';
+  bar.innerHTML = '<span>Student view — this is what your students see. Nothing you do here is saved.</span>'
+    + '<button type="button" style="border:0;border-radius:9999px;padding:6px 14px;background:#fff;color:#1B1519;font:inherit;font-weight:800;cursor:pointer">Exit student view</button>';
+  bar.querySelector('button').onclick = () => {
+    try { sessionStorage.removeItem('lumen_preview'); } catch (_) {}
+    location.href = '/teacher/';
+  };
+  const main = document.querySelector('.main') || document.body;
+  main.insertBefore(bar, main.firstChild);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -231,7 +253,10 @@ async function sendHelp() {
 }
 
 function sidebarHtml(which, profile) {
-  const items = (NAVS[which] || []).filter(i => !(i.teacherOnly && profile.role === 'assistant'));
+  const items = (NAVS[which] || []).filter(i => !(i.teacherOnly && profile.role === 'assistant'))
+    // In student view the student's own settings are not the teacher's to
+    // open: they are the teacher's settings underneath.
+    .filter(i => !(profile.preview && i.href === '/portal/settings.html'));
 
   // The supplied logo wherever there is room for it. The rail collapses
   // to 74px on desktop, where there is not — so the "u" alone stands in

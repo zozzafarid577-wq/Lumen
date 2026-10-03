@@ -264,7 +264,19 @@ async function guardPage(roles, { perm } = {}) {
   }
 
   try { localStorage.setItem('lumen_role', profile.role); } catch (_) {}
-  if (allowed && !allowed.includes(profile.role)) { location.replace(homeFor(profile.role)); return null; }
+
+  // "View as student": a teacher or assistant opening a student page with
+  // ?preview=1 sees it as their students do. The flag lasts for the tab,
+  // so moving between student pages keeps the view, and leaving it is one
+  // button in the banner. Nothing a preview does is saved — the pages that
+  // write check `profile.preview` and stop.
+  if (/[?&]preview=1\b/.test(location.search)) { try { sessionStorage.setItem('lumen_preview', '1'); } catch (_) {} }
+  let previewFlag = false;
+  try { previewFlag = sessionStorage.getItem('lumen_preview') === '1'; } catch (_) {}
+  if (allowed && allowed.includes('student') && !allowed.includes(profile.role)
+      && ['teacher', 'assistant'].includes(profile.role) && previewFlag) {
+    profile.preview = true;
+  } else if (allowed && !allowed.includes(profile.role)) { location.replace(homeFor(profile.role)); return null; }
 
   profile.email = session.user?.email || profile.email || '';
   profile.teacher = await getTeacher(profile.teacher_id);

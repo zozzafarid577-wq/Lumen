@@ -300,9 +300,14 @@ function rememberUnit(id, open) {
 
   // The group comes along with the enrolment: which sitting of this
   // course they attend is part of what the course is, to them.
-  const { data: enrolments } = await sb.from('enrollments')
-    .select('expires_at, groups(name, days, start_time), courses(id, title, subject, description, exam_date, order_index)')
-    .eq('student_id', me.id);
+  // In student view the teacher is enrolled on nothing, so every course
+  // they run stands in for the ones a student would be on.
+  const { data: enrolments } = me.preview
+    ? await sb.from('courses').select('id, title, subject, description, exam_date, order_index').eq('is_active', true)
+        .then(r => ({ data: (r.data || []).map(c => ({ expires_at: null, groups: null, courses: c })) }))
+    : await sb.from('enrollments')
+      .select('expires_at, groups(name, days, start_time), courses(id, title, subject, description, exam_date, order_index)')
+      .eq('student_id', me.id);
 
   // In the order their teacher put them in, not alphabetically: a
   // teacher who drags Senior 1 above Senior 2 means it for the student
@@ -693,6 +698,13 @@ function lessonRow(l) {
 }
 
 async function toggleDone(lessonId) {
+  // Student view: show what the tick looks like, save nothing.
+  if (me.preview) {
+    if (doneIds.has(lessonId)) doneIds.delete(lessonId); else doneIds.add(lessonId);
+    await load();
+    showToast('Student view — not saved.', 'info');
+    return;
+  }
   const done = doneIds.has(lessonId);
 
   // Marking a lesson done is the one write a student makes casually, so

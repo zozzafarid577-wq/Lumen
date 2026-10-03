@@ -26,7 +26,10 @@ const MAX_QUESTIONS = 30;
 
 export default handler(async (req, res) => {
   const { profile } = await authenticate(req);
-  requireRoles(profile, ['student']);
+  // Students, and their teacher's staff looking through "View as student".
+  // Staff see their own space only — every query below is scoped to
+  // profile.teacher_id — and skip the enrolment checks, having none.
+  requireRoles(profile, ['student', 'teacher', 'assistant']);
   if (!profile.teacher_id) throw new HttpError(403, 'This account is not attached to a teacher.');
 
   const body = req.body || {};
@@ -45,9 +48,11 @@ async function available(req, res, profile, body) {
   const courseId = body.course_id;
   if (!courseId) throw new HttpError(400, 'Choose a course.');
 
-  const { data: enrolment } = await admin.from('enrollments')
-    .select('course_id').eq('student_id', profile.id).eq('course_id', courseId).maybeSingle();
-  if (!enrolment) throw new HttpError(403, 'You are not enrolled on that course.');
+  if (profile.role === 'student') {
+    const { data: enrolment } = await admin.from('enrollments')
+      .select('course_id').eq('student_id', profile.id).eq('course_id', courseId).maybeSingle();
+    if (!enrolment) throw new HttpError(403, 'You are not enrolled on that course.');
+  }
 
   const { data: units } = await admin.from('modules')
     .select('id, is_done, open_at').eq('teacher_id', profile.teacher_id).eq('course_id', courseId);
@@ -72,8 +77,12 @@ async function available(req, res, profile, body) {
 // page. Counts only, like `available`; no question text leaves.
 
 async function menu(req, res, profile, body) {
-  const { data: enrolments } = await admin.from('enrollments')
-    .select('course_id, courses(id, title, order_index)').eq('student_id', profile.id);
+  const { data: enrolments } = profile.role === 'student'
+    ? await admin.from('enrollments')
+      .select('course_id, courses(id, title, order_index)').eq('student_id', profile.id)
+    : await admin.from('courses').select('id, title, order_index')
+      .eq('teacher_id', profile.teacher_id).eq('is_active', true)
+      .then(r => ({ data: (r.data || []).map(c => ({ course_id: c.id, courses: c })) }));
   let courses = (enrolments || []).map(e => e.courses).filter(Boolean)
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.title.localeCompare(b.title));
   if (body.course_id) courses = courses.filter(c => c.id === body.course_id);
@@ -232,9 +241,11 @@ async function openUnitFor(profile, moduleId) {
   if (error || !unit) throw new HttpError(404, 'That unit no longer exists.');
   if (unit.teacher_id !== profile.teacher_id) throw new HttpError(403, 'That unit belongs to another teacher.');
 
-  const { data: enrolment } = await admin.from('enrollments')
-    .select('course_id').eq('student_id', profile.id).eq('course_id', unit.course_id).maybeSingle();
-  if (!enrolment) throw new HttpError(403, 'You are not enrolled on that course.');
+  if (profile.role === 'student') {
+    const { data: enrolment } = await admin.from('enrollments')
+      .select('course_id').eq('student_id', profile.id).eq('course_id', unit.course_id).maybeSingle();
+    if (!enrolment) throw new HttpError(403, 'You are not enrolled on that course.');
+  }
 
   if (!unit.is_done || (unit.open_at && new Date(unit.open_at) > new Date())) {
     throw new HttpError(403, 'That unit is not open yet.');
