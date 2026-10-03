@@ -114,6 +114,22 @@ describe('handing out practice questions', () => {
     expect(query.filters.lesson_id).toBe('lesson-1');
   });
 
+  it('accepts the lessons as a list', async () => {
+    world();
+    await call({ module_id: UNIT, lesson_ids: ['lesson-1'] });
+    const [one] = getSupabaseCalls('question_bank.select');
+    expect(one.filters.lesson_id).toBe('lesson-1');
+  });
+
+  it('narrows to the sections picked — vocabulary, grammar — and ignores anything that is not an id', async () => {
+    world();
+    const vocab = '11111111-2222-3333-4444-555555555555';
+    await call({ module_id: UNIT, section_ids: [vocab, 'drop table'] });
+
+    const [query] = getSupabaseCalls('question_bank.select');
+    expect(query.filters['in:section_id']).toEqual([vocab]);
+  });
+
   it('will not take a lesson from another unit', async () => {
     world();
     configureSupabaseMock({

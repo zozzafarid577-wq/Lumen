@@ -63,6 +63,46 @@
   .dot.hit  { background: var(--success); }
   .dot.miss { background: var(--danger); }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.2rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
+  /* ── The chooser: unit → lessons → section ─────────────────────── */
+  .steps { display: flex; gap: 8px; margin-bottom: 22px; }
+  .step { flex: 1; height: 6px; border-radius: 3px; background: var(--border); transition: background .3s; }
+  .step.on { background: var(--primary); }
+  .pick-h { font-family: 'Manrope', sans-serif; font-size: 1.45rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+  .pick-sub { color: var(--muted); font-size: .88rem; margin-bottom: 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+  .tile {
+    position: relative; text-align: left; border: 2px solid transparent; border-radius: 18px; padding: 20px 18px 18px;
+    color: #fff; cursor: pointer; font: inherit; min-height: 128px; overflow: hidden;
+    box-shadow: 0 8px 22px rgba(60,20,60,.14); transition: transform .15s, box-shadow .15s, border-color .15s;
+  }
+  /* The pop-in plays once, when a step first appears — not every time a
+     lesson is ticked — and never for anyone who has asked for less motion.
+     It only scales, so a tile is visible even if the animation never runs. */
+  .tiles.enter .tile { animation: pop .35s cubic-bezier(.2,.9,.3,1.3) backwards; }
+  @media (prefers-reduced-motion: reduce) { .tiles.enter .tile { animation: none; } }
+  .tile:hover { transform: translateY(-3px) rotate(-.4deg); box-shadow: 0 14px 30px rgba(60,20,60,.2); }
+  .tile .big { font-family: 'Manrope', sans-serif; font-size: 2.4rem; font-weight: 800; line-height: 1; opacity: .95; }
+  .tile .name { font-weight: 800; margin-top: 10px; font-size: 1rem; }
+  .tile .meta { font-size: .76rem; opacity: .85; margin-top: 3px; }
+  .tile .blob { position: absolute; right: -22px; top: -22px; width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,.16); }
+  .tile.sel { border-color: #fff; outline: 3px solid var(--primary); }
+  .tile .tick { position: absolute; right: 12px; bottom: 12px; width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; color: var(--primary); display: none; align-items: center; justify-content: center; font-weight: 900; }
+  .tile.sel .tick { display: flex; }
+  .c0 { background: linear-gradient(135deg, #A2509F, #C774C3); }
+  .c1 { background: linear-gradient(135deg, #2F7CF6, #5EA3FF); }
+  .c2 { background: linear-gradient(135deg, #E8803A, #F5A962); }
+  .c3 { background: linear-gradient(135deg, #1E9E74, #43C49A); }
+  .c4 { background: linear-gradient(135deg, #D2456C, #EE7294); }
+  .c5 { background: linear-gradient(135deg, #6C5CE7, #9B8CFF); }
+  .pick-bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 22px; flex-wrap: wrap; }
+  .count-pills { display: flex; gap: 8px; }
+  .count-pills button { border: 1.5px solid var(--border); background: var(--card); color: var(--text); border-radius: 9999px;
+    padding: 8px 15px; cursor: pointer; font: inherit; font-weight: 700; }
+  .count-pills button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+  .linkish { background: none; border: 0; color: var(--primary); cursor: pointer; font: inherit; font-weight: 700; padding: 6px 0; }
+  @keyframes pop { from { transform: scale(.92) translateY(6px); } }
+  @media (max-width: 520px) { .tiles { grid-template-columns: 1fr 1fr; } .tile { min-height: 112px; padding: 16px 14px; } .tile .big { font-size: 2rem; } }
 </style>
 </head>
 <body>
@@ -111,6 +151,11 @@ let chosen = [];           // the option indexes ticked on the question on scree
 let marked = false;        // has this one been sent off to be marked?
 const params = new URLSearchParams(location.search);
 
+// What the student picked on the way in: a unit, one or more of its
+// lessons, and which sections. Kept so "Practise again" repeats it.
+let pick = { unit: null, lessons: [], sections: [], count: 10 };
+let menuData = null;
+
 (async () => {
   me = await requireAuth('student');
   if (!me) return;
@@ -119,24 +164,189 @@ const params = new URLSearchParams(location.search);
   const course = params.get('course');
   if (course) document.getElementById('back-link').href = '/portal/courses.html?course=' + encodeURIComponent(course);
 
-  await start();
+  // An old link straight to one unit still works and skips the chooser.
+  if (params.get('unit')) {
+    pick.unit = { id: params.get('unit') };
+    if (params.get('lesson')) pick.lessons = [params.get('lesson')];
+    await start();
+    return;
+  }
+  await openChooser();
 })();
 
+// ── The chooser: unit → lessons → section ─────────────────────────
+async function openChooser() {
+  document.getElementById('dots').innerHTML = '';
+  document.getElementById('head').textContent = '';
+  try {
+    menuData = await apiPost('/api/practice', { action: 'menu', course_id: params.get('course') || null });
+  } catch (err) {
+    stage(`<div class="card"><div class="card-body">${emptyState('Practice is not available', err.message,
+      '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my course</a>')}</div></div>`);
+    return;
+  }
+  const units = (menuData.courses || []).flatMap(c => c.units.map(u => ({ ...u, course: c.title })));
+  if (!units.length) {
+    stage(`<div class="card"><div class="card-body">${emptyState('Nothing to practise yet',
+      'Your teacher has not put practice questions on an open unit yet. They will appear here as soon as they do.',
+      '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my course</a>')}</div></div>`);
+    return;
+  }
+  pickUnit(units);
+}
+
+function stage(html) { document.getElementById('stage').innerHTML = html; }
+function steps(n) {
+  return `<div class="steps">${[1, 2, 3].map(i => `<span class="step${i <= n ? ' on' : ''}"></span>`).join('')}</div>`;
+}
+function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
+// The number in a title — "Unit 2", "Lesson 3" — for the big digit on a tile.
+function numberIn(title, fallback) { return (String(title).match(/\d+/) || [fallback])[0]; }
+
+function pickUnit(units) {
+  const many = new Set(units.map(u => u.course)).size > 1;
+  stage(`${steps(1)}
+    <div class="pick-h">Choose your unit</div>
+    <div class="pick-sub">Which unit do you want to practise?</div>
+    <div class="tiles enter">${units.map((u, i) => `
+      <button class="tile c${i % 6}" style="animation-delay:${i * 60}ms" onclick="chooseUnit('${u.id}')">
+        <span class="blob"></span>
+        <div class="big">${escHtml(numberIn(u.title, i + 1))}</div>
+        <div class="name">${escHtml(u.title)}</div>
+        <div class="meta">${many ? escHtml(u.course) + ' · ' : ''}${plural(u.count, 'question')}</div>
+      </button>`).join('')}
+    </div>`);
+}
+
+function unitById(id) {
+  for (const c of menuData.courses || []) for (const u of c.units) if (u.id === id) return u;
+  return null;
+}
+
+function lessonOptions(u) {
+  const list = (u.lessons || []).map(l => ({ id: l.id, title: l.title, count: l.count, sections: l.sections }));
+  if (u.unfiled) list.push({ id: 'unfiled', title: 'Whole unit', count: u.unfiled.count, sections: u.unfiled.sections });
+  return list;
+}
+
+function chooseUnit(id) {
+  const u = unitById(id);
+  if (!u) return;
+  pick = { unit: u, lessons: [], sections: [], count: pick.count };
+  // One lesson, or none: nothing to choose, so straight on.
+  const options = lessonOptions(u);
+  if (options.length <= 1) { pick.lessons = options.map(o => o.id); pickSection(); return; }
+  drawLessons(true);
+}
+
+function drawLessons(enter = false) {
+  const u = pick.unit;
+  const options = lessonOptions(u);
+  const all = pick.lessons.length === options.length;
+  stage(`${steps(2)}
+    <div class="pick-h">${escHtml(u.title)}: which lessons?</div>
+    <div class="pick-sub">Pick one, or as many as you like.</div>
+    <div class="tiles${enter ? ' enter' : ''}">${options.map((l, i) => `
+      <button class="tile c${(i + 1) % 6}${pick.lessons.includes(l.id) ? ' sel' : ''}" style="animation-delay:${i * 50}ms" onclick="toggleLesson('${l.id}')">
+        <span class="blob"></span>
+        <div class="big">${l.id === 'unfiled' ? '★' : escHtml(numberIn(l.title, i + 1))}</div>
+        <div class="name">${escHtml(l.title)}</div>
+        <div class="meta">${plural(l.count, 'question')}</div>
+        <span class="tick">✓</span>
+      </button>`).join('')}
+    </div>
+    <div class="pick-bar">
+      <div class="row">
+        <button class="linkish" onclick="openChooser()">← Units</button>
+        <button class="linkish" onclick="allLessons(${all ? 'false' : 'true'})">${all ? 'Clear' : 'Select all'}</button>
+      </div>
+      <button class="btn btn-primary" onclick="pickSection()" ${pick.lessons.length ? '' : 'disabled'}>Next</button>
+    </div>`);
+}
+
+function toggleLesson(id) {
+  pick.lessons = pick.lessons.includes(id) ? pick.lessons.filter(x => x !== id) : [...pick.lessons, id];
+  drawLessons();
+}
+function allLessons(on) {
+  pick.lessons = on ? lessonOptions(pick.unit).map(o => o.id) : [];
+  drawLessons();
+}
+
+// How many questions each section has, across the lessons picked.
+function sectionCounts() {
+  const counts = {};
+  lessonOptions(pick.unit).filter(o => pick.lessons.includes(o.id)).forEach(o => {
+    Object.entries(o.sections || {}).forEach(([k, n]) => { counts[k] = (counts[k] || 0) + n; });
+  });
+  return counts;
+}
+
+function pickSection() {
+  const counts = sectionCounts();
+  const named = (menuData.sections || []).filter(s => counts[s.id]);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // Questions with no section cannot be narrowed to one, so with no named
+  // sections there is nothing to choose.
+  if (!named.length) { pick.sections = []; drawReady(total); return; }
+  const options = [
+    ...named.map(s => ({ ids: [s.id], title: s.name, count: counts[s.id] })),
+    { ids: [], title: 'Both', count: total },
+  ];
+  const back = lessonOptions(pick.unit).length > 1 ? 'drawLessons()' : 'openChooser()';
+  stage(`${steps(3)}
+    <div class="pick-h">Vocabulary, grammar, or both?</div>
+    <div class="pick-sub">${escHtml(pick.unit.title)} · ${plural(pick.lessons.length || 1, 'lesson')}</div>
+    <div class="tiles enter">${options.map((o, i) => `
+      <button class="tile c${(i + 3) % 6}" style="animation-delay:${i * 60}ms" onclick="chooseSection(${i})">
+        <span class="blob"></span>
+        <div class="big">${o.ids.length ? escHtml(o.title.slice(0, 1).toUpperCase()) : '∞'}</div>
+        <div class="name">${escHtml(o.title)}</div>
+        <div class="meta">${plural(o.count, 'question')}</div>
+      </button>`).join('')}
+    </div>
+    <div class="pick-bar"><button class="linkish" onclick="${back}">← Back</button></div>`);
+  window.__sectionOptions = options;
+}
+
+function chooseSection(i) {
+  const o = window.__sectionOptions[i];
+  pick.sections = o.ids;
+  drawReady(o.count);
+}
+
+function drawReady(available) {
+  const sizes = [10, 20, 30].filter((n, i) => i === 0 || n <= available);
+  if (!sizes.includes(pick.count)) pick.count = sizes[0];
+  stage(`${steps(3)}
+    <div class="card"><div class="card-body" style="text-align:center;padding:36px 24px">
+      <div class="pick-h">Ready?</div>
+      <div class="pick-sub">${escHtml(pick.unit.title)} · ${plural(pick.lessons.length || 1, 'lesson')} · ${plural(available, 'question')} to draw from</div>
+      <div class="row" style="justify-content:center;margin-bottom:22px">
+        <span class="small muted" style="margin-right:6px">How many?</span>
+        <div class="count-pills">${sizes.map(n => `<button class="${n === pick.count ? 'on' : ''}" onclick="pick.count=${n};drawReady(${available})">${n}</button>`).join('')}</div>
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="start()">Start practising</button>
+      <div style="margin-top:14px"><button class="linkish" onclick="openChooser()">Start over</button></div>
+    </div></div>`);
+}
+
+// ── The questions ─────────────────────────────────────────────────
 async function start() {
   at = 0; results = []; chosen = []; marked = false;
-  document.getElementById('stage').innerHTML = '<div class="skel" style="height:220px"></div>';
+  stage('<div class="skel" style="height:220px"></div>');
 
   let data;
   try {
     data = await apiPost('/api/practice', {
-      module_id: params.get('unit'),
-      lesson_id: params.get('lesson') || null,
-      count: 10,
+      module_id: pick.unit.id,
+      lesson_ids: pick.lessons,
+      section_ids: pick.sections,
+      count: pick.count,
     });
   } catch (err) {
-    document.getElementById('stage').innerHTML =
-      `<div class="card"><div class="card-body">${emptyState('Practice is not available', err.message,
-        '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my course</a>')}</div></div>`;
+    stage(`<div class="card"><div class="card-body">${emptyState('Practice is not available', err.message,
+      '<button class="btn btn-primary btn-sm" onclick="openChooser()">Choose again</button>')}</div></div>`);
     return;
   }
 
@@ -146,10 +356,9 @@ async function start() {
     : 'Nothing here is marked or recorded';
 
   if (!questions.length) {
-    document.getElementById('stage').innerHTML =
-      `<div class="card"><div class="card-body">${emptyState('No practice questions yet',
-        'Your teacher has not written any questions on this unit yet. They will appear here as soon as they do.',
-        '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my course</a>')}</div></div>`;
+    stage(`<div class="card"><div class="card-body">${emptyState('No practice questions here yet',
+      'Try another lesson or section.',
+      '<button class="btn btn-primary btn-sm" onclick="openChooser()">Choose again</button>')}</div></div>`);
     return;
   }
 
@@ -244,20 +453,18 @@ function next() { at++; drawQuestion(); }
 
 function finish() {
   const right = results.filter(Boolean).length;
-  const percent = Math.round((right / questions.length) * 100);
-  const unit = params.get('unit');
-  const course = params.get('course');
-
-  document.getElementById('stage').innerHTML = `
+  const good = right / questions.length >= 0.6;
+  // A mark as a number — 7/10 — like every other score in Lumen.
+  stage(`
     <div class="card"><div class="card-body" style="text-align:center;padding:40px 24px">
-      <div class="result-pct" style="color:var(--${percent >= 60 ? 'success' : 'danger'})">${percent}%</div>
-      <p style="margin-top:12px;font-weight:600">${right} of ${questions.length} right</p>
+      <div class="result-pct" style="color:var(--${good ? 'success' : 'danger'})">${right}/${questions.length}</div>
+      <p style="margin-top:12px;font-weight:600">${good ? 'Nice work!' : 'Keep going — practice makes it stick.'}</p>
       <p class="small muted" style="margin-top:6px">Practice is never recorded — this is just for you.</p>
       <div class="row" style="justify-content:center;margin-top:22px">
-        ${unit ? '<button class="btn btn-primary btn-sm" onclick="start()">Practise again</button>' : ''}
-        <a href="/portal/courses.html${course ? '?course=' + encodeURIComponent(course) : ''}" class="btn btn-outline btn-sm">Back to my course</a>
+        <button class="btn btn-primary btn-sm" onclick="start()">Practise again</button>
+        ${pick.unit && menuData ? '<button class="btn btn-outline btn-sm" onclick="openChooser()">Choose something else</button>' : ''}
       </div>
-    </div></div>`;
+    </div></div>`);
 }
 </script>
 </body>

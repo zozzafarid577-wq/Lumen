@@ -32,6 +32,7 @@ export default handler(async (req, res) => {
   const body = req.body || {};
   if (body.action === 'check') return check(req, res, profile, body);
   if (body.action === 'available') return available(req, res, profile, body);
+  if (body.action === 'menu') return menu(req, res, profile, body);
   return serve(req, res, profile, body);
 });
 
@@ -64,6 +65,69 @@ async function available(req, res, profile, body) {
   return res.status(200).json({ units: counts });
 }
 
+// ── The practice menu ─────────────────────────────────────────────
+// What the practice screen offers a student, step by step: their open
+// units, the lessons in each, and Vocabulary / Grammar — each with how
+// many questions are behind it, so nothing on the menu leads to an empty
+// page. Counts only, like `available`; no question text leaves.
+
+async function menu(req, res, profile, body) {
+  const { data: enrolments } = await admin.from('enrollments')
+    .select('course_id, courses(id, title, order_index)').eq('student_id', profile.id);
+  let courses = (enrolments || []).map(e => e.courses).filter(Boolean)
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.title.localeCompare(b.title));
+  if (body.course_id) courses = courses.filter(c => c.id === body.course_id);
+  if (!courses.length) return res.status(200).json({ courses: [] });
+
+  const now = new Date();
+  const { data: units } = await admin.from('modules')
+    .select('id, title, course_id, order_index, is_done, open_at, lessons(id, title, order_index)')
+    .eq('teacher_id', profile.teacher_id).in('course_id', courses.map(c => c.id));
+  const open = (units || []).filter(u => u.is_done && (!u.open_at || new Date(u.open_at) <= now));
+  if (!open.length) return res.status(200).json({ courses: courses.map(c => ({ ...c, units: [] })) });
+
+  const { data: rows } = await admin.from('question_bank')
+    .select('module_id, lesson_id, section_id').eq('teacher_id', profile.teacher_id)
+    .eq('is_published', true).eq('practice_ok', true).in('module_id', open.map(u => u.id));
+  const { data: sections } = await admin.from('test_sections')
+    .select('id, name, color, order_index').eq('teacher_id', profile.teacher_id);
+  const sectionById = new Map((sections || []).map(s => [s.id, s]));
+
+  const count = (list, key) => list.reduce((m, r) => { const k = key(r) || ''; m[k] = (m[k] || 0) + 1; return m; }, {});
+  const byUnit = new Map();
+  (rows || []).forEach(r => { if (!byUnit.has(r.module_id)) byUnit.set(r.module_id, []); byUnit.get(r.module_id).push(r); });
+
+  const shapeUnit = (u) => {
+    const mine = byUnit.get(u.id) || [];
+    const lessons = (u.lessons || []).sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .map(l => {
+        const here = mine.filter(r => r.lesson_id === l.id);
+        return { id: l.id, title: l.title, count: here.length, sections: count(here, r => r.section_id) };
+      });
+    const loose = mine.filter(r => !r.lesson_id || !(u.lessons || []).some(l => l.id === r.lesson_id));
+    return {
+      id: u.id, title: u.title, count: mine.length,
+      lessons: lessons.filter(l => l.count),
+      // Questions filed on the unit but no lesson: offered as their own
+      // choice rather than lost.
+      unfiled: loose.length ? { count: loose.length, sections: count(loose, r => r.section_id) } : null,
+    };
+  };
+
+  return res.status(200).json({
+    courses: courses.map(c => ({
+      id: c.id, title: c.title,
+      units: open.filter(u => u.course_id === c.id)
+        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        .map(shapeUnit).filter(u => u.count),
+    })),
+    sections: [...new Set((rows || []).map(r => r.section_id).filter(Boolean))]
+      .map(id => sectionById.get(id)).filter(Boolean)
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .map(s => ({ id: s.id, name: s.name, color: s.color })),
+  });
+}
+
 // ── Handing out questions ─────────────────────────────────────────
 
 async function serve(req, res, profile, body) {
@@ -77,17 +141,32 @@ async function serve(req, res, profile, body) {
     // Held back for the paper. See practice_ok in supabase-migration-v3.
     .eq('practice_ok', true);
 
-  // A lesson narrows it further, for practising one evening's work rather
-  // than the whole unit.
-  if (body.lesson_id) {
-    const lesson = await lessonInUnit(body.lesson_id, unit, profile.teacher_id);
-    q = q.eq('lesson_id', lesson.id);
-  }
+  // Lessons narrow it further — one, or several picked together — for
+  // practising one evening's work rather than the whole unit. 'unfiled'
+  // stands for the unit's questions that sit on no lesson.
+  const lessonIds = Array.isArray(body.lesson_ids) ? body.lesson_ids : (body.lesson_id ? [body.lesson_id] : []);
+  const real = lessonIds.filter(id => id !== 'unfiled');
+  const wantLoose = lessonIds.includes('unfiled');
+  for (const id of real) await lessonInUnit(id, unit, profile.teacher_id);
+  if (real.length === 1 && !wantLoose) q = q.eq('lesson_id', real[0]);
+  else if (real.length && !wantLoose) q = q.in('lesson_id', real);
+  else if (!real.length && wantLoose) q = q.is('lesson_id', null);
+  // Lessons and the unit's loose questions together are narrowed below,
+  // once the rows are in.
 
-  const { data, error } = await q.limit(200);
+  // Vocabulary, Grammar, or both: by the section the teacher filed each
+  // question under. No sections named means everything.
+  const sectionIds = (Array.isArray(body.section_ids) ? body.section_ids : [])
+    .filter(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id));
+  if (sectionIds.length) q = q.in('section_id', sectionIds);
+
+  const { data, error } = await q.limit(500);
   if (error) throw new HttpError(500, 'Those questions could not be loaded. Please try again.');
 
-  const rows = shuffle(data || []).slice(0, clampCount(body.count));
+  const pool = real.length && wantLoose
+    ? (data || []).filter(r => !r.lesson_id || real.includes(r.lesson_id))
+    : (data || []);
+  const rows = shuffle(pool).slice(0, clampCount(body.count));
 
   return res.status(200).json({
     unit: { id: unit.id, title: unit.title },

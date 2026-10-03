@@ -71,6 +71,16 @@
   }
   .hero-chip svg { width: 13px; height: 13px; opacity: .85; }
   .hero-prog { margin-top: 18px; max-width: 320px; position: relative; z-index: 1; }
+  .hero-practice {
+    position: relative; z-index: 1; margin-top: 18px; display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; color: var(--primary); border-radius: 9999px; padding: 11px 20px 11px 16px;
+    font-weight: 800; font-family: 'Manrope', sans-serif; text-decoration: none;
+    box-shadow: 0 8px 24px rgba(40,10,40,.22); transition: transform .15s;
+  }
+  .hero-practice:hover { transform: translateY(-2px); }
+  .hero-practice svg { width: 18px; height: 18px; }
+  .hero-practice small { font-weight: 600; color: var(--muted); font-size: .72rem; }
+  @media (max-width: 520px) { .hero-practice small { display: none; } }
   .hero-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.18); overflow: hidden; }
   .hero-fill { height: 100%; border-radius: 4px; background: #fff; transition: width .8s cubic-bezier(.4,0,.2,1); }
   .hero-prog-label { font-size: .71rem; color: rgba(255,255,255,.72); margin-top: 7px; font-weight: 500; }
@@ -467,6 +477,12 @@ function drawCourseCard(c, units, openTests) {
           <span class="thin">Welcome to</span> ${escHtml(c.title || 'your course')}&nbsp;!
         </div>
         <div class="hero-chips">${chips}</div>
+        ${Object.values(practiceByUnit).some(Boolean) ? `
+          <!-- Practice lives here, once, rather than on every unit: the
+               practice screen asks which unit, lesson and section. -->
+          <a class="hero-practice" href="/portal/practice.html?course=${encodeURIComponent(c.id)}">
+            ${icon(ICONS.spark)}<span>Practice</span><small>Pick a unit, lessons and Vocabulary or Grammar</small>
+          </a>` : ''}
         ${all.length ? `
           <div class="hero-prog">
             <div class="hero-bar"><div class="hero-fill" style="width:${percent}%"></div></div>
@@ -591,14 +607,6 @@ function drawUnits(host, visible, byUnit, byLesson) {
           ${open
             ? `<span class="badge ${doneHere === lessons.length && lessons.length ? 'b-green' : 'b-gray'}">${doneHere}/${lessons.length} done</span>`
             : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
-          ${open && practiceByUnit[u.id]
-            // Offered only where there is something behind it, so the
-            // button never leads to an empty page. The click is stopped
-            // short of the summary, or opening practice would also flip
-            // the unit shut behind them.
-            ? `<a class="btn btn-outline btn-xs practise-btn" onclick="event.stopPropagation()"
-                 href="/portal/practice.html?unit=${u.id}&course=${u.course_id}">${icon(ICONS.spark)}Practise</a>`
-            : ''}
           <span class="unit-chev">${icon(ICONS.chev)}</span>
         </div>
         ${open && lessons.length ? `<div class="unit-bar"><span style="width:${percent}%"></span></div>` : ''}
