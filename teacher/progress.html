@@ -560,26 +560,19 @@ async function emailParent(id) {
 }
 
 function testDetail(s, courseIds) {
-  // Only the tests this student was actually set. A paper on a course
-  // they are not on is not a zero for them, it is none of their business.
-  const mine = allTests.filter(t => t.is_active && courseIds.has(t.course_id));
-  if (!mine.length) return '<div class="detail-h">Tests</div><p class="small muted">No tests on their courses yet.</p>';
-
+  // Only what the student has actually done. This panel gets screenshotted
+  // and sent to parents, so a list of tests not yet sat is noise there —
+  // the week view above is where gaps are chased.
   const byTest = new Map();
   s.attempts.forEach(a => {
     if (!byTest.has(a.test_id)) byTest.set(a.test_id, []);
     byTest.get(a.test_id).push(a);
   });
+  const done = allTests.filter(t => courseIds.has(t.course_id) && byTest.has(t.id));
+  if (!done.length) return '<div class="detail-h">Tests</div><p class="small muted">No tests done yet.</p>';
 
-  return `<div class="detail-h">Every test · ${mine.length}</div>` + mine.map(t => {
-    const tries = (byTest.get(t.id) || []).sort((a, b) => a.completed_at.localeCompare(b.completed_at));
-    if (!tries.length) {
-      return `<div class="mini-row">
-        <div class="mini-name"><div>${escHtml(t.title)}</div>
-          <div class="mini-sub">pass at ${t.passing_score_pct}%</div></div>
-        <span class="badge b-gray">Not done</span>
-      </div>`;
-    }
+  return `<div class="detail-h">Tests done · ${done.length}</div>` + done.map(t => {
+    const tries = byTest.get(t.id).sort((a, b) => a.completed_at.localeCompare(b.completed_at));
     const best = tries.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a));
     // The exact mark, not a band — and every attempt after the first,
     // because improving from 41 to 78 is the thing worth seeing.
@@ -595,13 +588,14 @@ function testDetail(s, courseIds) {
 }
 
 function lessonDetail(s, courseIds, courseName) {
-  const mine = allLessons.filter(l => courseIds.has(l.modules.course_id));
-  if (!mine.length) return '<div class="detail-h">Lessons</div><p class="small muted">No lessons on their courses yet.</p>';
+  // Finished lessons only, for the same reason as the tests.
+  const done = allLessons.filter(l => courseIds.has(l.modules.course_id) && s.doneAt.has(l.id));
+  if (!done.length) return '<div class="detail-h">Lessons</div><p class="small muted">No lessons finished yet.</p>';
 
   // Grouped by unit and in the teacher's own order, so this reads like
   // the course does rather than like a database table.
   const units = new Map();
-  mine.forEach(l => {
+  done.forEach(l => {
     const key = l.modules.id;
     if (!units.has(key)) units.set(key, { unit: l.modules, lessons: [] });
     units.get(key).lessons.push(l);
@@ -610,20 +604,13 @@ function lessonDetail(s, courseIds, courseName) {
   const ordered = [...units.values()].sort((a, b) =>
     (a.unit.course_id).localeCompare(b.unit.course_id) || (a.unit.order_index - b.unit.order_index));
 
-  const done = mine.filter(l => s.doneAt.has(l.id)).length;
-
-  return `<div class="detail-h">Lessons · ${done} of ${mine.length} done</div>` + ordered.map(({ unit, lessons }) => `
+  return `<div class="detail-h">Lessons done · ${done.length}</div>` + ordered.map(({ unit, lessons }) => `
     <div class="mini-unit">${escHtml(courseName.get(unit.course_id) || '')} · ${escHtml(unit.title)}</div>
-    ${lessons.sort((a, b) => a.order_index - b.order_index).map(l => {
-      const at = s.doneAt.get(l.id);
-      return `<div class="mini-row">
-        <svg class="tick ${at ? 'done' : 'not'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-          ${at ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="9"/>'}
-        </svg>
-        <div class="mini-name"><div${at ? '' : ' class="muted"'}>${escHtml(l.title)}</div>
-          ${at ? `<div class="mini-sub">${fmtDate(at)}</div>` : ''}</div>
-      </div>`;
-    }).join('')}`).join('');
+    ${lessons.sort((a, b) => a.order_index - b.order_index).map(l => `<div class="mini-row">
+        <svg class="tick done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg>
+        <div class="mini-name"><div>${escHtml(l.title)}</div>
+          <div class="mini-sub">${fmtDate(s.doneAt.get(l.id))}</div></div>
+      </div>`).join('')}`).join('');
 }
 
 function badgeFor(avg) {
