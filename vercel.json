@@ -8,6 +8,22 @@
     {
       "source": "/setup/:token",
       "destination": "/set-password"
+    },
+    {
+      "source": "/onboarding",
+      "destination": "/help"
+    },
+    {
+      "source": "/onboarding/practice",
+      "destination": "/help/practice"
+    },
+    {
+      "source": "/onboarding/android",
+      "destination": "/help/android"
+    },
+    {
+      "source": "/onboarding/iphone",
+      "destination": "/help/iphone"
     }
   ],
   "redirects": [
