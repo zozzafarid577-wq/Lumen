@@ -330,3 +330,24 @@ describe('practising from the tests as well as the bank', () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+describe('a course with more than a thousand questions', () => {
+  it('counts every one, not just the first page the database hands back', async () => {
+    world();
+    let reads = 0;
+    configureSupabaseMock({
+      results: {
+        // The database stops at 1,000 rows a request; the next page holds the rest.
+        'question_bank.select': () => {
+          reads++;
+          const n = reads === 1 ? 1000 : 5;
+          return { data: Array.from({ length: n }, (_, i) => ({ id: `q-${reads}-${i}`, module_id: UNIT })), error: null };
+        },
+        'practice_tests.select': { data: [], error: null },
+      },
+    });
+    const res = await call({ action: 'available', course_id: COURSE });
+    expect(res.body).toEqual({ units: { [UNIT]: 1005 } });
+    expect(reads).toBe(2);
+  });
+});

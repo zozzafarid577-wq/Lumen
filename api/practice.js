@@ -203,6 +203,7 @@ async function check(req, res, profile, body) {
 async function loadPool(teacherId, moduleIds, { full = false, lessons = [], loose = false, sections = [] } = {}) {
   if (!moduleIds.length) return [];
   const cols = full ? 'id, question_text, options, explanation, difficulty, topic, ' : 'id, question_text, options, ';
+  const bankQuery = () => {
   let bankQ = admin.from('question_bank').select(cols + 'module_id, lesson_id, section_id')
     .eq('teacher_id', teacherId);
   bankQ = moduleIds.length === 1 ? bankQ.eq('module_id', moduleIds[0]) : bankQ.in('module_id', moduleIds);
@@ -215,18 +216,20 @@ async function loadPool(teacherId, moduleIds, { full = false, lessons = [], loos
   else if (lessons.length && !loose) bankQ = bankQ.in('lesson_id', lessons);
   else if (!lessons.length && loose) bankQ = bankQ.is('lesson_id', null);
   if (sections.length) bankQ = bankQ.in('section_id', sections);
-  const [{ data: bank }, { data: tests }] = await Promise.all([
-    bankQ.limit(5000),
+  return bankQ;
+  };
+  const [bank, { data: tests }] = await Promise.all([
+    everyRow(bankQuery),
     admin.from('practice_tests').select('id, module_id, lesson_id, section_id')
       .eq('teacher_id', teacherId).eq('is_active', true).in('module_id', moduleIds),
   ]);
   const testById = new Map((tests || []).map(t => [t.id, t]));
   let fromTests = [];
   if (testById.size) {
-    const { data } = await admin.from('test_questions')
+    const data = await everyRow(() => admin.from('test_questions')
       .select((full ? 'id, question_text, options, explanation, ' : 'id, question_text, options, ') + 'test_id')
-      .in('test_id', [...testById.keys()]).limit(10000);
-    fromTests = (data || []).map(q => {
+      .in('test_id', [...testById.keys()]));
+    fromTests = data.map(q => {
       const t = testById.get(q.test_id);
       return { ...q, id: 't:' + q.id, module_id: t.module_id, lesson_id: t.lesson_id, section_id: t.section_id };
     });
@@ -243,6 +246,20 @@ async function loadPool(teacherId, moduleIds, { full = false, lessons = [], loos
     out.push(r);
   }
   return out;
+}
+
+// The database hands back at most 1,000 rows a request, whatever the
+// query asks for, so a course's whole pool is read a page at a time. A
+// single read used to stop counting at 1,000 without saying so.
+const PAGE = 1000;
+async function everyRow(makeQuery) {
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await makeQuery().order('id').range(from, from + PAGE - 1);
+    if (error) throw new HttpError(500, 'Those questions could not be loaded. Please try again.');
+    out.push(...(data || []));
+    if (!data || data.length < PAGE) return out;
+  }
 }
 
 function sameQuestion(r) {
