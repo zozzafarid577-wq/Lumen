@@ -56,7 +56,7 @@ export async function runGroupReports(now = new Date()) {
   const tomorrowDow = (today.dow + 1) % 7;
 
   const { data: groups } = await admin.from('groups')
-    .select('id, name, days, start_time, course_id, teacher_id, courses(title)');
+    .select('*, courses(title)');
   const due = (groups || []).filter(g => (g.days || []).includes(tomorrowDow));
   let sent = 0;
 
@@ -69,7 +69,7 @@ export async function runGroupReports(now = new Date()) {
       const back = daysSinceLastSession(g.days, tomorrowDow);
       const from = cairoMidnight(addDays(tomorrowIso, -back));
       const report = await buildReport(g, from, now);
-      const to = await recipients(g.teacher_id);
+      const to = await recipients(g);
       if (!to.length) continue;
 
       const when = `${DAY_NAME[tomorrowDow]}${g.start_time ? ' at ' + g.start_time.slice(0, 5) : ''}`;
@@ -91,7 +91,11 @@ export async function runGroupReports(now = new Date()) {
   return { groups: due.length, sent };
 }
 
-async function recipients(teacherId) {
+// The group's own teacher when one is named (migration v18), otherwise
+// the space's teacher account.
+async function recipients(group) {
+  if (group.teacher_email) return [{ email: group.teacher_email, name: group.teacher_name || undefined }];
+  const teacherId = group.teacher_id;
   const { data } = await admin.from('profiles').select('full_name, email')
     .eq('teacher_id', teacherId).eq('role', 'teacher').eq('is_active', true);
   let out = (data || []).filter(p => p.email).map(p => ({ email: p.email, name: p.full_name }));
@@ -207,7 +211,7 @@ function reportEmail({ group, when, from, report }) {
 export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
   const today = cairoDay(now);
   const { data: groups } = await admin.from('groups')
-    .select('id, name, days, start_time, course_id, teacher_id, courses(title)').eq('teacher_id', teacherId);
+    .select('*, courses(title)').eq('teacher_id', teacherId);
   const withDays = (groups || []).filter(g => (g.days || []).length);
   let pick = [], ahead = 1;
   for (; ahead <= 7 && !pick.length; ahead++) {
@@ -239,13 +243,13 @@ export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
 // today, and is not recorded, so the morning email still goes out too.
 export async function sendGroupReportNow(groupId, teacherId, now = new Date()) {
   const { data: g } = await admin.from('groups')
-    .select('id, name, days, start_time, course_id, teacher_id, courses(title)').eq('id', groupId).single();
+    .select('*, courses(title)').eq('id', groupId).single();
   if (!g || g.teacher_id !== teacherId) return { error: 'That group was not found.' };
   const today = cairoDay(now);
   const back = (g.days || []).length ? daysSinceLastSession(g.days, today.dow) : 7;
   const from = cairoMidnight(addDays(today.iso, -back));
   const report = await buildReport(g, from, now);
-  const to = await recipients(teacherId);
+  const to = await recipients(g);
   if (!to.length) return { error: 'There is no teacher email address to send it to.' };
   const when = (g.days || []).length
     ? g.days.map(d => DAY_NAME[d]).join(' & ') + (g.start_time ? ' at ' + g.start_time.slice(0, 5) : '')

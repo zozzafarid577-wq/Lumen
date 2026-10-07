@@ -111,3 +111,19 @@ describe('sending a group’s marks now', () => {
     expect(getSupabaseCalls('enrollments.select')).toHaveLength(0);
   });
 });
+
+describe('who gets a group’s report', () => {
+  it('goes to the teacher named on the group, not the space’s login', async () => {
+    const { sendGroupReportNow } = await import('../../api/_lib/group-report.js');
+    process.env.BREVO_API_KEY = ''; // no mail provider in tests: the attempt is reported, not made
+    configureSupabaseMock({
+      results: {
+        'groups.select': { data: { ...GROUP, teacher_name: 'Ms. Abeer', teacher_email: 'abeer@example.com' }, error: null },
+        'enrollments.select': { data: [], error: null },
+      },
+    });
+    const out = await sendGroupReportNow('g-1', 'teacher-1');
+    expect(out.sent.map(x => x.to)).toEqual(['abeer@example.com']);
+    expect(getSupabaseCalls('profiles.select')).toHaveLength(0);
+  });
+});

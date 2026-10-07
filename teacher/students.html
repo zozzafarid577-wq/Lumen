@@ -183,11 +183,22 @@
           <label class="form-label">Days it meets</label>
           <div class="row" id="gm-days"></div>
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group">
           <label class="form-label" for="gm-time">Starts at</label>
           <input type="time" class="form-input" id="gm-time" style="max-width:150px">
           <p class="form-hint">Both are optional — a group with just a name still works.</p>
         </div>
+        <div class="row" style="gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div class="form-group" style="flex:1;min-width:180px;margin-bottom:0">
+            <label class="form-label" for="gm-tname">Teacher’s name</label>
+            <input type="text" class="form-input" id="gm-tname" maxlength="80" placeholder="Ms. Abeer">
+          </div>
+          <div class="form-group" style="flex:1.4;min-width:220px;margin-bottom:0">
+            <label class="form-label" for="gm-temail">Teacher’s email</label>
+            <input type="email" class="form-input" id="gm-temail" maxlength="200" placeholder="teacher@gmail.com">
+          </div>
+        </div>
+        <p class="form-hint" style="margin-top:6px">This group’s marks report goes here — the morning email and “Send marks to teacher”. Leave it empty to send to this account’s own email.</p>
       </div>
     </div>
     <div class="modal-foot">
@@ -657,7 +668,7 @@ function renderNewCourses() {
 // not hundreds, and both the filter and the enrolment editor want them.
 async function loadGroups() {
   const { data } = await sb.from('groups')
-    .select('id, course_id, name, days, start_time').eq('teacher_id', me.teacher_id).order('name');
+    .select('*').eq('teacher_id', me.teacher_id).order('name');
   // Ordered again here, not just in the query: Postgres compares text by
   // collation, so "Group 10" comes back before "Group 2". Sorted once on
   // the way in, because the filter, the modal, the enrolment editor and
@@ -714,7 +725,7 @@ function renderGroupList() {
     return `<div class="list-row" style="padding:11px 0">
       <div style="flex:1;min-width:0">
         <div class="lr-title">${escHtml(g.name)}</div>
-        <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}</div>
+        <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}${g.teacher_email ? ' · reports to ' + escHtml(g.teacher_name || g.teacher_email) : ''}</div>
       </div>
       <button class="btn btn-outline btn-xs" onclick="sendGroupMarks('${g.id}', this)" title="Email the teacher this group's marks since its last session, with the Excel sheet">Send marks to teacher</button>
       <button class="btn btn-ghost btn-xs" onclick="editGroup('${g.id}')">Edit</button>
@@ -727,7 +738,8 @@ function renderGroupList() {
 // marks since its last session, to the teacher's email.
 async function sendGroupMarks(id, btn) {
   const g = groups.find(x => x.id === id);
-  if (!g || !confirm(`Email the marks for ${g.name} to the teacher now?`)) return;
+  const who = g?.teacher_email ? `${g.teacher_name ? g.teacher_name + ' (' + g.teacher_email + ')' : g.teacher_email}` : 'the teacher';
+  if (!g || !confirm(`Email the marks for ${g.name} to ${who} now?`)) return;
   btn.disabled = true; const label = btn.textContent; btn.textContent = 'Sending…';
   try {
     const out = await apiPost('/api/support', { flow: 'group-report-send', group_id: id });
@@ -746,6 +758,8 @@ function editGroup(id) {
   document.getElementById('gm-name-label').textContent = 'Rename group';
   document.getElementById('gm-name').value = g.name;
   document.getElementById('gm-time').value = (g.start_time || '').slice(0, 5);
+  document.getElementById('gm-tname').value = g.teacher_name || '';
+  document.getElementById('gm-temail').value = g.teacher_email || '';
   document.querySelectorAll('.gm-day').forEach(el => { el.checked = (g.days || []).includes(+el.value); });
   document.getElementById('gm-save').textContent = 'Save changes';
   document.getElementById('gm-cancel').style.display = '';
@@ -756,6 +770,8 @@ function resetGroupForm() {
   document.getElementById('gm-name-label').textContent = 'New group';
   document.getElementById('gm-name').value = '';
   document.getElementById('gm-time').value = '';
+  document.getElementById('gm-tname').value = '';
+  document.getElementById('gm-temail').value = '';
   document.querySelectorAll('.gm-day').forEach(el => { el.checked = false; });
   document.getElementById('gm-save').textContent = 'Add group';
   document.getElementById('gm-cancel').style.display = 'none';
@@ -771,7 +787,12 @@ async function saveGroup() {
     name,
     days: [...document.querySelectorAll('.gm-day')].filter(el => el.checked).map(el => +el.value),
     start_time: document.getElementById('gm-time').value || null,
+    teacher_name: document.getElementById('gm-tname').value.trim() || null,
+    teacher_email: document.getElementById('gm-temail').value.trim().toLowerCase() || null,
   };
+  if (row.teacher_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.teacher_email)) {
+    say('gm-alert', 'That teacher email does not look right. Check it and try again.'); return;
+  }
 
   const btn = document.getElementById('gm-save');
   btn.disabled = true;

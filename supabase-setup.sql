@@ -1476,3 +1476,9 @@ ALTER TABLE public.practice_tests ADD COLUMN IF NOT EXISTS is_offline BOOLEAN NO
 -- The group it was done with, so the marks sheet reopens on the right
 -- students.
 ALTER TABLE public.practice_tests ADD COLUMN IF NOT EXISTS offline_group_id UUID REFERENCES public.groups(id) ON DELETE SET NULL;
+
+-- ────────────────────────────────────────
+-- v18 — who teaches each group (also supabase-migration-v18.sql)
+-- ────────────────────────────────────────
+ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS teacher_name  TEXT;
+ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS teacher_email TEXT;
