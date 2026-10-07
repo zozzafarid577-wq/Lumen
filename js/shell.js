@@ -351,7 +351,7 @@ const BELL = { which: null, me: null, items: [], unread: 0, open: false, timer: 
 const DAY_MS = 864e5;
 
 function mountBell(which, profile) {
-  if (document.getElementById('bell-btn') || !window.sb) return;
+  if (document.getElementById('bell-btn') || typeof sb === 'undefined' || !sb) return;
   const bar = document.querySelector('.topbar');
   if (!bar) return;
   BELL.which = which; BELL.me = profile;
