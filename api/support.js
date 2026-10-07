@@ -1,5 +1,5 @@
 import { admin } from './_lib/supabase.js';
-import { handler, HttpError, authenticate } from './_lib/auth.js';
+import { handler, HttpError, authenticate, requirePerm } from './_lib/auth.js';
 import { sendEmail, emailStatus } from './_lib/email.js';
 import { cleanName, cleanText } from './_lib/util.js';
 import { runPush } from './_lib/push.js';
@@ -33,6 +33,15 @@ export default handler(async (req, res) => {
   // Phone pop-ups ride on this function: the plan allows twelve, and
   // "tell someone something" is close enough to what this one does.
   if (body.flow === 'push') return runPush(req, res, profile);
+  // The group report, now, to the teacher — from the Groups list.
+  if (body.flow === 'group-report-send') {
+    if (!['teacher', 'assistant'].includes(profile.role)) throw new HttpError(403, 'You do not have access to do that.');
+    requirePerm(profile, 'students');
+    const { sendGroupReportNow } = await import('./_lib/group-report.js');
+    const out = await sendGroupReportNow(String(body.group_id || ''), profile.teacher_id);
+    if (out.error) throw new HttpError(400, out.error);
+    return res.status(200).json(out);
+  }
   // A trial of the morning group report, sent to Lumen's inbox only.
   if (body.flow === 'group-report-test') {
     if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');

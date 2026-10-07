@@ -716,10 +716,27 @@ function renderGroupList() {
         <div class="lr-title">${escHtml(g.name)}</div>
         <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}</div>
       </div>
+      <button class="btn btn-outline btn-xs" onclick="sendGroupMarks('${g.id}', this)" title="Email the teacher this group's marks since its last session, with the Excel sheet">Send marks to teacher</button>
       <button class="btn btn-ghost btn-xs" onclick="editGroup('${g.id}')">Edit</button>
       <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteGroup('${g.id}')">Delete</button>
     </div>`;
   }).join('');
+}
+
+// The morning group report, sent now: the Excel sheet of this group's
+// marks since its last session, to the teacher's email.
+async function sendGroupMarks(id, btn) {
+  const g = groups.find(x => x.id === id);
+  if (!g || !confirm(`Email the marks for ${g.name} to the teacher now?`)) return;
+  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Sending…';
+  try {
+    const out = await apiPost('/api/support', { flow: 'group-report-send', group_id: id });
+    const ok = out.sent.filter(x => x.sent).map(x => x.to);
+    const bad = out.sent.filter(x => !x.sent);
+    if (ok.length) showToast(`Sent to ${ok.join(', ')} · ${out.students} students, ${out.tests} tests.`, 'success');
+    if (bad.length) showToast(`Could not send to ${bad.map(x => x.to).join(', ')}: ${bad[0].error}`, 'error');
+  } catch (err) { showToast(err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = label; }
 }
 
 function editGroup(id) {

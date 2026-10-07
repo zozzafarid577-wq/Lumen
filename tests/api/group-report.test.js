@@ -101,3 +101,13 @@ describe('the trial send', () => {
     expect(getSupabaseCalls('notify_log.insert')).toHaveLength(0);
   });
 });
+
+describe('sending a group’s marks now', () => {
+  it('refuses a group that belongs to another teacher', async () => {
+    const { sendGroupReportNow } = await import('../../api/_lib/group-report.js');
+    configureSupabaseMock({ results: { 'groups.select': { data: { ...GROUP, teacher_id: 'teacher-2' }, error: null } } });
+    const out = await sendGroupReportNow('g-1', 'teacher-1');
+    expect(out.error).toMatch(/not found/);
+    expect(getSupabaseCalls('enrollments.select')).toHaveLength(0);
+  });
+});

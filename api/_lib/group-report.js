@@ -233,3 +233,32 @@ export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
   }
   return { to: inbox, groups: sentFor };
 }
+
+// "Send now" from the Groups list: the same email, straight away, to the
+// teacher. It covers everything since the group's last session before
+// today, and is not recorded, so the morning email still goes out too.
+export async function sendGroupReportNow(groupId, teacherId, now = new Date()) {
+  const { data: g } = await admin.from('groups')
+    .select('id, name, days, start_time, course_id, teacher_id, courses(title)').eq('id', groupId).single();
+  if (!g || g.teacher_id !== teacherId) return { error: 'That group was not found.' };
+  const today = cairoDay(now);
+  const back = (g.days || []).length ? daysSinceLastSession(g.days, today.dow) : 7;
+  const from = cairoMidnight(addDays(today.iso, -back));
+  const report = await buildReport(g, from, now);
+  const to = await recipients(teacherId);
+  if (!to.length) return { error: 'There is no teacher email address to send it to.' };
+  const when = (g.days || []).length
+    ? g.days.map(d => DAY_NAME[d]).join(' & ') + (g.start_time ? ' at ' + g.start_time.slice(0, 5) : '')
+    : 'its next session';
+  const sent = [];
+  for (const r of to) {
+    const out = await sendEmail({
+      to: r.email, toName: r.name,
+      subject: `${g.name} (${g.courses?.title || 'course'}) — marks so far`,
+      html: reportEmail({ group: g, when, from, report }),
+      attachments: [{ name: report.fileName, content: report.base64 }],
+    });
+    sent.push({ to: r.email, sent: out.sent, error: out.error || null });
+  }
+  return { group: g.name, students: report.students, tests: report.tests, sent };
+}
