@@ -167,6 +167,15 @@
     </div>
     <div class="modal-body">
       <div class="alert alert-error" id="gm-alert" style="display:none;margin-bottom:16px"></div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+        <div class="form-label" style="margin-bottom:8px">Send group marks reports to</div>
+        <div class="row" style="gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <input type="text" class="form-input" id="rt-name" maxlength="80" placeholder="Teacher’s name" style="flex:1;min-width:150px" aria-label="Teacher’s name">
+          <input type="email" class="form-input" id="rt-email" maxlength="200" placeholder="teacher@gmail.com" style="flex:1.4;min-width:200px" aria-label="Teacher’s email">
+          <button class="btn btn-primary btn-sm" id="rt-save" onclick="saveReportTeacher()">Save</button>
+        </div>
+        <p class="form-hint" style="margin:6px 0 0">One email for every group — the morning email and “Send marks to teacher” go here. Leave it empty to use this account’s own email.</p>
+      </div>
       <div class="form-group">
         <label class="form-label" for="gm-course">Course</label>
         <select class="form-select" id="gm-course" onchange="onGroupCourseChange()"></select>
@@ -188,17 +197,6 @@
           <input type="time" class="form-input" id="gm-time" style="max-width:150px">
           <p class="form-hint">Both are optional — a group with just a name still works.</p>
         </div>
-        <div class="row" style="gap:12px;align-items:flex-start;flex-wrap:wrap">
-          <div class="form-group" style="flex:1;min-width:180px;margin-bottom:0">
-            <label class="form-label" for="gm-tname">Teacher’s name</label>
-            <input type="text" class="form-input" id="gm-tname" maxlength="80" placeholder="Ms. Abeer">
-          </div>
-          <div class="form-group" style="flex:1.4;min-width:220px;margin-bottom:0">
-            <label class="form-label" for="gm-temail">Teacher’s email</label>
-            <input type="email" class="form-input" id="gm-temail" maxlength="200" placeholder="teacher@gmail.com">
-          </div>
-        </div>
-        <p class="form-hint" style="margin-top:6px">This group’s marks report goes here — the morning email and “Send marks to teacher”. Leave it empty to send to this account’s own email.</p>
       </div>
     </div>
     <div class="modal-foot">
@@ -688,6 +686,27 @@ let editingGroup = null;
 
 function gmCourseId() { return document.getElementById('gm-course').value; }
 
+// The one teacher every group's report goes to. It is kept on each group
+// row (teacher_name / teacher_email, migration v18) so the server reads it
+// with the group, but it is entered once, here, and written to them all.
+function reportTeacher() {
+  const g = groups.find(x => x.teacher_email);
+  return { name: g?.teacher_name || null, email: g?.teacher_email || null };
+}
+
+async function saveReportTeacher() {
+  const name = document.getElementById('rt-name').value.trim() || null;
+  const email = document.getElementById('rt-email').value.trim().toLowerCase() || null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { say('gm-alert', 'That email does not look right. Check it and try again.'); return; }
+  const btn = document.getElementById('rt-save'); btn.disabled = true;
+  const { error } = await sb.from('groups').update({ teacher_name: name, teacher_email: email }).eq('teacher_id', me.teacher_id);
+  btn.disabled = false;
+  if (error) { say('gm-alert', friendlyError(error.message)); return; }
+  say('gm-alert', '');
+  groups.forEach(g => { g.teacher_name = name; g.teacher_email = email; });
+  showToast(email ? `Group reports will go to ${email}.` : 'Group reports will go to this account’s email.', 'success');
+}
+
 function openGroups() {
   if (!courses.length) { showToast('Add a course first — a group belongs to one.', 'error'); return; }
 
@@ -703,6 +722,9 @@ function openGroups() {
     `<label class="form-check" style="margin:0"><input type="checkbox" class="gm-day" value="${i}">${d}</label>`).join('');
   resetGroupForm();
   say('gm-alert', '');
+  const rt = reportTeacher();
+  document.getElementById('rt-name').value = rt.name || '';
+  document.getElementById('rt-email').value = rt.email || '';
   renderGroupList();
   openModal('groups-modal');
 }
@@ -725,7 +747,7 @@ function renderGroupList() {
     return `<div class="list-row" style="padding:11px 0">
       <div style="flex:1;min-width:0">
         <div class="lr-title">${escHtml(g.name)}</div>
-        <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}${g.teacher_email ? ' · reports to ' + escHtml(g.teacher_name || g.teacher_email) : ''}</div>
+        <div class="lr-sub">${escHtml(groupWhen(g) || 'No days set')} · ${n} student${n === 1 ? '' : 's'}</div>
       </div>
       <button class="btn btn-outline btn-xs" onclick="sendGroupMarks('${g.id}', this)" title="Email the teacher this group's marks since its last session, with the Excel sheet">Send marks to teacher</button>
       <button class="btn btn-ghost btn-xs" onclick="editGroup('${g.id}')">Edit</button>
@@ -758,8 +780,6 @@ function editGroup(id) {
   document.getElementById('gm-name-label').textContent = 'Rename group';
   document.getElementById('gm-name').value = g.name;
   document.getElementById('gm-time').value = (g.start_time || '').slice(0, 5);
-  document.getElementById('gm-tname').value = g.teacher_name || '';
-  document.getElementById('gm-temail').value = g.teacher_email || '';
   document.querySelectorAll('.gm-day').forEach(el => { el.checked = (g.days || []).includes(+el.value); });
   document.getElementById('gm-save').textContent = 'Save changes';
   document.getElementById('gm-cancel').style.display = '';
@@ -770,8 +790,6 @@ function resetGroupForm() {
   document.getElementById('gm-name-label').textContent = 'New group';
   document.getElementById('gm-name').value = '';
   document.getElementById('gm-time').value = '';
-  document.getElementById('gm-tname').value = '';
-  document.getElementById('gm-temail').value = '';
   document.querySelectorAll('.gm-day').forEach(el => { el.checked = false; });
   document.getElementById('gm-save').textContent = 'Add group';
   document.getElementById('gm-cancel').style.display = 'none';
@@ -787,12 +805,9 @@ async function saveGroup() {
     name,
     days: [...document.querySelectorAll('.gm-day')].filter(el => el.checked).map(el => +el.value),
     start_time: document.getElementById('gm-time').value || null,
-    teacher_name: document.getElementById('gm-tname').value.trim() || null,
-    teacher_email: document.getElementById('gm-temail').value.trim().toLowerCase() || null,
   };
-  if (row.teacher_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.teacher_email)) {
-    say('gm-alert', 'That teacher email does not look right. Check it and try again.'); return;
-  }
+  // A new group reports to the same teacher as every other group.
+  if (!editingGroup) { const rt = reportTeacher(); row.teacher_name = rt.name; row.teacher_email = rt.email; }
 
   const btn = document.getElementById('gm-save');
   btn.disabled = true;
