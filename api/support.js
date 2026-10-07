@@ -33,6 +33,13 @@ export default handler(async (req, res) => {
   // Phone pop-ups ride on this function: the plan allows twelve, and
   // "tell someone something" is close enough to what this one does.
   if (body.flow === 'push') return runPush(req, res, profile);
+  // A trial of the morning group report, sent to Lumen's inbox only.
+  if (body.flow === 'group-report-test') {
+    if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
+    const { runGroupReportTest } = await import('./_lib/group-report.js');
+    const inbox = (process.env.SUPPORT_EMAIL || '').trim() || FALLBACK_INBOX;
+    return res.status(200).json(await runGroupReportTest(profile.teacher_id, inbox));
+  }
   const name = cleanName(body.name, 'Your name');
   const message = cleanText(body.message, { max: 4000 });
   const kind = KIND_LABEL[body.kind] ? body.kind : 'other';

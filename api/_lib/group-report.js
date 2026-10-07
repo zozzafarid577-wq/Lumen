@@ -199,3 +199,37 @@ function reportEmail({ group, when, from, report }) {
     <p style="margin:18px 0 0;color:#8B8089;font-size:13px">Sent by Lumen the morning before each group session.</p>
   </div>`;
 }
+
+// A trial run for checking the email and the sheet: the real report for
+// this teacher's groups, sent only to Lumen's own inbox, marked TEST, and
+// not recorded — so the real morning email still goes out as usual.
+// The groups that meet tomorrow, or else the next one to meet.
+export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
+  const today = cairoDay(now);
+  const { data: groups } = await admin.from('groups')
+    .select('id, name, days, start_time, course_id, teacher_id, courses(title)').eq('teacher_id', teacherId);
+  const withDays = (groups || []).filter(g => (g.days || []).length);
+  let pick = [], ahead = 1;
+  for (; ahead <= 7 && !pick.length; ahead++) {
+    const dow = (today.dow + ahead) % 7;
+    pick = withDays.filter(g => g.days.includes(dow));
+  }
+  ahead--;
+  const sentFor = [];
+  for (const g of pick) {
+    const dayIso = addDays(today.iso, ahead);
+    const dow = (today.dow + ahead) % 7;
+    const back = daysSinceLastSession(g.days, dow);
+    const from = cairoMidnight(addDays(dayIso, -back));
+    const report = await buildReport(g, from, now);
+    const when = `${DAY_NAME[dow]}${g.start_time ? ' at ' + g.start_time.slice(0, 5) : ''}`;
+    const out = await sendEmail({
+      to: inbox, toName: 'Lumen',
+      subject: `[TEST] ${g.name} (${g.courses?.title || 'course'}) — marks before ${when}`,
+      html: reportEmail({ group: g, when, from, report }),
+      attachments: [{ name: report.fileName, content: report.base64 }],
+    });
+    sentFor.push({ group: g.name, when, students: report.students, tests: report.tests, sent: out.sent, error: out.error || null });
+  }
+  return { to: inbox, groups: sentFor };
+}

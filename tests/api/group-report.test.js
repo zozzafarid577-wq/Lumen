@@ -85,3 +85,19 @@ describe('the morning run', () => {
     expect(out).toEqual({ groups: 0, sent: 0 });
   });
 });
+
+describe('the trial send', () => {
+  it('goes only to the inbox it is given, and records nothing', async () => {
+    const { runGroupReportTest } = await import('../../api/_lib/group-report.js');
+    configureSupabaseMock({
+      results: {
+        'groups.select': { data: [{ ...GROUP, days: [0] }], error: null },
+        'enrollments.select': { data: [], error: null },
+      },
+    });
+    const out = await runGroupReportTest('teacher-1', 'lumen@example.com', new Date('2026-10-10T05:00:00Z'));
+    expect(out.to).toBe('lumen@example.com');
+    expect(out.groups).toHaveLength(1);
+    expect(getSupabaseCalls('notify_log.insert')).toHaveLength(0);
+  });
+});
