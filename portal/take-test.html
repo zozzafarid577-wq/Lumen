@@ -119,6 +119,7 @@ let submitted = false;
   if (error) { fail('We could not load that test.', friendlyError(error.message)); return; }
   if (!data)  { fail('That test is not available.', 'It may have been taken down, or it belongs to another course.'); return; }
   test = data;
+  if (test.is_offline) { fail('This test was done in class.', 'Your mark for it is on your scores page.'); return; }
 
   const w = testWindow(test);
   if (!w.open) { fail('This test is not open.', w.label); return; }

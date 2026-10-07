@@ -117,5 +117,15 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/health?task=reminders",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/health?task=group-report",
+      "schedule": "0 5 * * *"
+    }
   ]
 }

@@ -1,6 +1,7 @@
 import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, requirePerm, tenantFor, assertTenant, logActivity } from './_lib/auth.js';
 import { cleanName, cleanText } from './_lib/util.js';
+import { notifyNewTest } from './_lib/push.js';
 
 // Saving a test means writing the test row and replacing its whole
 // question list. Doing that from the browser is two calls with a window
@@ -82,6 +83,12 @@ export default handler(async (req, res) => {
     }))
   );
   if (insErr) throw new HttpError(500, 'The test was saved but its questions were not. Please try again.');
+
+  // A brand-new test buzzes its students' phones. An edit does not: a
+  // typo fixed on Thursday is not news.
+  if (!body.test_id) {
+    try { await notifyNewTest({ ...fields, id: testId }); } catch (_) {}
+  }
 
   await logActivity(teacherId, profile, body.test_id ? 'test_updated' : 'test_created',
     `${title} · ${questions.length} question${questions.length === 1 ? '' : 's'}`);

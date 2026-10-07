@@ -2,6 +2,7 @@ import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate } from './_lib/auth.js';
 import { sendEmail, emailStatus } from './_lib/email.js';
 import { cleanName, cleanText } from './_lib/util.js';
+import { runPush } from './_lib/push.js';
 
 // What a student writes to Lumi, the character in the corner of their
 // portal, sent on as an email.
@@ -29,6 +30,9 @@ export default handler(async (req, res) => {
   const { profile } = await authenticate(req);
 
   const body = req.body || {};
+  // Phone pop-ups ride on this function: the plan allows twelve, and
+  // "tell someone something" is close enough to what this one does.
+  if (body.flow === 'push') return runPush(req, res, profile);
   const name = cleanName(body.name, 'Your name');
   const message = cleanText(body.message, { max: 4000 });
   const kind = KIND_LABEL[body.kind] ? body.kind : 'other';

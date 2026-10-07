@@ -36,7 +36,27 @@ function senderWarning() {
     + 'Authenticate your own domain with the mail provider and send as an address on it.';
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  // The daily reminder run (vercel.json "crons"). Loaded only when asked
+  // for, so the plain health check still imports nothing.
+  if (req.query?.task === 'reminders' || req.query?.task === 'group-report') {
+    const secret = (process.env.CRON_SECRET || '').trim();
+    if (secret && (req.headers?.authorization || '') !== 'Bearer ' + secret) {
+      return res.status(401).json({ error: 'Not allowed.' });
+    }
+    try {
+      if (req.query.task === 'group-report') {
+        const { runGroupReports } = await import('./_lib/group-report.js');
+        return res.status(200).json({ ok: true, ...(await runGroupReports()) });
+      }
+      const { runReminders } = await import('./_lib/push.js');
+      return res.status(200).json({ ok: true, sent: await runReminders() });
+    } catch (err) {
+      console.error('reminders failed:', err);
+      return res.status(500).json({ ok: false });
+    }
+  }
+
   const missing = REQUIRED.filter(n => !isSet(n));
   const env = {};
   for (const n of [...REQUIRED, ...OPTIONAL]) env[n] = isSet(n);

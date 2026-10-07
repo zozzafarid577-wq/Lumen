@@ -232,9 +232,11 @@ function showTab(which) {
 async function loadTestsAndGroups() {
   const [{ data: t }, { data: g }] = await Promise.all([
     sb.from('practice_tests')
-      .select('id, title, course_id, test_sections(name, color)')
+      .select('*, test_sections(name, color)')
       .eq('teacher_id', me.teacher_id).eq('is_active', true)
-      .order('order_index').order('created_at'),
+      .order('order_index').order('created_at')
+      // A paper done in class cannot be set as homework.
+      .then(r => ({ ...r, data: (r.data || []).filter(x => !x.is_offline) })),
     sb.from('groups').select('id, course_id, name, days, start_time')
       .eq('teacher_id', me.teacher_id).order('name'),
   ]);

@@ -607,12 +607,18 @@ async function saveUnit() {
 
   const btn = document.getElementById('um-save');
   btn.disabled = true;
-  const { error } = editing.unit
-    ? await sb.from('modules').update(row).eq('id', editing.unit.id)
-    : await sb.from('modules').insert(row);
+  const wasOpen = !!editing.unit?.is_done;
+  const { data: saved, error } = editing.unit
+    ? await sb.from('modules').update(row).eq('id', editing.unit.id).select('id').single()
+    : await sb.from('modules').insert(row).select('id').single();
   btn.disabled = false;
 
   if (error) { say('um-alert', friendlyError(error.message)); return; }
+  // Opening a unit now buzzes the course's phones. One opening later is
+  // picked up by nobody but the bell — a pop-up at the wrong hour is worse.
+  if (row.is_done && !wasOpen && (!row.open_at || new Date(row.open_at) <= new Date()) && saved?.id) {
+    apiPost('/api/support', { flow: 'push', action: 'unit', module_id: saved.id }).catch(() => {});
+  }
   closeModal('unit-modal');
   showToast('Unit saved.', 'success');
   await loadUnits();

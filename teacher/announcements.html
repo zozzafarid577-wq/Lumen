@@ -212,12 +212,16 @@ async function saveAnn() {
 
   const btn = document.getElementById('an-save');
   btn.disabled = true;
-  const { error } = editingAnn
-    ? await sb.from('announcements').update(row).eq('id', editingAnn.id)
-    : await sb.from('announcements').insert(row);
+  const { data: saved, error } = editingAnn
+    ? await sb.from('announcements').update(row).eq('id', editingAnn.id).select('id').single()
+    : await sb.from('announcements').insert(row).select('id').single();
   btn.disabled = false;
 
   if (error) { say('an-alert', friendlyError(error.message)); return; }
+  // A new post buzzes the students' phones; an edit does not.
+  if (!editingAnn && saved?.id) {
+    apiPost('/api/support', { flow: 'push', action: 'announcement', announcement_id: saved.id }).catch(() => {});
+  }
   closeModal('ann-modal');
   showToast(editingAnn ? 'Announcement updated.' : 'Posted to your students.', 'success');
   await loadAnns();

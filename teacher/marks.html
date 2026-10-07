@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>In-class marks | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#A2509F">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .marks-grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .marks-grid { grid-template-columns: 1fr; } }
+  .past-row { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--border); background: none;
+    padding: 12px 16px; cursor: pointer; font: inherit; color: var(--text); }
+  .past-row:hover { background: var(--bg); }
+  .past-row.on { background: var(--primary-soft); }
+  .past-t { font-weight: 700; font-size: .86rem; }
+  .past-s { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
+  .score-in { width: 90px; text-align: center; }
+  .score-in.bad { border-color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">In-class marks</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="startNew()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New in-class test
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <p class="small muted" style="margin:0 0 16px;max-width:720px">For tests done on paper, outside Lumen. Type each student's mark here
+      and it counts like any other test: on Progress, on the student's scores, in the parents' email and in the morning group report.</p>
+    <div class="marks-grid">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Entered so far</span></div>
+        <div id="past"><div class="skel" style="height:60px;margin:14px"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title" id="sheet-title">New in-class test</span></div>
+        <div class="card-body">
+          <div class="alert alert-error" id="m-alert" style="display:none;margin-bottom:12px"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="m-course">Course *</label>
+              <select class="form-select" id="m-course" onchange="courseChanged()"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="m-group">Group *</label>
+              <select class="form-select" id="m-group" onchange="loadStudents()"></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="m-title">Test name *</label>
+            <input class="form-input" id="m-title" maxlength="120" placeholder="e.g. Unit 2 quiz on paper">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="m-date">Date it was done *</label>
+              <input class="form-input" id="m-date" type="date">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="m-max">Out of *</label>
+              <input class="form-input" id="m-max" type="number" min="1" max="1000" value="20" oninput="checkAll()">
+            </div>
+          </div>
+
+          <div class="tbl-wrap" style="margin-top:6px">
+            <table class="tbl">
+              <thead><tr><th>Student</th><th style="width:140px">Mark</th></tr></thead>
+              <tbody id="rows"><tr><td colspan="2" class="small muted" style="padding:20px">Choose a course and a group.</td></tr></tbody>
+            </table>
+          </div>
+          <p class="small muted" style="margin:10px 0 0">Leave a mark empty for a student who was absent. You can come back and change any mark later.</p>
+          <div class="row" style="margin-top:16px;gap:10px">
+            <button class="btn btn-primary" id="m-save" onclick="save()">Save marks</button>
+            <button class="btn btn-ghost" id="m-delete" onclick="removeTest()" style="display:none">Delete this test</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+// A test done on paper is a practice_tests row marked is_offline, with
+// no questions; each student's mark is an ordinary test_attempts row. So
+// a mark typed here counts everywhere the others do, and students are
+// never offered the test as something to sit (the student pages leave
+// is_offline tests out).
+let me = null;
+let courses = [], groups = [], past = [], students = [];
+let editing = null;        // the offline test being edited, or null for a new one
+let existing = new Map();  // student id -> their attempt on it
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'tests' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'In-class marks' });
+
+  const [{ data: c }, { data: g }] = await Promise.all([
+    sb.from('courses').select('id, title').eq('teacher_id', me.teacher_id).order('title'),
+    sb.from('groups').select('id, course_id, name, days, start_time').eq('teacher_id', me.teacher_id).order('name'),
+  ]);
+  courses = c || []; groups = g || [];
+  document.getElementById('m-course').innerHTML = '<option value="">Choose…</option>'
+    + courses.map(x => `<option value="${x.id}">${escHtml(x.title)}</option>`).join('');
+  document.getElementById('m-date').value = new Date().toLocaleDateString('en-CA');
+  courseChanged();
+  await loadPast();
+})();
+
+function outOf(t) {
+  const m = /out of (\d+)/.exec(t?.description || '');
+  return m ? Number(m[1]) : null;
+}
+
+function doneOn(t) {
+  const m = /on (\d{4}-\d{2}-\d{2})/.exec(t?.description || '');
+  return m ? m[1] : (t?.created_at || '').slice(0, 10);
+}
+
+async function loadPast() {
+  const { data, error } = await sb.from('practice_tests')
+    .select('*, courses(title), test_attempts(id)')
+    .eq('teacher_id', me.teacher_id).eq('is_offline', true).order('created_at', { ascending: false });
+  const host = document.getElementById('past');
+  if (error) {
+    host.innerHTML = `<div class="small muted" style="padding:16px">${/is_offline/.test(error.message)
+      ? 'This needs the v17 database update. Run supabase-migration-v17.sql in Supabase, then reload.'
+      : escHtml(friendlyError(error.message))}</div>`;
+    document.getElementById('m-save').disabled = true;
+    return;
+  }
+  past = data || [];
+  host.innerHTML = past.length ? past.map(t => {
+    const g = groups.find(x => x.id === t.offline_group_id);
+    return `<button type="button" class="past-row ${editing?.id === t.id ? 'on' : ''}" onclick="openTest('${t.id}')">
+      <div class="past-t">${escHtml(t.title)}</div>
+      <div class="past-s">${escHtml(t.courses?.title || '')}${g ? ' · ' + escHtml(g.name) : ''} · ${escHtml(fmtDate(doneOn(t)))} · ${(t.test_attempts || []).length} marks</div>
+    </button>`;
+  }).join('') : '<div class="small muted" style="padding:16px">Nothing yet. Press <strong>New in-class test</strong> to add the marks from a paper test.</div>';
+}
+
+function courseChanged(keepGroup) {
+  const cid = document.getElementById('m-course').value;
+  const mine = groups.filter(g => g.course_id === cid);
+  const sel = document.getElementById('m-group');
+  sel.innerHTML = cid
+    ? (mine.length ? '<option value="">Choose…</option>' : '<option value="">No groups on this course</option>')
+      + mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('')
+    : '<option value="">Choose a course first</option>';
+  if (keepGroup) sel.value = keepGroup;
+  loadStudents();
+}
+
+async function loadStudents() {
+  const cid = document.getElementById('m-course').value;
+  const gid = document.getElementById('m-group').value;
+  const tbody = document.getElementById('rows');
+  if (!cid || !gid) { students = []; tbody.innerHTML = '<tr><td colspan="2" class="small muted" style="padding:20px">Choose a course and a group.</td></tr>'; return; }
+  tbody.innerHTML = '<tr><td colspan="2"><div class="skel" style="height:40px"></div></td></tr>';
+  const { data } = await sb.from('enrollments').select('student_id, profiles(full_name, is_active)')
+    .eq('course_id', cid).eq('group_id', gid);
+  students = (data || []).filter(e => e.profiles && e.profiles.is_active !== false)
+    .map(e => ({ id: e.student_id, name: e.profiles.full_name }))
+    .sort((a, b) => compareNames(a.name, b.name));
+  // A student who has left the group since keeps their mark on the sheet.
+  existing.forEach((a, sid) => { if (!students.some(s => s.id === sid)) students.push({ id: sid, name: a.name || 'Former member', left: true }); });
+  tbody.innerHTML = students.length ? students.map(s => {
+    const a = existing.get(s.id);
+    return `<tr><td>${escHtml(s.name)}${s.left ? ' <span class="badge b-gray">left the group</span>' : ''}</td>
+      <td><input class="form-input score-in" type="number" inputmode="numeric" min="0" step="1" data-sid="${s.id}"
+          value="${a ? a.score : ''}" aria-label="Mark for ${escHtml(s.name)}" oninput="checkAll()"></td></tr>`;
+  }).join('') : '<tr><td colspan="2" class="small muted" style="padding:20px">No students in this group yet.</td></tr>';
+}
+
+function checkAll() {
+  const max = Number(document.getElementById('m-max').value);
+  let ok = true;
+  document.querySelectorAll('.score-in').forEach(el => {
+    const v = el.value.trim();
+    const bad = v !== '' && (!Number.isInteger(Number(v)) || Number(v) < 0 || (max > 0 && Number(v) > max));
+    el.classList.toggle('bad', bad);
+    if (bad) ok = false;
+  });
+  return ok;
+}
+
+function startNew() {
+  editing = null; existing = new Map();
+  document.getElementById('sheet-title').textContent = 'New in-class test';
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-max').value = 20;
+  document.getElementById('m-date').value = new Date().toLocaleDateString('en-CA');
+  document.getElementById('m-course').disabled = false;
+  document.getElementById('m-group').disabled = false;
+  document.getElementById('m-delete').style.display = 'none';
+  say('');
+  courseChanged();
+  loadPast();
+}
+
+async function openTest(id) {
+  const t = past.find(x => x.id === id);
+  if (!t) return;
+  editing = t;
+  const { data: att } = await sb.from('test_attempts').select('id, student_id, score, profiles(full_name)').eq('test_id', id);
+  existing = new Map((att || []).map(a => [a.student_id, { id: a.id, score: a.score, name: a.profiles?.full_name }]));
+  document.getElementById('sheet-title').textContent = t.title;
+  document.getElementById('m-title').value = t.title;
+  document.getElementById('m-max').value = outOf(t) || 20;
+  document.getElementById('m-date').value = doneOn(t);
+  document.getElementById('m-course').value = t.course_id;
+  // The students a test was marked for do not change group under it.
+  document.getElementById('m-course').disabled = true;
+  courseChanged(t.offline_group_id || '');
+  document.getElementById('m-group').disabled = true;
+  document.getElementById('m-delete').style.display = '';
+  say('');
+  loadPast();
+}
+
+function say(msg) {
+  const el = document.getElementById('m-alert');
+  el.textContent = msg;
+  el.style.display = msg ? 'flex' : 'none';
+}
+
+async function save() {
+  const course_id = document.getElementById('m-course').value;
+  const group_id = document.getElementById('m-group').value;
+  const title = document.getElementById('m-title').value.trim();
+  const date = document.getElementById('m-date').value;
+  const max = Number(document.getElementById('m-max').value);
+  if (!course_id || !group_id) return say('Choose the course and the group.');
+  if (!title) return say('Give the test a name.');
+  if (!date) return say('Choose the date it was done.');
+  if (!Number.isInteger(max) || max < 1) return say('“Out of” must be a whole number above zero.');
+  if (!checkAll()) return say(`Each mark must be a whole number from 0 to ${max}.`);
+  say('');
+
+  const btn = document.getElementById('m-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const description = `In class · out of ${max} · on ${date}`;
+    let testId = editing?.id;
+    if (testId) {
+      const { error } = await sb.from('practice_tests').update({ title, description }).eq('id', testId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await sb.from('practice_tests').insert({
+        teacher_id: me.teacher_id, course_id, title, description, is_offline: true, offline_group_id: group_id,
+        is_active: true, passing_score_pct: 60,
+      }).select('id').single();
+      if (error) throw error;
+      testId = data.id;
+    }
+
+    // Noon in Egypt on the day it was done, so the mark lands on that day
+    // wherever it is read.
+    const at = new Date(`${date}T12:00:00+03:00`).toISOString();
+    const inserts = [], updates = [], removes = [];
+    document.querySelectorAll('.score-in').forEach(el => {
+      const sid = el.dataset.sid, v = el.value.trim(), had = existing.get(sid);
+      if (v === '') { if (had) removes.push(had.id); return; }
+      const score = Number(v);
+      const row = { score, max_score: max, percentage: Math.round((score / max) * 10000) / 100,
+                    passed: score / max * 100 >= 60, started_at: at, completed_at: at };
+      if (had) updates.push({ id: had.id, row });
+      else inserts.push({ ...row, teacher_id: me.teacher_id, student_id: sid, test_id: testId, answers: null });
+    });
+    if (inserts.length) { const { error } = await sb.from('test_attempts').insert(inserts); if (error) throw error; }
+    for (const u of updates) { const { error } = await sb.from('test_attempts').update(u.row).eq('id', u.id); if (error) throw error; }
+    if (removes.length) { const { error } = await sb.from('test_attempts').delete().in('id', removes); if (error) throw error; }
+
+    showToast(`Saved · ${inserts.length + updates.length} mark${inserts.length + updates.length === 1 ? '' : 's'}.`, 'success');
+    await loadPast();
+    await openTest(testId);
+  } catch (err) {
+    say(friendlyError(err.message || String(err)));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save marks';
+  }
+}
+
+async function removeTest() {
+  if (!editing) return;
+  if (!confirm(`Delete "${editing.title}" and all ${existing.size} of its marks? This cannot be undone.`)) return;
+  const { error } = await sb.from('practice_tests').delete().eq('id', editing.id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Deleted.', 'success');
+  startNew();
+}
+</script>
+</body>
+</html>

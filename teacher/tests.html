@@ -333,7 +333,8 @@ async function loadTests() {
 
   const tbody = document.getElementById('rows');
   if (error) { tbody.innerHTML = emptyRow(6, friendlyError(error.message)); return; }
-  tests = data || [];
+  // Papers done in class are kept on the In-class marks page, not here.
+  tests = (data || []).filter(t => !t.is_offline);
 
   document.getElementById('count').textContent = `${tests.length} test${tests.length === 1 ? '' : 's'}`;
   if (!tests.length) {

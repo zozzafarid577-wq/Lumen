@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>Messages | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#A2509F">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .chat-log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
+  .bubble { max-width: 78%; padding: 9px 13px; border-radius: 16px; font-size: .9rem; line-height: 1.45;
+    white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bubble.me { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 5px; }
+  .bubble.them { align-self: flex-start; background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+  .bubble-meta { font-size: .66rem; opacity: .72; margin-top: 3px; text-align: right; }
+  .bubble.them .bubble-meta { text-align: left; }
+  .day-sep { align-self: center; font-size: .7rem; color: var(--muted); font-weight: 700; margin: 10px 0 4px; }
+  .chat-send { display: flex; gap: 10px; padding: 12px; border-top: 1px solid var(--border); align-items: flex-end; background: var(--card); }
+  .chat-send textarea { flex: 1; min-height: 44px; max-height: 140px; resize: none; }
+  .chat-empty { margin: auto; text-align: center; color: var(--muted); font-size: .86rem; max-width: 300px; line-height: 1.5; }
+</style>
+<style>
+  .inbox { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - var(--top) - 56px); height: calc(100dvh - var(--top) - 56px); min-height: 460px; overflow: hidden; }
+  .inbox-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .inbox-search { padding: 12px; border-bottom: 1px solid var(--border); }
+  .threads { overflow-y: auto; flex: 1; }
+  .thread-row { display: flex; gap: 10px; align-items: center; width: 100%; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--border);
+    background: none; text-align: left; cursor: pointer; color: var(--text); font: inherit; }
+  .thread-row:hover { background: var(--bg); }
+  .thread-row.on { background: var(--primary-soft); }
+  .thread-row .user-avatar { flex-shrink: 0; }
+  .t-name { font-size: .86rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .t-last { font-size: .76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .t-when { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+  .t-unread { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--danger); color: #fff; font-size: .7rem; font-weight: 800; line-height: 20px; text-align: center; }
+  .t-hint { padding: 18px 16px; font-size: .8rem; color: var(--muted); line-height: 1.5; }
+  .inbox-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .thread-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); min-height: 58px; }
+  .thread-head .back-btn { display: none; }
+  @media (max-width: 900px) {
+    .inbox { grid-template-columns: 1fr; height: calc(100dvh - var(--top) - 32px); }
+    .inbox .inbox-thread { display: none; }
+    .inbox.show-thread .inbox-list { display: none; }
+    .inbox.show-thread .inbox-thread { display: flex; }
+    .thread-head .back-btn { display: inline-flex; }
+  }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Messages</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card inbox" id="inbox">
+      <div class="inbox-list">
+        <div class="inbox-search">
+          <input class="form-input" id="search" type="search" placeholder="Find a student…" autocomplete="off" oninput="drawList()">
+        </div>
+        <div class="threads" id="threads"><div class="skel" style="height:60px;margin:12px"></div></div>
+      </div>
+      <div class="inbox-thread">
+        <div class="thread-head">
+          <button class="btn btn-ghost btn-sm back-btn" type="button" onclick="closeThread()" aria-label="Back">&larr;</button>
+          <div style="min-width:0">
+            <div class="t-name" id="thread-name">Choose a conversation</div>
+            <div class="t-last" id="thread-sub"></div>
+          </div>
+        </div>
+        <div class="chat-log" id="log"><div class="chat-empty">Pick a student on the left, or find one to start a conversation.</div></div>
+        <form class="chat-send" id="send-form" onsubmit="event.preventDefault();send()" hidden>
+          <textarea class="form-textarea" id="msg" rows="1" maxlength="4000" placeholder="Write a reply…" aria-label="Your reply"></textarea>
+          <button class="btn btn-primary" id="send-btn" type="submit">Send</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+// One conversation per student. The teacher and their assistants share
+// the inbox: a reply from either is "from your teacher" to the student.
+let me = null;
+let students = new Map();     // id → { id, full_name, email }
+let summary = new Map();      // student id → { last, unread }
+let current = null;           // the open student's id
+let thread = [];
+
+// ── Shared by both Messages pages ─────────────────────────────────
+function chatHtml(list, mine) {
+  if (!list.length) return '';
+  let day = '';
+  const lastMine = [...list].reverse().find(m => mine(m));
+  return list.map(m => {
+    const d = new Date(m.created_at);
+    const label = d.toDateString() === new Date().toDateString() ? 'Today' : fmtDate(m.created_at);
+    const sep = label !== day ? `<div class="day-sep">${escHtml(label)}</div>` : '';
+    day = label;
+    const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
+    const seen = m === lastMine && m.read_at ? ' · Seen' : '';
+    return `${sep}<div class="bubble ${mine(m) ? 'me' : 'them'}" dir="auto">${escHtml(m.body)}<div class="bubble-meta">${time}${seen}</div></div>`;
+  }).join('');
+}
+
+function scrollToEnd() {
+  const log = document.getElementById('log');
+  log.scrollTop = log.scrollHeight;
+}
+
+// Enter sends; Shift+Enter is a new line. The box grows with what is typed.
+function wireComposer(onSend) {
+  const box = document.getElementById('msg');
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); onSend(); }
+  });
+  box.addEventListener('input', () => { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 140) + 'px'; });
+}
+
+function noTableYet(error) {
+  return /messages|relation|schema cache/i.test(error?.message || '');
+}
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'students' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Messages' });
+  wireComposer(send);
+
+  const [{ data: people }, ok] = await Promise.all([
+    sb.from('profiles').select('id, full_name, email').eq('teacher_id', me.teacher_id)
+      .eq('role', 'student').eq('is_active', true).order('full_name'),
+    loadSummary(),
+  ]);
+  (people || []).forEach(p => students.set(p.id, p));
+  drawList();
+  if (!ok) return;
+
+  const want = new URLSearchParams(location.search).get('student');
+  if (want && students.has(want)) openThread(want);
+
+  window.addEventListener('lumen:message', (e) => {
+    const m = e.detail;
+    if (!m) return;
+    const s = summary.get(m.student_id) || { last: null, unread: 0 };
+    s.last = m;
+    if (!m.from_staff && m.student_id !== current) s.unread++;
+    summary.set(m.student_id, s);
+    if (m.student_id === current && !thread.some(x => x.id === m.id)) { thread.push(m); drawThread(); markRead(); }
+    drawList();
+  });
+  setInterval(() => { if (!document.hidden) { loadSummary().then(drawList); if (current) loadThread(true); } }, 30000);
+})();
+
+async function loadSummary() {
+  const { data, error } = await sb.from('messages')
+    .select('id, student_id, body, from_staff, created_at, read_at')
+    .eq('teacher_id', me.teacher_id).order('created_at', { ascending: false }).limit(3000);
+  if (error) {
+    document.getElementById('threads').innerHTML = `<div class="t-hint">${noTableYet(error)
+      ? 'Messages need the v17 database update. Run <strong>supabase-migration-v17.sql</strong> in Supabase, then reload.'
+      : escHtml(friendlyError(error.message))}</div>`;
+    return false;
+  }
+  summary = new Map();
+  data.forEach(m => {
+    const s = summary.get(m.student_id) || { last: m, unread: 0 };
+    if (!m.from_staff && !m.read_at && m.student_id !== current) s.unread++;
+    summary.set(m.student_id, s);
+  });
+  return true;
+}
+
+function drawList() {
+  const host = document.getElementById('threads');
+  const term = document.getElementById('search').value.trim().toLowerCase();
+  let rows;
+  if (term) {
+    rows = [...students.values()].filter(s => (s.full_name || '').toLowerCase().includes(term) || (s.email || '').toLowerCase().includes(term))
+      .sort((a, b) => (summary.has(b.id) - summary.has(a.id)) || compareNames(a.full_name, b.full_name)).slice(0, 60);
+  } else {
+    rows = [...summary.keys()].filter(id => students.has(id)).map(id => students.get(id))
+      .sort((a, b) => summary.get(b.id).last.created_at.localeCompare(summary.get(a.id).last.created_at));
+  }
+  if (!rows.length) {
+    host.innerHTML = `<div class="t-hint">${term ? 'No student matches that.' : 'No messages yet. When a student writes to you it appears here — or find a student above to write to them first.'}</div>`;
+    return;
+  }
+  host.innerHTML = rows.map(s => {
+    const sm = summary.get(s.id);
+    const last = sm?.last;
+    return `<button type="button" class="thread-row ${s.id === current ? 'on' : ''}" onclick="openThread('${s.id}')">
+      <span class="user-avatar">${escHtml(initials(s.full_name))}</span>
+      <span style="flex:1;min-width:0">
+        <div class="t-name">${escHtml(s.full_name)}</div>
+        <div class="t-last" dir="auto">${last ? escHtml((last.from_staff ? 'You: ' : '') + last.body) : '<span class="muted">Start a conversation</span>'}</div>
+      </span>
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${last ? `<span class="t-when">${escHtml(timeAgo(last.created_at))}</span>` : ''}
+        ${sm?.unread ? `<span class="t-unread">${sm.unread}</span>` : ''}
+      </span>
+    </button>`;
+  }).join('');
+}
+
+async function openThread(id) {
+  current = id;
+  const s = students.get(id);
+  document.getElementById('thread-name').textContent = s?.full_name || 'Student';
+  document.getElementById('thread-sub').textContent = s?.email || '';
+  document.getElementById('send-form').hidden = false;
+  document.getElementById('inbox').classList.add('show-thread');
+  document.getElementById('log').innerHTML = '<div class="skel" style="height:80px"></div>';
+  history.replaceState(null, '', '?student=' + id);
+  const sm = summary.get(id);
+  if (sm) sm.unread = 0;
+  drawList();
+  await loadThread();
+  document.getElementById('msg').focus();
+}
+
+function closeThread() {
+  current = null;
+  document.getElementById('inbox').classList.remove('show-thread');
+  history.replaceState(null, '', location.pathname);
+  drawList();
+}
+
+async function loadThread(quiet) {
+  const id = current;
+  const { data, error } = await sb.from('messages')
+    .select('id, student_id, sender_id, body, from_staff, created_at, read_at')
+    .eq('student_id', id).order('created_at', { ascending: false }).limit(300);
+  if (id !== current) return;
+  if (error) { if (!quiet) document.getElementById('log').innerHTML = `<div class="chat-empty">${escHtml(friendlyError(error.message))}</div>`; return; }
+  const before = thread.length;
+  thread = data.reverse();
+  if (!quiet || thread.length !== before) drawThread();
+  markRead();
+}
+
+function drawThread() {
+  const s = students.get(current);
+  document.getElementById('log').innerHTML = thread.length
+    ? chatHtml(thread, m => m.from_staff)
+    : `<div class="chat-empty">No messages with ${escHtml(s?.full_name || 'this student')} yet. Write the first one below.</div>`;
+  scrollToEnd();
+}
+
+function markRead() {
+  if (!thread.some(m => !m.from_staff && !m.read_at)) return;
+  const id = current;
+  sb.rpc('mark_messages_read', { p_student: id }).then(({ error }) => {
+    if (error) return;
+    thread.forEach(m => { if (!m.from_staff && !m.read_at) m.read_at = new Date().toISOString(); });
+    refreshBell();
+  });
+}
+
+async function send() {
+  const box = document.getElementById('msg');
+  const body = box.value.trim();
+  if (!body || !current) return;
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  const { data, error } = await sb.from('messages').insert({
+    teacher_id: me.teacher_id, student_id: current, sender_id: me.id, from_staff: true, body,
+  }).select('id, student_id, sender_id, body, from_staff, created_at, read_at').single();
+  btn.disabled = false;
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  box.value = ''; box.style.height = '';
+  if (!thread.some(x => x.id === data.id)) thread.push(data);
+  const sm = summary.get(current) || { unread: 0 };
+  sm.last = data; summary.set(current, sm);
+  drawThread(); drawList();
+  pushMessage(data.id);
+  box.focus();
+}
+</script>
+</body>
+</html>

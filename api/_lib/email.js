@@ -50,7 +50,7 @@ export function emailStatus() {
   return { ready: true };
 }
 
-export async function sendEmail({ to, toName, subject, html, replyTo }) {
+export async function sendEmail({ to, toName, subject, html, replyTo, attachments }) {
   const status = emailStatus();
   if (!status.ready) return { sent: false, error: status.why };
   if (!to || !subject || !html) return { sent: false, error: 'Nothing to send.' };
@@ -62,6 +62,8 @@ export async function sendEmail({ to, toName, subject, html, replyTo }) {
     subject,
     htmlContent: html,
   };
+  // Files go as base64, which is how Brevo takes them: [{ name, content }].
+  if (attachments?.length) payload.attachment = attachments.map(a => ({ name: a.name, content: a.content }));
 
   const first = await post(payload);
   if (first.sent || !isBlocked(first.raw)) {

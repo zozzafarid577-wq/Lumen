@@ -361,10 +361,12 @@ const STAFF_PERMS = [
 // allowed, the third is teacher-only and guarded by its own requireAuth.
 const STAFF_PAGE_PERM = {
   '/teacher/students.html':      'students',
+  '/teacher/messages.html':      'students',
   '/teacher/progress.html':      'reports',
   '/teacher/courses.html':       'courses',
   '/teacher/question-bank.html': 'questions',
   '/teacher/tests.html':         'tests',
+  '/teacher/marks.html':         'tests',
   '/teacher/assignments.html':   'assignments',
   '/teacher/announcements.html': 'announcements',
 };

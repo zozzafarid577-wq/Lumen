@@ -97,6 +97,9 @@ class QueryBuilder {
   is(col, val)  { this.call.filters['is:' + col] = val; return this; }
   not(col, op, val) { this.call.filters[`not:${col}:${op}`] = val; return this; }
   gt(col, val)  { this.call.filters['gt:' + col] = val; return this; }
+  gte(col, val) { this.call.filters['gte:' + col] = val; return this; }
+  lt(col, val)  { this.call.filters['lt:' + col] = val; return this; }
+  lte(col, val) { this.call.filters['lte:' + col] = val; return this; }
   order() { return this; }
   limit(n) { this.call.limit = n; return this; }
   range() { return this; }
