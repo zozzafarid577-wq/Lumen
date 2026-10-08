@@ -39,12 +39,26 @@ function senderWarning() {
 export default async function handler(req, res) {
   // The daily reminder run (vercel.json "crons"). Loaded only when asked
   // for, so the plain health check still imports nothing.
-  if (req.query?.task === 'reminders' || req.query?.task === 'group-report') {
+  if (['reminders', 'group-report', 'hard-questions', 'morning'].includes(req.query?.task)) {
     const secret = (process.env.CRON_SECRET || '').trim();
     if (secret && (req.headers?.authorization || '') !== 'Bearer ' + secret) {
       return res.status(401).json({ error: 'Not allowed.' });
     }
     try {
+      // The morning run: group reports for tomorrow's groups, then
+      // yesterday's hardest questions. One schedule for both.
+      if (req.query.task === 'morning') {
+        const { runGroupReports } = await import('./_lib/group-report.js');
+        const { runHardQuestions } = await import('./_lib/hard-questions.js');
+        const groups = await runGroupReports();
+        const hard = await runHardQuestions();
+        return res.status(200).json({ ok: true, groups, hard: { day: hard.day, teachers: hard.teachers.length } });
+      }
+      if (req.query.task === 'hard-questions') {
+        const { runHardQuestions } = await import('./_lib/hard-questions.js');
+        const hard = await runHardQuestions();
+        return res.status(200).json({ ok: true, day: hard.day, teachers: hard.teachers.length });
+      }
       if (req.query.task === 'group-report') {
         const { runGroupReports } = await import('./_lib/group-report.js');
         return res.status(200).json({ ok: true, ...(await runGroupReports()) });

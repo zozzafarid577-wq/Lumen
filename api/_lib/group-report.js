@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { admin } from './supabase.js';
 import { sendEmail } from './email.js';
+import { logActivity } from './auth.js';
 
 // The morning before a group meets, its teacher gets the group's marks.
 //
@@ -30,14 +31,14 @@ export function cairoDay(at) {
 
 // The instant Cairo's day `iso` began. Egypt moves its clocks, so the
 // offset is read for that date rather than assumed.
-function cairoMidnight(iso) {
+export function cairoMidnight(iso) {
   const guess = new Date(`${iso}T00:00:00Z`);
   const shown = new Date(guess.toLocaleString('en-US', { timeZone: TZ }));
   const utc = new Date(guess.toLocaleString('en-US', { timeZone: 'UTC' }));
   return new Date(guess.getTime() - (shown - utc));
 }
 
-function addDays(iso, n) {
+export function addDays(iso, n) {
   return new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * DAY_MS).toISOString().slice(0, 10);
 }
 
@@ -70,19 +71,23 @@ export async function runGroupReports(now = new Date()) {
       const from = cairoMidnight(addDays(tomorrowIso, -back));
       const report = await buildReport(g, from, now);
       const to = await recipients(g);
-      if (!to.length) continue;
+      if (!to.length) { await admin.from('notify_log').delete().eq('key', key); continue; }
 
       const when = `${DAY_NAME[tomorrowDow]}${g.start_time ? ' at ' + g.start_time.slice(0, 5) : ''}`;
       const subject = `${g.name} (${g.courses?.title || 'course'}) — marks before ${when}`;
+      const ok = [];
       for (const r of to) {
         const out = await sendEmail({
           to: r.email, toName: r.name, subject,
           html: reportEmail({ group: g, when, from, report }),
           attachments: [{ name: report.fileName, content: report.base64 }],
         });
-        if (out.sent) sent++;
+        if (out.sent) { sent++; ok.push(r.email); }
         else console.error('group report not sent:', r.email, out.error);
       }
+      // Nothing went: forget it was tried, so the next run tries again.
+      if (!ok.length) await admin.from('notify_log').delete().eq('key', key);
+      else await logActivity(g.teacher_id, null, 'group_report_sent', `${g.name} → ${ok.join(', ')}`);
     } catch (err) {
       console.error('group report failed for', g.id, err);
       await admin.from('notify_log').delete().eq('key', key);   // so a rerun can try again
@@ -95,7 +100,19 @@ export async function runGroupReports(now = new Date()) {
 // the space's teacher account.
 async function recipients(group) {
   if (group.teacher_email) return [{ email: group.teacher_email, name: group.teacher_name || undefined }];
-  const teacherId = group.teacher_id;
+  return reportRecipients(group.teacher_id);
+}
+
+// Where a teacher's reports go: the address set once under Students →
+// Groups (kept on every group row), or else the teacher account itself.
+export async function reportRecipients(teacherId) {
+  const { data: g } = await admin.from('groups').select('teacher_name, teacher_email')
+    .eq('teacher_id', teacherId).not('teacher_email', 'is', null).limit(1);
+  if (g?.[0]?.teacher_email) return [{ email: g[0].teacher_email, name: g[0].teacher_name || undefined }];
+  return accountRecipients(teacherId);
+}
+
+async function accountRecipients(teacherId) {
   const { data } = await admin.from('profiles').select('full_name, email')
     .eq('teacher_id', teacherId).eq('role', 'teacher').eq('is_active', true);
   let out = (data || []).filter(p => p.email).map(p => ({ email: p.email, name: p.full_name }));

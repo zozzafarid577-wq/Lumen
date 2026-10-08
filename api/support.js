@@ -42,6 +42,13 @@ export default handler(async (req, res) => {
     if (out.error) throw new HttpError(400, out.error);
     return res.status(200).json(out);
   }
+  // A trial of the hardest-questions email, to Lumen's inbox only.
+  if (body.flow === 'hard-questions-test') {
+    if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
+    const { runHardQuestions } = await import('./_lib/hard-questions.js');
+    const inbox = (process.env.SUPPORT_EMAIL || '').trim() || FALLBACK_INBOX;
+    return res.status(200).json(await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id, to: inbox }));
+  }
   // A trial of the morning group report, sent to Lumen's inbox only.
   if (body.flow === 'group-report-test') {
     if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');

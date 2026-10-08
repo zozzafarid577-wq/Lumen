@@ -124,7 +124,7 @@
       "schedule": "0 15 * * *"
     },
     {
-      "path": "/api/health?task=group-report",
+      "path": "/api/health?task=morning",
       "schedule": "0 5 * * *"
     }
   ]
