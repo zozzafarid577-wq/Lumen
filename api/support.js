@@ -42,6 +42,13 @@ export default handler(async (req, res) => {
     if (out.error) throw new HttpError(400, out.error);
     return res.status(200).json(out);
   }
+  // The hardest-questions email, now, to the teacher (yesterday's tests).
+  if (body.flow === 'hard-questions-send') {
+    if (!['teacher', 'assistant'].includes(profile.role)) throw new HttpError(403, 'You do not have access to do that.');
+    requirePerm(profile, 'students');
+    const { runHardQuestions } = await import('./_lib/hard-questions.js');
+    return res.status(200).json(await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id }));
+  }
   // A trial of the hardest-questions email, to Lumen's inbox only.
   if (body.flow === 'hard-questions-test') {
     if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
