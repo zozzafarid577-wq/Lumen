@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { admin } from './supabase.js';
-import { sendEmail } from './email.js';
+import { sendEmail, teacherReport, reportBits } from './email.js';
 import { logActivity } from './auth.js';
 
 // The morning before a group meets, its teacher gets the group's marks.
@@ -166,10 +166,13 @@ export async function buildReport(group, from, until = new Date()) {
     { header: 'Tests done', width: 12 },
   ];
   const nobody = [];
+  const perStudent = [];
   for (const s of students) {
     const cells = tests.map(t => { const a = best.get(`${s.id}|${t.id}`); return a ? mark(a) : '—'; });
     const done = cells.filter(c => c !== '—').length;
     if (!done) nobody.push(s.name);
+    perStudent.push({ name: s.name, done, marks: tests.map(t => best.get(`${s.id}|${t.id}`)).filter(Boolean)
+      .map(a => ({ title: tests.find(t => t.id === a.test_id)?.title, mark: mark(a), passed: a.passed })) });
     const row = ws.addRow([s.name, ...cells, done]);
     tests.forEach((t, i) => {
       const a = best.get(`${s.id}|${t.id}`);
@@ -196,29 +199,60 @@ export async function buildReport(group, from, until = new Date()) {
   const buf = await wb.xlsx.writeBuffer();
   const safe = `${group.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'group';
   return {
-    students: students.length, tests: tests.length, attempts: attempts.length, nobody,
+    students: students.length, tests: tests.length, attempts: attempts.length, nobody, perStudent,
     fileName: `${safe}-marks-${cairoDay(until).iso}.xlsx`,
     base64: Buffer.from(buf).toString('base64'),
   };
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+const SITE = () => {
+  const u = (process.env.PUBLIC_URL || 'https://lumenlearn.site').trim().replace(/\/$/, '');
+  return u.startsWith('http') ? u : 'https://' + u;
+};
 
-function reportEmail({ group, when, from, report }) {
+export function reportEmail({ group, when, from, report }) {
+  const { esc, pill, MUTED, LINE, INK } = reportBits;
   const since = from.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
-  const missing = report.nobody.length
-    ? `<p style="margin:14px 0 6px"><strong>Nothing done since ${esc(since)} (${report.nobody.length}):</strong></p>
-       <p style="margin:0;color:#554C53">${report.nobody.map(esc).join(', ')}</p>`
-    : '<p style="margin:14px 0 0">Every student did at least one test.</p>';
-  return `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1B1519;line-height:1.5;max-width:560px">
-    <p style="margin:0 0 10px">Your <strong>${esc(group.name)}</strong> group (${esc(group.courses?.title || '')}) meets <strong>${esc(when)}</strong>.</p>
-    <p style="margin:0">Since ${esc(since)}: <strong>${report.students}</strong> students, <strong>${report.tests}</strong> tests, <strong>${report.attempts}</strong> attempts.</p>
-    ${missing}
-    <p style="margin:18px 0 0">The full sheet is attached — one row per student, one column per test, with each student's best mark.</p>
-    <p style="margin:18px 0 0;color:#8B8089;font-size:13px">Sent by Lumen the morning before each group session.</p>
-  </div>`;
+  const did = report.students - report.nobody.length;
+
+  const active = report.perStudent.filter(p => p.done).sort((a, b) => b.done - a.done || a.name.localeCompare(b.name));
+  const table = active.length ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${active.map(p => `
+      <tr>
+        <td valign="top" style="padding:10px 8px 10px 0;border-bottom:1px solid ${LINE};font-size:14px;font-weight:600;color:${INK};width:38%">${esc(p.name)}
+          <div style="font-size:12px;font-weight:400;color:${MUTED};margin-top:2px">${p.done} test${p.done === 1 ? '' : 's'}</div></td>
+        <td valign="top" style="padding:9px 0;border-bottom:1px solid ${LINE};line-height:2">
+          ${p.marks.slice(0, 6).map(m => `<span title="${esc(m.title)}">${pill(m.mark, m.passed ? 'good' : 'bad')}</span>`).join(' ')}
+          ${p.marks.length > 6 ? `<span style="font-size:12px;color:${MUTED}">+${p.marks.length - 6} more</span>` : ''}
+        </td>
+      </tr>`).join('')}
+    </table>
+    <p style="margin:8px 0 0;font-size:12px;color:${MUTED}">Each mark is the student's best on that test. Green passed, red did not — the test names are in the sheet.</p>`
+    : `<p style="margin:12px 0 0;font-size:14px;color:${MUTED}">Nobody in this group has done a test since ${esc(since)}.</p>`;
+
+  const sections = [{ title: 'Marks so far', sub: `since ${since}`, html: table }];
+  if (report.nobody.length) {
+    sections.push({
+      title: 'Nothing done yet', sub: `${report.nobody.length} student${report.nobody.length === 1 ? '' : 's'}`,
+      html: `<p style="margin:12px 0 0;font-size:14px;line-height:1.9">${report.nobody.map(n => pill(n, 'bad')).join(' ')}</p>`,
+    });
+  }
+
+  return teacherReport({
+    eyebrow: 'Group marks report',
+    heading: `${group.name} · ${group.courses?.title || ''}`,
+    intro: `This group meets <strong>${esc(when)}</strong>. Here is what its students have done since ${esc(since)}.`,
+    tiles: [
+      [String(report.students), 'Students'],
+      [String(did), 'Did a test'],
+      [String(report.nobody.length), 'Did nothing', report.nobody.length ? 'bad' : ''],
+      [String(report.tests), 'Tests'],
+    ],
+    sections,
+    button: { label: 'Open Progress in Lumen', url: SITE() + '/teacher/progress' },
+    footer: 'The full sheet is attached — one row per student, one column per test.<br>Sent by Lumen the morning before each group session.',
+  });
 }
 
 // A trial run for checking the email and the sheet: the real report for

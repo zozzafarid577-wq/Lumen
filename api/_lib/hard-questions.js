@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { admin } from './supabase.js';
-import { sendEmail } from './email.js';
+import { sendEmail, teacherReport, reportBits } from './email.js';
 import { logActivity } from './auth.js';
 import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-report.js';
 
@@ -16,7 +16,7 @@ import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-repo
 // Sent by the morning run (GET /api/health?task=morning), to the same
 // address as the group reports. notify_log keeps it to one a day.
 
-const TOP = 15;
+const TOP = 10;     // per course
 const PAGE = 1000;
 
 async function everyRow(makeQuery) {
@@ -93,26 +93,33 @@ export async function hardestQuestions(teacherId, from, until) {
   return { attempts: sat.length, questions: list };
 }
 
+// The courses in a fixed order (Senior 1, Senior 2, Senior 3), each with
+// its questions hardest first.
+function byCourse(rows) {
+  const m = new Map();
+  rows.forEach(r => { const k = r.course || 'Other'; if (!m.has(k)) m.set(k, []); m.get(k).push(r); });
+  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+}
+
 async function sheet(rows, dayIso) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Lumen';
-  const ws = wb.addWorksheet('Hardest questions', { views: [{ state: 'frozen', ySplit: 1 }] });
-  ws.columns = [
-    { header: 'Wrong', width: 8 }, { header: 'Sat it', width: 8 }, { header: '% wrong', width: 9 },
-    { header: 'Left blank', width: 10 }, { header: 'Course', width: 12 }, { header: 'Test', width: 32 },
-    { header: 'Q', width: 5 }, { header: 'Question', width: 70 }, { header: 'Right answer', width: 28 },
-    { header: 'Most chosen wrong answer', width: 30 },
-  ];
-  rows.forEach(r => ws.addRow([r.wrong, r.sat, r.pct, r.blank, r.course, r.test, r.number,
-    r.question.length > 600 ? r.question.slice(0, 600) + '…' : r.question, r.answer, r.commonWrong]));
-  ws.getRow(1).font = { bold: true };
-  ws.getColumn(8).alignment = { wrapText: true, vertical: 'top' };
+  for (const [course, list] of byCourse(rows)) {
+    // A sheet name may not hold : \ / ? * [ ] and is at most 31 characters.
+    const ws = wb.addWorksheet(course.replace(/[:\\/?*[\]]/g, ' ').slice(0, 31), { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [
+      { header: 'Wrong', width: 8 }, { header: 'Sat it', width: 8 }, { header: '% wrong', width: 9 },
+      { header: 'Left blank', width: 10 }, { header: 'Test', width: 32 },
+      { header: 'Q', width: 5 }, { header: 'Question', width: 70 }, { header: 'Right answer', width: 28 },
+      { header: 'Most chosen wrong answer', width: 30 },
+    ];
+    list.forEach(r => ws.addRow([r.wrong, r.sat, r.pct, r.blank, r.test, r.number,
+      r.question.length > 600 ? r.question.slice(0, 600) + '…' : r.question, r.answer, r.commonWrong]));
+    ws.getRow(1).font = { bold: true };
+    ws.getColumn(7).alignment = { wrapText: true, vertical: 'top' };
+  }
   const buf = await wb.xlsx.writeBuffer();
   return { name: `hardest-questions-${dayIso}.xlsx`, content: Buffer.from(buf).toString('base64') };
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // Long reading passages are cut to the question itself for the email.
@@ -122,23 +129,50 @@ function shortQuestion(t) {
   return q.length > 220 ? q.slice(0, 219) + '…' : q;
 }
 
-function email({ dayLabel, result }) {
-  const top = result.questions.slice(0, TOP);
-  const rows = top.map((r, i) => `
+const SITE = () => {
+  const u = (process.env.PUBLIC_URL || 'https://lumenlearn.site').trim().replace(/\/$/, '');
+  return u.startsWith('http') ? u : 'https://' + u;
+};
+
+function card(r, i) {
+  const { esc, pill, MUTED, LINE, INK } = reportBits;
+  return `
     <tr>
-      <td style="padding:8px 6px;border-bottom:1px solid #EDDDE6;vertical-align:top;font-weight:700;color:#B42318;white-space:nowrap">${r.wrong}/${r.sat}</td>
-      <td style="padding:8px 6px;border-bottom:1px solid #EDDDE6;vertical-align:top">
-        <div style="font-size:12px;color:#8B8089">${i + 1}. ${esc(r.course)} · ${esc(r.test)} · Q${r.number}</div>
-        <div style="margin:2px 0 4px" dir="auto">${esc(shortQuestion(r.question))}</div>
-        <div style="font-size:13px"><span style="color:#1F7A4D">Right: ${esc(r.answer)}</span>${r.commonWrong ? ` · <span style="color:#B42318">Most chose: ${esc(r.commonWrong)}</span>` : ''}${r.blank ? ` · ${r.blank} left it blank` : ''}</div>
+      <td valign="top" width="86" style="padding:14px 10px 14px 0;border-bottom:1px solid ${LINE}">
+        ${pill(`${r.wrong}/${r.sat} wrong`, 'bad')}
       </td>
-    </tr>`).join('');
-  return `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1B1519;line-height:1.45;max-width:640px">
-    <p style="margin:0 0 10px">The questions students found hardest on <strong>${esc(dayLabel)}</strong>, from ${result.attempts} test${result.attempts === 1 ? '' : 's'} sat.</p>
-    <table style="border-collapse:collapse;width:100%">${rows}</table>
-    <p style="margin:16px 0 0">Every question that anybody got wrong is in the attached sheet, hardest first.</p>
-    <p style="margin:16px 0 0;color:#8B8089;font-size:13px">Sent by Lumen every morning.</p>
-  </div>`;
+      <td valign="top" style="padding:13px 0;border-bottom:1px solid ${LINE}">
+        <div style="font-size:12px;color:${MUTED}">${i + 1} · ${esc(r.test)} · Q${r.number}</div>
+        <div style="margin:4px 0 7px;font-size:15px;line-height:1.5;color:${INK}" dir="auto">${esc(shortQuestion(r.question))}</div>
+        <div style="font-size:13px;line-height:1.7">
+          <span style="color:#1F7A4D;font-weight:600">&#10003; ${esc(r.answer)}</span>
+          ${r.commonWrong ? `&nbsp;&nbsp;<span style="color:#B42318">&#10007; most chose ${esc(r.commonWrong)}</span>` : ''}
+          ${r.blank ? `&nbsp;&nbsp;<span style="color:${MUTED}">${r.blank} left it blank</span>` : ''}
+        </div>
+      </td>
+    </tr>`;
+}
+
+export function hardEmail({ dayLabel, result }) {
+  const { esc } = reportBits;
+  const courses = byCourse(result.questions);
+  return teacherReport({
+    eyebrow: 'Hardest questions',
+    heading: `Where students struggled · ${dayLabel}`,
+    intro: `The questions most students got wrong in the tests sat on <strong>${esc(dayLabel)}</strong>, course by course. A blank answer counts as wrong.`,
+    tiles: [
+      [String(result.attempts), 'Tests sat'],
+      [String(result.questions.length), 'Questions got wrong', 'bad'],
+      [String(courses.length), courses.length === 1 ? 'Course' : 'Courses'],
+    ],
+    sections: courses.map(([course, list]) => ({
+      title: course,
+      sub: `the ${Math.min(TOP, list.length)} hardest of ${list.length}`,
+      html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${list.slice(0, TOP).map(card).join('')}</table>`,
+    })),
+    button: { label: 'Open Test results in Lumen', url: SITE() + '/teacher/results' },
+    footer: 'Every question anybody got wrong is in the attached sheet — one tab per course, hardest first.<br>Sent by Lumen every morning.',
+  });
 }
 
 // One email per teacher who had any tests sat yesterday.
@@ -175,7 +209,7 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
         const res = await sendEmail({
           to: r.email, toName: r.name,
           subject: `${to ? '[TEST] ' : ''}Hardest questions — ${dayLabel}`,
-          html: email({ dayLabel, result }), attachments: [attachment],
+          html: hardEmail({ dayLabel, result }), attachments: [attachment],
         });
         sent.push({ to: r.email, sent: res.sent, error: res.error || null });
       }

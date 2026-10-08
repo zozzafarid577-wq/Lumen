@@ -633,3 +633,74 @@ export function siteUrlFor(req, path = '/') {
   const proto = /^(localhost|127\.|\[::1\])/.test(host) ? 'http' : 'https';
   return `${proto}://${host}${path}`;
 }
+
+// ── Reports to the teacher ────────────────────────────────────────
+// The morning group report and the hardest-questions email. The same
+// frame as every Lumen email (brand band, white card, soft background),
+// wider, because these carry lists rather than a sentence: a row of
+// number tiles first — the answer to "how did they do" before a word is
+// read — then sections, then a button into Lumen.
+//
+// `tiles`: [[number, label, tone?]] — tone 'bad' paints the number red.
+// `sections`: [{ title, sub?, html }] — html is already escaped.
+export function teacherReport({ eyebrow, heading, intro, tiles = [], sections = [], button, footer }) {
+  const W = 620;
+  const tileCells = tiles.map(([n, label, tone]) => `
+          <td width="${Math.floor(100 / tiles.length)}%" valign="top" style="padding:0 5px">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF8FA;border:1px solid ${LINE};border-radius:14px">
+              <tr><td align="center" style="padding:14px 6px 12px">
+                <div style="font-size:26px;line-height:1;font-weight:700;color:${tone === 'bad' ? '#B42318' : BRAND}">${esc(n)}</div>
+                <div style="margin-top:6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED};font-weight:600">${esc(label)}</div>
+              </td></tr>
+            </table>
+          </td>`).join('');
+  const tilesHtml = tiles.length ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px"><tr>${tileCells}</tr></table>` : '';
+  const sectionsHtml = sections.map(s => `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 0">
+            <tr><td style="padding:0 0 10px;border-bottom:2px solid ${BRAND}">
+              <span style="font-size:17px;font-weight:700;color:${INK}">${esc(s.title)}</span>
+              ${s.sub ? `<span style="font-size:13px;color:${MUTED}">&nbsp;·&nbsp;${esc(s.sub)}</span>` : ''}
+            </td></tr>
+            <tr><td style="padding-top:4px">${s.html}</td></tr>
+          </table>`).join('');
+  const btn = button ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 4px">
+            <tr><td align="center">
+              <a href="${esc(button.url)}" style="display:inline-block;background-color:${BRAND};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 30px;border-radius:9999px">${esc(button.label)} &rarr;</a>
+            </td></tr>
+          </table>` : '';
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#FDF6F7">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF6F7;padding:28px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:${W}px;background:#ffffff;border:1px solid ${LINE};border-radius:20px;overflow:hidden;font-family:${FONT}">
+        <tr><td bgcolor="${BRAND}" style="background-color:${BRAND};background-image:linear-gradient(120deg,#7E3C7C 0%,${BRAND} 55%,#C070BD 100%);padding:24px 30px">
+          <div style="font-size:24px;font-weight:500;letter-spacing:-1px;color:#ffffff">L<span style="font-weight:700;border-bottom:3px solid #EBB8E9">u</span>men</div>
+          <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#F0D3EF;margin-top:6px">${esc(eyebrow)}</div>
+        </td></tr>
+        <tr><td style="padding:28px 30px 30px">
+          <h1 style="margin:0 0 8px;font-size:22px;line-height:1.3;color:${INK}">${esc(heading)}</h1>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:${INK_2}">${intro}</p>
+${tilesHtml}${sectionsHtml}${btn}
+        </td></tr>
+      </table>
+      <p style="max-width:${W}px;margin:16px auto 0;font-size:12px;line-height:1.6;color:${MUTED};font-family:${FONT};text-align:center">${footer || 'Sent by Lumen.'}</p>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+// Small pieces the two reports share.
+export const reportBits = {
+  esc, BRAND, INK, INK_2, MUTED, LINE,
+  pill: (text, tone) => {
+    const c = tone === 'bad' ? ['#FDECEA', '#B42318'] : tone === 'good' ? ['#E7F4EF', '#1F7A4D'] : ['#F3EEF3', '#554C53'];
+    return `<span style="display:inline-block;background:${c[0]};color:${c[1]};font-size:12px;font-weight:700;padding:3px 9px;border-radius:9999px;white-space:nowrap">${esc(text)}</span>`;
+  },
+};

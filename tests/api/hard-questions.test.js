@@ -59,3 +59,26 @@ describe('sending on request', () => {
     expect(getSupabaseCalls('notify_log.insert')).toHaveLength(0);
   });
 });
+
+describe('split by course', () => {
+  it('gives each course its own tab in the sheet', async () => {
+    const { runHardQuestions } = await import('../../api/_lib/hard-questions.js');
+    const ExcelJS = (await import('exceljs')).default;
+    let sentAttachment = null;
+    const fetchMock = vi.fn(async (_u, opts) => { sentAttachment = JSON.parse(opts.body).attachment?.[0]; return { ok: true, status: 201, text: async () => '{}', json: async () => ({}) }; });
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.BREVO_API_KEY = 'k'; process.env.BREVO_SENDER_EMAIL = 'from@example.com';
+    configureSupabaseMock({ results: {
+      'test_attempts.select': { data: [
+        { id: 'a1', test_id: 't1', answers: { q1: 1 }, practice_tests: { ...TEST, courses: { title: 'Senior 2' } } },
+        { id: 'a2', test_id: 't2', answers: { q4: 1 }, practice_tests: { ...TEST, courses: { title: 'Senior 1' } } },
+      ], error: null },
+      'test_questions.select': { data: [Q1, { ...Q1, id: 'q4', test_id: 't2' }], error: null },
+    } });
+    await runHardQuestions(new Date('2026-10-08T08:00:00Z'), { onlyTeacher: 'teacher-1', to: 'lumen@example.com' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(sentAttachment.content, 'base64'));
+    expect(wb.worksheets.map(w => w.name)).toEqual(['Senior 1', 'Senior 2']);
+    vi.unstubAllGlobals();
+  });
+});
