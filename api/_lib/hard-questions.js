@@ -16,7 +16,7 @@ import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-repo
 // Sent by the morning run (GET /api/health?task=morning), to the same
 // address as the group reports. notify_log keeps it to one a day.
 
-const TOP = 10;     // per course
+const TOP = 25;     // per course
 const PAGE = 1000;
 
 async function everyRow(makeQuery) {
