@@ -142,7 +142,9 @@ function email({ dayLabel, result }) {
 }
 
 // One email per teacher who had any tests sat yesterday.
-export async function runHardQuestions(now = new Date(), { onlyTeacher = null, to = null } = {}) {
+export async function runHardQuestions(now = new Date(), { onlyTeacher = null, to = null, force = false } = {}) {
+  // `force`: a button press. It always sends, and does not use up the morning's.
+  const record = !to && !force;
   const today = cairoDay(now);
   const dayIso = addDays(today.iso, -1);
   const from = cairoMidnight(dayIso), until = cairoMidnight(today.iso);
@@ -159,7 +161,7 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
   const out = [];
   for (const teacherId of teachers) {
     const key = `hard-questions:${teacherId}:${dayIso}`;
-    if (!to) {
+    if (record) {
       const { error: dupe } = await admin.from('notify_log').insert({ key });
       if (dupe) continue;
     }
@@ -178,13 +180,13 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
         sent.push({ to: r.email, sent: res.sent, error: res.error || null });
       }
       if (!to) {
-        if (!sent.some(s => s.sent)) await admin.from('notify_log').delete().eq('key', key);
-        else await logActivity(teacherId, null, 'hard_questions_sent', `${dayLabel} → ${sent.filter(s => s.sent).map(s => s.to).join(', ')}`);
+        if (record && !sent.some(s => s.sent)) await admin.from('notify_log').delete().eq('key', key);
+        else if (sent.some(s => s.sent)) await logActivity(teacherId, null, 'hard_questions_sent', `${dayLabel} → ${sent.filter(s => s.sent).map(s => s.to).join(', ')}`);
       }
       out.push({ teacherId, questions: result.questions.length, attempts: result.attempts, sent });
     } catch (err) {
       console.error('hardest questions failed for', teacherId, err);
-      if (!to) await admin.from('notify_log').delete().eq('key', key);
+      if (record) await admin.from('notify_log').delete().eq('key', key);
       out.push({ teacherId, error: err.message });
     }
   }

@@ -136,6 +136,11 @@
       </button>
       <span class="page-title">Test results</span>
     </div>
+    <!-- Always shown (the bell sits here too); the paper's own buttons are
+         beside it and appear only while a paper is open. -->
+    <div class="topbar-right no-print">
+      <button class="btn btn-outline btn-sm" id="hard-btn" onclick="sendHardest()" title="Email the teacher yesterday's hardest questions, with the Excel sheet">Email hardest questions</button>
+    </div>
     <div class="topbar-right" id="paper-actions" style="display:none">
       <button class="btn btn-outline btn-sm" onclick="closePaper()">← All results</button>
       <button class="btn btn-primary btn-sm" onclick="window.print()">Print this paper</button>
@@ -231,6 +236,27 @@
 <script src="/js/auth.js"></script>
 <script src="/js/shell.js"></script>
 <script>
+// Yesterday's hardest questions, emailed now to the address set under
+// Students → Groups — the same email that goes out every morning.
+async function sendHardest() {
+  if (!confirm("Email yesterday's hardest questions to the teacher now?")) return;
+  const btn = document.getElementById('hard-btn');
+  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Sending…';
+  try {
+    const out = await apiPost('/api/support', { flow: 'hard-questions-send' });
+    const t = out.teachers[0];
+    if (!t) showToast('That report was already sent for yesterday, or nobody sat a test yesterday.', 'error');
+    else if (t.error) showToast(t.error, 'error');
+    else if (!t.questions) showToast('Nobody got a question wrong yesterday — nothing to send.', 'success');
+    else {
+      const ok = t.sent.filter(x => x.sent).map(x => x.to);
+      if (ok.length) showToast(`Sent to ${ok.join(', ')} · ${t.questions} questions from ${t.attempts} tests.`, 'success');
+      else showToast(`Could not send it: ${t.sent[0]?.error || 'the mail provider refused it'}`, 'error');
+    }
+  } catch (err) { showToast(err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 let me = null;
 let attempts = [];         // finished attempts, newest first
 let tests = [];            // this teacher's tests

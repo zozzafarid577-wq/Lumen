@@ -47,7 +47,7 @@ export default handler(async (req, res) => {
     if (!['teacher', 'assistant'].includes(profile.role)) throw new HttpError(403, 'You do not have access to do that.');
     requirePerm(profile, 'students');
     const { runHardQuestions } = await import('./_lib/hard-questions.js');
-    return res.status(200).json(await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id }));
+    return res.status(200).json(await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id, force: true }));
   }
   // A trial of the hardest-questions email, to Lumen's inbox only.
   if (body.flow === 'hard-questions-test') {

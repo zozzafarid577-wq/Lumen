@@ -44,3 +44,18 @@ describe('the hardest questions', () => {
     expect(r).toEqual({ attempts: 0, questions: [] });
   });
 });
+
+describe('sending on request', () => {
+  it('sends even when the morning email already went, and does not mark the day', async () => {
+    const { runHardQuestions } = await import('../../api/_lib/hard-questions.js');
+    const { getSupabaseCalls } = await import('../helpers/supabase-mock.js');
+    world([{ id: 'a1', test_id: 't1', answers: { q1: 1 }, practice_tests: TEST }]);
+    configureSupabaseMock({ results: {
+      'notify_log.insert': { data: null, error: { message: 'duplicate key' } },
+      'groups.select': { data: [{ teacher_name: 'Ms. Abeer', teacher_email: 'abeer@example.com' }], error: null },
+    } });
+    const out = await runHardQuestions(new Date('2026-10-08T08:00:00Z'), { onlyTeacher: 'teacher-1', force: true });
+    expect(out.teachers[0].sent.map(s => s.to)).toEqual(['abeer@example.com']);
+    expect(getSupabaseCalls('notify_log.insert')).toHaveLength(0);
+  });
+});
