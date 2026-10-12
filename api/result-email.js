@@ -86,7 +86,7 @@ export default handler(async (req, res) => {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-function resultEmail({ student, test, shown, score, maxScore, passed, passMark, space, when }) {
+export function resultEmail({ student, test, shown, score, maxScore, passed, passMark, space, when }) {
   const colour = passed ? '#147A57' : '#C62F45';
   const date = when ? new Date(when).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   return `<!DOCTYPE html>

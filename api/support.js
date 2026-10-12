@@ -49,6 +49,26 @@ export default handler(async (req, res) => {
     const { runHardQuestions } = await import('./_lib/hard-questions.js');
     return res.status(200).json(await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id, force: true }));
   }
+  // One of every kind of email, plus both reports, to Lumen's inbox only.
+  if (body.flow === 'email-samples-test') {
+    if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
+    const inbox = (process.env.SUPPORT_EMAIL || '').trim() || FALLBACK_INBOX;
+    const { sendEmailSamples } = await import('./_lib/email-samples.js');
+    const { runGroupReportTest } = await import('./_lib/group-report.js');
+    const { runHardQuestions } = await import('./_lib/hard-questions.js');
+    const { data: t } = await admin.from('teachers').select('display_name').eq('id', profile.teacher_id).maybeSingle();
+    const samples = await sendEmailSamples(inbox, { spaceName: t?.display_name || 'Lumen' });
+    const groups = await runGroupReportTest(profile.teacher_id, inbox);
+    const hard = await runHardQuestions(new Date(), { onlyTeacher: profile.teacher_id, to: inbox });
+    return res.status(200).json({
+      to: inbox,
+      emails: [
+        ...samples,
+        ...groups.groups.map(g => ({ email: `Group marks report — ${g.group}`, sent: g.sent, files: g.files, pdfError: g.pdfError, error: g.error })),
+        ...hard.teachers.flatMap(x => (x.sent || []).map(s => ({ email: 'Hardest questions', sent: s.sent, files: s.files, error: s.error }))),
+      ],
+    });
+  }
   // A trial of the hardest-questions email, to Lumen's inbox only.
   if (body.flow === 'hard-questions-test') {
     if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
@@ -113,7 +133,7 @@ export default handler(async (req, res) => {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-function supportEmail({ name, from, kind, message, role }) {
+export function supportEmail({ name, from, kind, message, role }) {
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#FDF6F7">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF6F7;padding:32px 16px">
