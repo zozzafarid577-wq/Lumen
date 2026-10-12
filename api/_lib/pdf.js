@@ -25,6 +25,7 @@ const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 const TIMEOUT_MS = 20000;
 
 let browserPromise = null;
+export let lastPdfError = null;   // why the last PDF was not made, for the send result
 
 async function browser() {
   if (browserPromise) return browserPromise;
@@ -62,6 +63,7 @@ function withTimeout(promise, ms) {
 export async function htmlToPdf(html) {
   if ((process.env.LUMEN_PDF || '').toLowerCase() === 'off') return null;
   let page = null;
+  lastPdfError = null;
   try {
     const b = await withTimeout(browser(), TIMEOUT_MS);
     page = await b.newPage();
@@ -79,6 +81,7 @@ export async function htmlToPdf(html) {
     return Buffer.from(pdf);
   } catch (err) {
     console.error('PDF not made:', err?.message || err);
+    lastPdfError = String(err?.message || err).slice(0, 300);
     return null;
   } finally {
     if (page) await page.close().catch(() => {});

@@ -57,10 +57,12 @@ export async function sendEmail({ to, toName, subject, html, replyTo, attachment
 
   // A PDF copy of the email itself rides along with every message (see
   // _lib/pdf.js). If it cannot be made, the email goes without it.
+  let pdfError = null;
   if (pdf) {
-    const { htmlToPdf, pdfName } = await import('./pdf.js');
-    const file = await htmlToPdf(html);
-    if (file) attachments = [...(attachments || []), { name: pdfName(subject), content: file.toString('base64') }];
+    const P = await import('./pdf.js');
+    const file = await P.htmlToPdf(html);
+    if (file) attachments = [...(attachments || []), { name: P.pdfName(subject), content: file.toString('base64') }];
+    else pdfError = P.lastPdfError;
   }
 
   const payload = {
@@ -75,7 +77,7 @@ export async function sendEmail({ to, toName, subject, html, replyTo, attachment
 
   const first = await post(payload);
   if (first.sent || !isBlocked(first.raw)) {
-    return first.sent ? { sent: true, files: (attachments || []).map(a => a.name) } : { sent: false, error: explain(first.raw) };
+    return first.sent ? { sent: true, files: (attachments || []).map(a => a.name), ...(pdfError ? { pdfError } : {}) } : { sent: false, error: explain(first.raw) };
   }
 
   // Blocked. Why, though — because the two answers are opposites.

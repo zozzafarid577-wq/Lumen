@@ -284,7 +284,7 @@ export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
       html: reportEmail({ group: g, when, from, report }),
       attachments: [{ name: report.fileName, content: report.base64 }],
     });
-    sentFor.push({ group: g.name, when, students: report.students, tests: report.tests, sent: out.sent, files: out.files || [], error: out.error || null });
+    sentFor.push({ group: g.name, when, students: report.students, tests: report.tests, sent: out.sent, files: out.files || [], pdfError: out.pdfError || null, error: out.error || null });
   }
   return { to: inbox, groups: sentFor };
 }
