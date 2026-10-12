@@ -41,7 +41,8 @@ describe('sendEmail', () => {
 
     const out = await sendEmail({ to: 'a@b.com', toName: 'A', subject: 'Hi', html: '<p>Hi</p>' });
 
-    expect(out).toEqual({ sent: true });
+    // No PDF in the tests (LUMEN_PDF=off), so nothing was attached.
+    expect(out).toEqual({ sent: true, files: [] });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.brevo.com/v3/smtp/email');
     expect(init.headers['api-key']).toBe('xkeysib-test');
