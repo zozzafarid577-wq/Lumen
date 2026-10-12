@@ -216,7 +216,7 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
           subject: `${to ? '[TEST] ' : ''}Hardest questions — ${dayLabel}`,
           html: hardEmail({ dayLabel, result }), attachments: [attachment],
         });
-        sent.push({ to: r.email, sent: res.sent, error: res.error || null });
+        sent.push({ to: r.email, sent: res.sent, files: res.files || [], error: res.error || null });
       }
       if (!to) {
         if (record && !sent.some(s => s.sent)) await admin.from('notify_log').delete().eq('key', key);

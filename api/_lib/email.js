@@ -75,7 +75,7 @@ export async function sendEmail({ to, toName, subject, html, replyTo, attachment
 
   const first = await post(payload);
   if (first.sent || !isBlocked(first.raw)) {
-    return first.sent ? { sent: true } : { sent: false, error: explain(first.raw) };
+    return first.sent ? { sent: true, files: (attachments || []).map(a => a.name) } : { sent: false, error: explain(first.raw) };
   }
 
   // Blocked. Why, though — because the two answers are opposites.
