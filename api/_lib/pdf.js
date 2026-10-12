@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, copyFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, basename } from 'node:path';
 
 // Every email Lumen sends carries a PDF copy of itself.
 //
@@ -35,10 +37,19 @@ async function browser() {
       return puppeteer.launch({ executablePath: MAC_CHROME, headless: true, args: ['--no-sandbox'] });
     }
     const chromium = (await import('@sparticuz/chromium')).default;
-    for (const f of FONTS) await chromium.font(fileURLToPath(f));
+    // Unpacking the browser also unpacks its fonts into /tmp/fonts, the
+    // folder its font config reads when it starts. Ours go in beside them.
+    const executablePath = await chromium.executablePath();
+    const dir = process.env.FONTCONFIG_PATH || join(tmpdir(), 'fonts');
+    mkdirSync(dir, { recursive: true });
+    for (const f of FONTS) {
+      const src = fileURLToPath(f);
+      const dest = join(dir, basename(src));
+      if (!existsSync(dest)) copyFileSync(src, dest);
+    }
     return puppeteer.launch({
       args: chromium.args,
-      executablePath: await chromium.executablePath(),
+      executablePath,
       headless: true,
       defaultViewport: { width: 760, height: 1100 },
     });
