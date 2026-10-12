@@ -4,3 +4,7 @@
 process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+
+// No headless browser in the tests: emails go without their PDF copy.
+// tests/api/pdf.test.js turns it back on for the one test that makes one.
+process.env.LUMEN_PDF = 'off';

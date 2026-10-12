@@ -50,10 +50,18 @@ export function emailStatus() {
   return { ready: true };
 }
 
-export async function sendEmail({ to, toName, subject, html, replyTo, attachments }) {
+export async function sendEmail({ to, toName, subject, html, replyTo, attachments, pdf = true }) {
   const status = emailStatus();
   if (!status.ready) return { sent: false, error: status.why };
   if (!to || !subject || !html) return { sent: false, error: 'Nothing to send.' };
+
+  // A PDF copy of the email itself rides along with every message (see
+  // _lib/pdf.js). If it cannot be made, the email goes without it.
+  if (pdf) {
+    const { htmlToPdf, pdfName } = await import('./pdf.js');
+    const file = await htmlToPdf(html);
+    if (file) attachments = [...(attachments || []), { name: pdfName(subject), content: file.toString('base64') }];
+  }
 
   const payload = {
     sender: sender(),

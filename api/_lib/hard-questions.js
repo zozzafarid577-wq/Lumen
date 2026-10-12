@@ -4,7 +4,7 @@ import { sendEmail, teacherReport, reportBits } from './email.js';
 import { logActivity } from './auth.js';
 import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-report.js';
 
-// Every morning, the questions students found hardest yesterday.
+// Every morning, the questions students found hardest over the last week.
 //
 // For each teacher: every test sat on Lumen during yesterday (Cairo
 // time), question by question — how many of the students who sat it got
@@ -17,6 +17,7 @@ import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-repo
 // address as the group reports. notify_log keeps it to one a day.
 
 const TOP = 25;     // per course
+const DAYS = 7;     // how far back each morning's email looks
 const PAGE = 1000;
 
 async function everyRow(makeQuery) {
@@ -158,8 +159,8 @@ export function hardEmail({ dayLabel, result }) {
   const courses = byCourse(result.questions);
   return teacherReport({
     eyebrow: 'Hardest questions',
-    heading: `Where students struggled · ${dayLabel}`,
-    intro: `The questions most students got wrong in the tests sat on <strong>${esc(dayLabel)}</strong>, course by course. A blank answer counts as wrong.`,
+    heading: `Where students struggled`,
+    intro: `The questions most students got wrong in the tests sat over <strong>${esc(dayLabel)}</strong>, course by course. A blank answer counts as wrong.`,
     tiles: [
       [String(result.attempts), 'Tests sat'],
       [String(result.questions.length), 'Questions got wrong', 'bad'],
@@ -180,9 +181,13 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
   // `force`: a button press. It always sends, and does not use up the morning's.
   const record = !to && !force;
   const today = cairoDay(now);
+  // The seven days up to last night: enough tests in every course for the
+  // hard questions to stand out, even after a quiet day.
   const dayIso = addDays(today.iso, -1);
-  const from = cairoMidnight(dayIso), until = cairoMidnight(today.iso);
-  const dayLabel = new Date(`${dayIso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const firstIso = addDays(today.iso, -DAYS);
+  const from = cairoMidnight(firstIso), until = cairoMidnight(today.iso);
+  const fmt = (iso, o) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', o);
+  const dayLabel = `the last ${DAYS} days (${fmt(firstIso, { day: 'numeric', month: 'short' })} – ${fmt(dayIso, { day: 'numeric', month: 'short' })})`;
 
   let teachers;
   if (onlyTeacher) teachers = [onlyTeacher];

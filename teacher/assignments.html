@@ -82,16 +82,21 @@
             </div>
             <div class="form-group">
               <label class="form-label" for="ta-group">Give it to</label>
-              <select class="form-select" id="ta-group"><option value="">The whole course</option></select>
+              <select class="form-select" id="ta-group" onchange="dueChanged()"><option value="">The whole course</option></select>
             </div>
             <div class="form-group">
-              <label class="form-label" for="ta-due">Due</label>
-              <input type="datetime-local" class="form-input" id="ta-due">
+              <label class="form-label" for="ta-due-mode">Due</label>
+              <select class="form-select" id="ta-due-mode" onchange="dueChanged()">
+                <option value="before">The day before the group’s next class</option>
+                <option value="date">A date I choose</option>
+                <option value="none">No deadline</option>
+              </select>
+              <input type="datetime-local" class="form-input" id="ta-due" style="margin-top:8px;display:none">
             </div>
           </div>
+          <p class="small" id="ta-due-note" style="margin:2px 0 10px;color:var(--text-2)"></p>
           <div class="row" style="margin-top:4px">
             <button class="btn btn-primary btn-sm" id="ta-save" onclick="assignTest()">Set it</button>
-            <span class="small muted">Leave the date empty for no deadline.</span>
           </div>
         </div>
       </div>
@@ -272,8 +277,61 @@ function onTestPicked() {
   const test = tests.find(x => x.id === document.getElementById('ta-test').value);
   const mine = test ? groups.filter(g => g.course_id === test.course_id) : [];
   document.getElementById('ta-group').innerHTML =
-    '<option value="">The whole course</option>'
+    (mine.length ? '<option value="__each">Every group — each due the day before its class</option>' : '')
+    + '<option value="">The whole course</option>'
     + mine.map(g => `<option value="${g.id}">${escHtml(groupLabel(g))}</option>`).join('');
+  dueChanged();
+}
+
+// ── Deadlines from the timetable ──────────────────────────────────
+// "The day before the group's next class": the next day the group meets,
+// from tomorrow on, and the deadline is 11:59 pm the evening before it.
+// A class today is not counted — its evening-before has already gone —
+// so a group meeting today gets next week's (or its next) session.
+const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function nextClass(group, from = new Date()) {
+  const days = group?.days || [];
+  if (!days.length) return null;
+  for (let k = 1; k <= 7; k++) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + k);
+    if (days.includes(d.getDay())) return d;
+  }
+  return null;
+}
+
+function dueBefore(group) {
+  const cls = nextClass(group);
+  if (!cls) return null;
+  return { due: new Date(cls.getFullYear(), cls.getMonth(), cls.getDate() - 1, 23, 59, 0), cls };
+}
+
+function dueText(d) {
+  return d.toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+}
+
+function dueChanged() {
+  const mode = document.getElementById('ta-due-mode').value;
+  const gsel = document.getElementById('ta-group').value;
+  document.getElementById('ta-due').style.display = mode === 'date' ? '' : 'none';
+  const note = document.getElementById('ta-due-note');
+  const test = tests.find(x => x.id === document.getElementById('ta-test').value);
+  const mine = test ? groups.filter(g => g.course_id === test.course_id) : [];
+
+  if (mode === 'before' && gsel === '') {
+    note.innerHTML = '“The day before the class” needs a group. Pick a group, or <strong>Every group</strong>.';
+  } else if (mode === 'before' && gsel === '__each') {
+    const lines = mine.map(g => { const d = dueBefore(g); return d ? `${escHtml(g.name)}: ${escHtml(dueText(d.due))}` : `${escHtml(g.name)}: no class days set — skipped`; });
+    note.innerHTML = lines.length ? 'Due dates: ' + lines.join(' · ') : 'This course has no groups yet.';
+  } else if (mode === 'before') {
+    const g = groups.find(x => x.id === gsel), d = dueBefore(g);
+    note.innerHTML = d ? `Due <strong>${escHtml(dueText(d.due))}</strong> — the evening before ${escHtml(DAY_FULL[d.cls.getDay()])}’s class.`
+      : 'This group has no class days set. Add them under Students → Groups, or choose a date.';
+  } else if (gsel === '__each') {
+    note.textContent = mode === 'date' ? 'Every group gets the same date.' : 'Every group, with no deadline.';
+  } else {
+    note.textContent = '';
+  }
 }
 
 async function loadSetTests() {
@@ -325,17 +383,32 @@ async function assignTest() {
   if (!testId) { say('ta-alert', 'Build a test first — there is nothing to set.'); return; }
 
   const test = tests.find(x => x.id === testId);
-  const due = document.getElementById('ta-due').value;
+  const mode = document.getElementById('ta-due-mode').value;
+  const gsel = document.getElementById('ta-group').value;
+  const picked = document.getElementById('ta-due').value;
+  if (mode === 'date' && !picked) { say('ta-alert', 'Choose the date it is due, or pick another deadline.'); return; }
+
+  // One row per group it goes to, each with its own deadline.
+  const targets = gsel === '__each' ? groups.filter(g => g.course_id === test.course_id) : [groups.find(g => g.id === gsel) || null];
+  const rows = [], skipped = [];
+  for (const g of targets) {
+    let due = null;
+    if (mode === 'date') due = new Date(picked);
+    if (mode === 'before') {
+      if (!g) { say('ta-alert', '“The day before the class” needs a group. Pick a group, or Every group.'); return; }
+      const d = dueBefore(g);
+      if (!d) { skipped.push(g.name); continue; }
+      due = d.due;
+    }
+    // Already set to this group: leave that one as it is.
+    if (setTests.some(a => a.test_id === testId && (a.group_id || null) === (g?.id || null))) { skipped.push((g?.name || 'the whole course') + ' (already set)'); continue; }
+    rows.push({ teacher_id: me.teacher_id, test_id: testId, course_id: test.course_id, group_id: g?.id || null, due_at: due ? due.toISOString() : null });
+  }
+  if (!rows.length) { say('ta-alert', skipped.length ? `Nothing to set: ${skipped.join(', ')}.` : 'Nothing to set.'); return; }
 
   const btn = document.getElementById('ta-save');
   btn.disabled = true;
-  const { error } = await sb.from('test_assignments').insert({
-    teacher_id: me.teacher_id,
-    test_id: testId,
-    course_id: test.course_id,
-    group_id: document.getElementById('ta-group').value || null,
-    due_at: due ? new Date(due).toISOString() : null,
-  });
+  const { error } = await sb.from('test_assignments').insert(rows);
   btn.disabled = false;
 
   if (error) {
@@ -350,7 +423,7 @@ async function assignTest() {
   say('ta-alert', '');
   document.getElementById('ta-due').value = '';
   await loadSetTests();
-  showToast('Test set.', 'success');
+  showToast(`Set for ${rows.length} group${rows.length === 1 ? '' : 's'}.${skipped.length ? ' Skipped: ' + skipped.join(', ') + '.' : ''}`, 'success');
 }
 
 async function unsetTest(id) {

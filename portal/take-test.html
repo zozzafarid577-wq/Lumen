@@ -135,6 +135,14 @@ let submitted = false;
   questions = qs;
 
   startedAt = Date.now();
+  // Answers kept from an earlier visit — a closed tab, a dropped phone
+  // connection, a page refreshed by accident. The clock carries on from
+  // when they first started, so leaving does not buy extra time.
+  const draft = readDraft();
+  if (draft) {
+    answers = draft.answers;
+    startedAt = draft.startedAt || startedAt;
+  }
   if (test.time_limit_min) {
     deadline = startedAt + test.time_limit_min * 60000;
     document.getElementById('clock').style.display = 'inline-flex';
@@ -147,13 +155,64 @@ let submitted = false;
     [test.courses?.title, `${questions.length} question${questions.length === 1 ? '' : 's'}`,
      `pass mark ${passMarks(test.passing_score_pct, questions.reduce((t, q) => t + (q.points || 1), 0))}`].filter(Boolean).join(' · ');
   document.getElementById('submit-btn').style.display = 'inline-flex';
+  saveDraft();
 
   renderQuestions();
+  if (draft) {
+    restoreTicks();
+    const n = Object.keys(answers).length;
+    if (n) showToast(`Welcome back — your ${n} answer${n === 1 ? ' is' : 's are'} still here.`, 'success');
+  }
   window.addEventListener('beforeunload', warnOnLeave);
 })();
 
-// Closing the tab mid-test loses the answers, so say so. The browser
-// shows its own wording; all we control is that it asks at all.
+// ── Answers kept on the device until the test is handed in ─────────
+// Saved on every tick, read back when the test is opened again, cleared
+// once it is handed in. Kept on this device only; a student who starts
+// on a phone and opens the test on a laptop starts that copy afresh.
+// Only answers to questions still on the test are restored, so a test
+// the teacher has edited in between cannot mark a different question.
+function draftKey() { return `lumen_test_draft:${me.id}:${test.id}`; }
+
+function readDraft() {
+  if (me.preview) return null;
+  try {
+    const d = JSON.parse(localStorage.getItem(draftKey()) || 'null');
+    if (!d || typeof d.answers !== 'object') return null;
+    if (Date.now() - (d.savedAt || 0) > 14 * 864e5) { localStorage.removeItem(draftKey()); return null; }
+    const ids = new Set(questions.map(q => q.id));
+    const kept = {};
+    for (const [qid, v] of Object.entries(d.answers)) if (ids.has(qid)) kept[qid] = v;
+    return { answers: kept, startedAt: Number(d.startedAt) || null };
+  } catch (_) { return null; }
+}
+
+function saveDraft() {
+  if (me.preview || submitted) return;
+  try {
+    localStorage.setItem(draftKey(), JSON.stringify({ answers, startedAt, savedAt: Date.now() }));
+  } catch (_) { /* storage full or blocked: the test still works, it just will not survive a reload */ }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch (_) {}
+}
+
+function restoreTicks() {
+  for (const [qid, v] of Object.entries(answers)) {
+    const chosen = Array.isArray(v) ? v : [v];
+    document.querySelectorAll(`.q-opt[data-q="${qid}"]`).forEach(label => {
+      const on = chosen.includes(Number(label.dataset.i));
+      label.querySelector('input').checked = on;
+      label.classList.toggle('chosen', on);
+    });
+  }
+  updateCount();
+}
+
+// The answers are kept on the device, but a student closing the tab
+// usually means to come back — so still ask, as a nudge to hand in. The
+// browser shows its own wording; all we control is that it asks at all.
 function warnOnLeave(e) {
   if (submitted) return;
   e.preventDefault();
@@ -248,6 +307,7 @@ function renderQuestions() {
 
       inputs.forEach(el => el.closest('.q-opt').classList.toggle('chosen', el.checked));
       updateCount();
+      saveDraft();
     });
   });
   updateCount();
@@ -308,6 +368,9 @@ async function submitTest(auto = false) {
   }
 
   const outcome = await save(row);
+  // Saved, or kept on the device to be sent again: either way the draft
+  // has done its job.
+  clearDraft();
   showResult(row, outcome);
 
   // Only once the mark is actually in the database. Telling a parent a
