@@ -10,7 +10,9 @@ describe('the PDF copy of an email', () => {
   });
 
   const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  it.runIf(process.platform === 'darwin' && existsSync(chrome))('prints the email, Arabic included', async () => {
+  // Starts the Mac's own Chrome, which can take half a minute after an
+  // update — so only when asked for: LUMEN_PDF_LOCAL=1 npx vitest run tests/api/pdf.test.js
+  it.runIf(process.platform === 'darwin' && existsSync(chrome) && process.env.LUMEN_PDF_LOCAL)('prints the email, Arabic included', async () => {
     process.env.LUMEN_PDF = 'on';
     const { htmlToPdf } = await import('../../api/_lib/pdf.js');
     const pdf = await htmlToPdf('<!DOCTYPE html><html><head></head><body><h1>Marks</h1><p dir="rtl">رويدا محمد</p></body></html>');

@@ -99,8 +99,15 @@ export async function runGroupReports(now = new Date()) {
 // The group's own teacher when one is named (migration v18), otherwise
 // the space's teacher account.
 async function recipients(group) {
-  if (group.teacher_email) return [{ email: group.teacher_email, name: group.teacher_name || undefined }];
+  if (group.teacher_email) return emailList(group);
   return reportRecipients(group.teacher_id);
+}
+
+// teacher_email holds the teacher's address and then any assistants',
+// comma-separated (set under Students → Groups). The name is the teacher's.
+function emailList(row) {
+  return String(row.teacher_email || '').split(',').map(x => x.trim()).filter(Boolean)
+    .map((email, i) => ({ email, name: i === 0 ? row.teacher_name || undefined : undefined }));
 }
 
 // Where a teacher's reports go: the address set once under Students →
@@ -108,7 +115,7 @@ async function recipients(group) {
 export async function reportRecipients(teacherId) {
   const { data: g } = await admin.from('groups').select('teacher_name, teacher_email')
     .eq('teacher_id', teacherId).not('teacher_email', 'is', null).limit(1);
-  if (g?.[0]?.teacher_email) return [{ email: g[0].teacher_email, name: g[0].teacher_name || undefined }];
+  if (g?.[0]?.teacher_email) return emailList(g[0]);
   return accountRecipients(teacherId);
 }
 

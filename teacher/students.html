@@ -172,9 +172,14 @@
         <div class="row" style="gap:10px;align-items:flex-start;flex-wrap:wrap">
           <input type="text" class="form-input" id="rt-name" maxlength="80" placeholder="Teacher’s name" style="flex:1;min-width:150px" aria-label="Teacher’s name">
           <input type="email" class="form-input" id="rt-email" maxlength="200" placeholder="teacher@gmail.com" style="flex:1.4;min-width:200px" aria-label="Teacher’s email">
-          <button class="btn btn-primary btn-sm" id="rt-save" onclick="saveReportTeacher()">Save</button>
         </div>
-        <p class="form-hint" style="margin:6px 0 0">One email for every group — the morning email and “Send marks to teacher” go here. Leave it empty to use this account’s own email.</p>
+        <label class="form-label" for="rt-cc" style="margin:10px 0 6px">Also send to (assistants)</label>
+        <input type="text" class="form-input" id="rt-cc" maxlength="600" placeholder="assistant@gmail.com, another@gmail.com" aria-label="Assistants’ emails">
+        <div id="rt-team" class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+        <div class="row" style="margin-top:10px;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="rt-save" onclick="saveReportTeacher()">Save</button>
+          <span class="form-hint" style="margin:0">For every group: the morning marks email, the hardest-questions email and “Send marks to teacher” go to the teacher and everyone here. Leave the teacher’s email empty to use this account’s own.</span>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label" for="gm-course">Course</label>
@@ -689,22 +694,50 @@ function gmCourseId() { return document.getElementById('gm-course').value; }
 // The one teacher every group's report goes to. It is kept on each group
 // row (teacher_name / teacher_email, migration v18) so the server reads it
 // with the group, but it is entered once, here, and written to them all.
+// Stored as one comma-separated list in teacher_email — the teacher's
+// address first, then the assistants' — so the server needs no new column.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function reportTeacher() {
   const g = groups.find(x => x.teacher_email);
-  return { name: g?.teacher_name || null, email: g?.teacher_email || null };
+  const list = (g?.teacher_email || '').split(',').map(x => x.trim()).filter(Boolean);
+  return { name: g?.teacher_name || null, email: list[0] || null, cc: list.slice(1) };
+}
+
+// The assistants on the Team page, one tap to add their sign-in email.
+async function drawTeamChips() {
+  const host = document.getElementById('rt-team');
+  const { data } = await sb.from('profiles').select('full_name, email')
+    .eq('teacher_id', me.teacher_id).eq('role', 'assistant').eq('is_active', true);
+  const team = (data || []).filter(p => p.email);
+  host.innerHTML = team.length
+    ? '<span class="small muted" style="align-self:center">Your assistants:</span>' + team.map(p =>
+        `<button type="button" class="btn btn-ghost btn-xs" onclick="addCc('${escHtml(p.email)}')">+ ${escHtml(p.full_name)}</button>`).join('')
+    : '';
+}
+
+function addCc(email) {
+  const box = document.getElementById('rt-cc');
+  const list = box.value.split(',').map(x => x.trim()).filter(Boolean);
+  if (!list.includes(email)) list.push(email);
+  box.value = list.join(', ');
 }
 
 async function saveReportTeacher() {
   const name = document.getElementById('rt-name').value.trim() || null;
   const email = document.getElementById('rt-email').value.trim().toLowerCase() || null;
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { say('gm-alert', 'That email does not look right. Check it and try again.'); return; }
+  const cc = [...new Set(document.getElementById('rt-cc').value.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean))].filter(x => x !== email);
+  const bad = [email, ...cc].filter(x => x && !EMAIL_RE.test(x));
+  if (bad.length) { say('gm-alert', `${bad[0]} does not look like an email address. Check it and try again.`); return; }
+  if (cc.length && !email) { say('gm-alert', 'Put the teacher’s email first, then the assistants.'); return; }
+  const stored = email ? [email, ...cc].join(', ') : null;
   const btn = document.getElementById('rt-save'); btn.disabled = true;
-  const { error } = await sb.from('groups').update({ teacher_name: name, teacher_email: email }).eq('teacher_id', me.teacher_id);
+  const { error } = await sb.from('groups').update({ teacher_name: name, teacher_email: stored }).eq('teacher_id', me.teacher_id);
   btn.disabled = false;
   if (error) { say('gm-alert', friendlyError(error.message)); return; }
   say('gm-alert', '');
-  groups.forEach(g => { g.teacher_name = name; g.teacher_email = email; });
-  showToast(email ? `Group reports will go to ${email}.` : 'Group reports will go to this account’s email.', 'success');
+  groups.forEach(g => { g.teacher_name = name; g.teacher_email = stored; });
+  document.getElementById('rt-cc').value = cc.join(', ');
+  showToast(stored ? `Group reports will go to ${[email, ...cc].join(', ')}.` : 'Group reports will go to this account’s email.', 'success');
 }
 
 function openGroups() {
@@ -725,6 +758,8 @@ function openGroups() {
   const rt = reportTeacher();
   document.getElementById('rt-name').value = rt.name || '';
   document.getElementById('rt-email').value = rt.email || '';
+  document.getElementById('rt-cc').value = (rt.cc || []).join(', ');
+  drawTeamChips();
   renderGroupList();
   openModal('groups-modal');
 }
@@ -760,7 +795,7 @@ function renderGroupList() {
 // marks since its last session, to the teacher's email.
 async function sendGroupMarks(id, btn) {
   const g = groups.find(x => x.id === id);
-  const who = g?.teacher_email ? `${g.teacher_name ? g.teacher_name + ' (' + g.teacher_email + ')' : g.teacher_email}` : 'the teacher';
+  const who = g?.teacher_email ? g.teacher_email.split(',').map(x => x.trim()).join(', ') : 'the teacher';
   if (!g || !confirm(`Email the marks for ${g.name} to ${who} now?`)) return;
   btn.disabled = true; const label = btn.textContent; btn.textContent = 'Sending…';
   try {

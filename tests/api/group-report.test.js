@@ -127,3 +127,18 @@ describe('who gets a group’s report', () => {
     expect(getSupabaseCalls('profiles.select')).toHaveLength(0);
   });
 });
+
+describe('teacher and assistants', () => {
+  it('sends the group report to the teacher and every assistant listed', async () => {
+    const { sendGroupReportNow } = await import('../../api/_lib/group-report.js');
+    process.env.BREVO_API_KEY = '';
+    configureSupabaseMock({
+      results: {
+        'groups.select': { data: { ...GROUP, teacher_name: 'Ms. Abeer', teacher_email: 'abeer@example.com, helper@example.com' }, error: null },
+        'enrollments.select': { data: [], error: null },
+      },
+    });
+    const out = await sendGroupReportNow('g-1', 'teacher-1');
+    expect(out.sent.map(x => x.to)).toEqual(['abeer@example.com', 'helper@example.com']);
+  });
+});
