@@ -605,7 +605,71 @@ const BRAND_THEMES = [
   { key: 'rose',     name: 'Rose',     color: '#C93F72' },
   { key: 'teal',     name: 'Teal',     color: '#0E8388' },
   { key: 'graphite', name: 'Graphite', color: '#3D4451' },
+  // A whole template, not just a colour: Dr. Mai's AP Psychology design —
+  // slate and taupe, warm paper background, Poppins headings, a banner with
+  // a network and a faint Ψ, and line doodles in the margins.
+  { key: 'mind', name: 'Calm Mind', color: '#5F6B88', template: 'mind' },
 ];
+
+// ── Templates: more than a colour ─────────────────────────────────
+const NETWORK_SVG = "url(\"data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 150"><g stroke="#ffffff" stroke-opacity=".45" stroke-width="1.2" fill="none">'
+  + '<path d="M20 112 L90 70 L140 104 L210 26 L250 72 L300 18"/><path d="M90 70 L110 12 L210 26"/><path d="M140 104 L180 128 L250 72 L230 112"/><path d="M20 112 L50 135 L140 104"/></g>'
+  + '<g fill="#ffffff" fill-opacity=".55"><circle cx="20" cy="112" r="4"/><circle cx="90" cy="70" r="5"/><circle cx="140" cy="104" r="4"/><circle cx="210" cy="26" r="6"/><circle cx="250" cy="72" r="4"/><circle cx="300" cy="18" r="3.5"/><circle cx="110" cy="12" r="3.5"/><circle cx="180" cy="128" r="3.5"/><circle cx="230" cy="112" r="3.5"/><circle cx="50" cy="135" r="3.5"/></g>'
+  + '<text x="236" y="122" font-family="Georgia,serif" font-size="86" font-weight="700" fill="#ffffff" fill-opacity=".16">\u03A8</text></svg>') + "\")";
+
+const DOODLE_SVG = (paths) => "url(\"data:image/svg+xml;utf8," + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#E7E1DE" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`) + "\")";
+const DOODLES = [
+  ['brain', '<path d="M9.5 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a3 3 0 0 0-3-2z"/><path d="M14.5 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>', '13%', '18%'],
+  ['chat', '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', '9%', '46%'],
+  ['bulb', '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>', '15%', '70%'],
+  ['heart', '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>', '8%', '88%'],
+  ['share', '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>', '93%', '84%'],
+];
+
+const TEMPLATE_CSS = {
+  mind: `
+    html.tpl-mind { --bg: #FBFAF9; --text: #3B3533; --text-2: #6B6461; --muted: #8F8885; --border: #ECE7E4; --surface: #ffffff; }
+    html.tpl-mind body { background: var(--bg); }
+    html.tpl-mind .page-title, html.tpl-mind .card-title, html.tpl-mind .welcome-name, html.tpl-mind .hero-hi,
+    html.tpl-mind .stat-n, html.tpl-mind h1, html.tpl-mind h2, html.tpl-mind h3 { font-family: 'Poppins', Manrope, sans-serif !important; letter-spacing: -.01em; }
+    html.tpl-mind .welcome-banner {
+      background: linear-gradient(100deg, #6C6567 0%, #717584 50%, #7787A5 100%) !important;
+      background-image: ${'${NETWORK}'}, linear-gradient(100deg, #6C6567 0%, #717584 50%, #7787A5 100%) !important;
+      background-repeat: no-repeat !important; background-position: right 24px center, 0 0 !important; background-size: auto 86%, cover !important;
+      box-shadow: 0 10px 30px rgba(95,107,136,.18);
+    }
+    html.tpl-mind .welcome-banner::before, html.tpl-mind .welcome-banner::after { display: none; }
+    html.tpl-mind .stat-card { border-top: 3px solid #B7BCCB; }
+    html.tpl-mind .main { position: relative; }
+    html.tpl-mind body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image: ${'${DOODLES}'}; background-repeat: no-repeat; background-size: 46px 46px; background-position: ${'${DOODLE_POS}'}; }
+    html.tpl-mind .main, html.tpl-mind .sidebar { position: relative; z-index: 1; }
+    @media (max-width: 1100px) { html.tpl-mind body::before { display: none; } }`,
+};
+
+function paintTemplate(key) {
+  const root = document.documentElement;
+  Object.keys(TEMPLATE_CSS).forEach(k => root.classList.toggle('tpl-' + k, k === key));
+  let st = document.getElementById('brand-template-css');
+  if (!key || !TEMPLATE_CSS[key]) { if (st) st.remove(); return; }
+  if (!st) { st = document.createElement('style'); st.id = 'brand-template-css'; document.head.appendChild(st); }
+  st.textContent = TEMPLATE_CSS[key]
+    .replace('${NETWORK}', NETWORK_SVG)
+    .replace('${DOODLES}', DOODLES.map(d => DOODLE_SVG(d[1])).join(','))
+    .replace('${DOODLE_POS}', DOODLES.map(d => `${d[2]} ${d[3]}`).join(','));
+  if (key === 'mind' && !document.getElementById('font-poppins')) {
+    const l = document.createElement('link');
+    l.id = 'font-poppins'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap';
+    document.head.appendChild(l);
+  }
+}
+
+function brandTemplate(branding) {
+  return (BRAND_THEMES.find(t => t.key === (branding || {}).theme) || {}).template || null;
+}
 
 function hexToRgb(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
@@ -670,9 +734,10 @@ function applyBrand(teacher) {
   if (!teacher) return;
   const b = teacher.branding || {};
   paintBrandColors(brandColor(b));
+  paintTemplate(brandTemplate(b));
   paintBrandMark(teacher);
   try {
-    localStorage.setItem('lumen_brand', JSON.stringify({ color: brandColor(b) }));
+    localStorage.setItem('lumen_brand', JSON.stringify({ color: brandColor(b), template: brandTemplate(b) }));
   } catch (_) {}
 }
 
@@ -681,7 +746,10 @@ function applyBrand(teacher) {
 (function brandFromLastVisit() {
   try {
     const last = JSON.parse(localStorage.getItem('lumen_brand') || 'null');
-    if (last?.color && /\/(portal|teacher)\//.test(location.pathname)) paintBrandColors(last.color);
+    if (last?.color && /\/(portal|teacher)\//.test(location.pathname)) {
+      paintBrandColors(last.color);
+      if (last.template) paintTemplate(last.template);
+    }
   } catch (_) {}
 })();
 
