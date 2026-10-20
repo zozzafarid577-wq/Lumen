@@ -684,3 +684,105 @@ function applyBrand(teacher) {
     if (last?.color && /\/(portal|teacher)\//.test(location.pathname)) paintBrandColors(last.color);
   } catch (_) {}
 })();
+
+// ─────────────────────────────────────────────────────────────────
+// Settings as a side menu
+//
+// The Settings pages are a column of cards. This turns them into one card
+// at a time with a menu beside it — Password, Your details, Look & feel… —
+// so a teacher goes straight to the one they want instead of scrolling
+// past the rest. Cards that are hidden (a teacher-only card for an
+// assistant) are left out of the menu. On a phone the menu is a row of
+// tabs across the top. The open section is kept in the address (#look),
+// so a link or a reload opens it again.
+// ─────────────────────────────────────────────────────────────────
+const SETTINGS_ICONS = {
+  password: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  details: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  space: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  look: '<circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.53-.21-1.01-.55-1.37-.33-.36-.53-.84-.53-1.36 0-1.1.9-2 2-2h2.36A5.3 5.3 0 0 0 22 10c0-4.42-4.48-8-10-8z"/>',
+  sections: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  teacher: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+  session: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  other: '<circle cx="12" cy="12" r="3"/>',
+};
+
+function settingsKey(title) {
+  const t = title.toLowerCase();
+  if (/password/.test(t)) return 'password';
+  if (/detail/.test(t)) return 'details';
+  if (/space/.test(t)) return 'space';
+  if (/look/.test(t)) return 'look';
+  if (/section/.test(t)) return 'sections';
+  if (/teacher/.test(t)) return 'teacher';
+  if (/session|sign/.test(t)) return 'session';
+  return t.replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '') || 'other';
+}
+
+function makeSettingsTabs() {
+  const main = document.querySelector('main.content');
+  if (!main || main.dataset.tabbed) return;
+  const cards = [...main.children].filter(el => el.classList.contains('card') && el.querySelector('.card-title'));
+  const shown = cards.filter(c => c.style.display !== 'none');
+  if (shown.length < 2) return;
+  main.dataset.tabbed = '1';
+  main.style.maxWidth = '1080px';
+
+  if (!document.getElementById('settings-tabs-css')) {
+    const st = document.createElement('style');
+    st.id = 'settings-tabs-css';
+    st.textContent = `
+      .set-layout { display: grid; grid-template-columns: 230px 1fr; gap: 22px; align-items: start; }
+      .set-nav { position: sticky; top: calc(var(--top) + 18px); background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 8px; }
+      .set-nav button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; text-align: left; font: inherit;
+        font-size: .86rem; font-weight: 600; color: var(--text-2); padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+      .set-nav button svg { width: 17px; height: 17px; flex-shrink: 0; opacity: .75; }
+      .set-nav button:hover { background: var(--bg); color: var(--text); }
+      .set-nav button.on { background: var(--primary-soft); color: var(--primary); }
+      .set-nav button.on svg { opacity: 1; }
+      .set-pane > .card { margin-bottom: 0 !important; animation: setIn .18s ease; }
+      @keyframes setIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { .set-pane > .card { animation: none; } }
+      @media (max-width: 860px) {
+        .set-layout { grid-template-columns: 1fr; gap: 14px; }
+        .set-nav { position: static; display: flex; overflow-x: auto; gap: 4px; padding: 6px; }
+        .set-nav button { width: auto; white-space: nowrap; flex-shrink: 0; }
+      }`;
+    document.head.appendChild(st);
+  }
+
+  const layout = document.createElement('div');
+  layout.className = 'set-layout';
+  const nav = document.createElement('nav');
+  nav.className = 'set-nav';
+  nav.setAttribute('aria-label', 'Settings');
+  const pane = document.createElement('div');
+  pane.className = 'set-pane';
+  shown[0].before(layout);
+  layout.append(nav, pane);
+
+  const items = shown.map(card => {
+    const title = card.querySelector('.card-title').firstChild?.textContent?.trim() || card.querySelector('.card-title').textContent.trim();
+    const key = settingsKey(title);
+    pane.appendChild(card);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${SETTINGS_ICONS[key] || SETTINGS_ICONS.other}</svg>${escHtml(title)}`;
+    btn.onclick = () => open(key, true);
+    nav.appendChild(btn);
+    return { key, card, btn };
+  });
+  // Cards left hidden (not for this person) stay out of the way entirely.
+  cards.filter(c => !shown.includes(c)).forEach(c => pane.appendChild(c));
+
+  function open(key, user) {
+    const it = items.find(x => x.key === key) || items[0];
+    items.forEach(x => { x.card.style.display = x === it ? '' : 'none'; x.btn.classList.toggle('on', x === it); });
+    if (user) {
+      try { history.replaceState(null, '', '#' + it.key); } catch (_) {}
+      if (window.innerWidth <= 860) layout.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
+  open((location.hash || '').slice(1));
+  window.addEventListener('hashchange', () => open((location.hash || '').slice(1)));
+}

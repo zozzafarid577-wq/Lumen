@@ -154,6 +154,12 @@ let me = null;
       ${t.whatsapp ? `<a href="https://wa.me/${escHtml(t.whatsapp)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Message on WhatsApp</a>` : ''}
       ${t.contact_email ? `<a href="mailto:${escHtml(t.contact_email)}" class="btn btn-ghost btn-sm">${escHtml(t.contact_email)}</a>` : ''}
     </div>` : '<p class="small muted">—</p>';
+  // One section at a time, with a menu beside it (js/ui.js). Someone who
+  // has to change their password first lands on that section.
+  const mustPw = document.getElementById('first-notice')?.style.display === 'flex';
+  if (mustPw) { try { history.replaceState(null, '', '#password'); } catch (_) {} }
+  makeSettingsTabs();
+  if (mustPw) document.getElementById('pw1')?.focus();
 })();
 
 async function savePassword() {

@@ -284,6 +284,12 @@ let me = null;
     document.getElementById('sp-bio').value = me.teacher.bio || '';
     openLook();
   }
+  // One section at a time, with a menu beside it (js/ui.js). Someone who
+  // has to change their password first lands on that section.
+  const mustPw = document.getElementById('first-notice')?.style.display === 'flex';
+  if (mustPw) { try { history.replaceState(null, '', '#password'); } catch (_) {} }
+  makeSettingsTabs();
+  if (mustPw) document.getElementById('pw1')?.focus();
 })();
 
 async function savePassword() {
