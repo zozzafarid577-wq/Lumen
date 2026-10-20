@@ -87,6 +87,8 @@ function renderShell(which, profile, { title } = {}) {
   // The tenant name goes in the sidebar brand for teachers and students —
   // a student should see whose space they are in, not a product name.
   paintIdentity(profile);
+  // The teacher's own colours and name, for their staff and students.
+  if (which !== 'admin') applyBrand(profile.teacher);
   markActiveNav();
 
   // Lumi rides along on every student page, not just the dashboard: a

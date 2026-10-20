@@ -1482,3 +1482,18 @@ ALTER TABLE public.practice_tests ADD COLUMN IF NOT EXISTS offline_group_id UUID
 -- ────────────────────────────────────────
 ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS teacher_name  TEXT;
 ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS teacher_email TEXT;
+
+-- ────────────────────────────────────────
+-- v19 — each teacher's own look (also supabase-migration-v19.sql)
+-- ────────────────────────────────────────
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS branding JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+DROP POLICY IF EXISTS "tenant_branding_write" ON storage.objects;
+CREATE POLICY "tenant_branding_write" ON storage.objects
+  FOR ALL TO authenticated
+  USING (bucket_id = 'branding'
+         AND (storage.foldername(name))[1] = public.jwt_teacher_id()::TEXT
+         AND public.jwt_role() = 'teacher')
+  WITH CHECK (bucket_id = 'branding'
+         AND (storage.foldername(name))[1] = public.jwt_teacher_id()::TEXT
+         AND public.jwt_role() = 'teacher');

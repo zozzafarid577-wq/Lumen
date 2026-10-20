@@ -39,6 +39,26 @@
 <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
 <link rel="stylesheet" href="/css/portal.css">
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .look-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 900px) { .look-grid { grid-template-columns: 1fr; } }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 8px; border: 1.5px solid var(--border);
+    border-radius: 9999px; background: var(--card); cursor: pointer; font: inherit; font-size: .8rem; font-weight: 600; color: var(--text); }
+  .swatch i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
+  .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--text); }
+  .look-preview { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--bg); }
+  .lp-row { display: grid; grid-template-columns: 120px 1fr; min-height: 230px; }
+  .lp-side { background: var(--card); border-right: 1px solid var(--border); padding: 14px 12px; }
+  .lp-item { font-size: .7rem; padding: 7px 9px; border-radius: 8px; color: var(--text-2); margin-top: 4px; }
+  .lp-item.on { font-weight: 700; }
+  .lp-banner { padding: 24px 20px; color: #fff; }
+  .lp-hi { font-family: Manrope, sans-serif; font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
+  .lp-btn { display: inline-block; margin-top: 14px; background: #fff; border-radius: 9999px; padding: 7px 14px; font-size: .74rem; font-weight: 700; }
+  .lp-body { padding: 14px 18px; }
+  .lp-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-size: .74rem; display: flex; justify-content: space-between; align-items: center; }
+  .lp-chip { color: #fff; border-radius: 9999px; padding: 4px 10px; font-weight: 700; font-size: .68rem; }
+</style>
 </head>
 <body>
 <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -151,6 +171,49 @@
       </div>
     </div>
 
+    <!-- ── LOOK & FEEL (teacher only) ──────────────────────── -->
+    <div class="card mb24" id="look-card" style="display:none">
+      <div class="card-header"><span class="card-title">Look &amp; feel</span>
+        <span class="small muted">What your students and assistants see</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="lk-alert" style="display:none;margin-bottom:16px"></div>
+        <div class="look-grid">
+          <div>
+            <div class="form-group">
+              <label class="form-label">Colour theme</label>
+              <div class="swatches" id="lk-themes"></div>
+              <div class="row" style="gap:10px;align-items:center;margin-top:10px">
+                <input type="color" id="lk-color" value="#A2509F" oninput="pickCustom(this.value)" aria-label="Your own colour" style="width:44px;height:36px;border:1px solid var(--border);border-radius:10px;padding:2px;background:var(--card)">
+                <span class="small muted">or pick any colour of your own</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-check" style="margin:0"><input type="checkbox" id="lk-own" onchange="drawPreview()"> Show my space’s name instead of the Lumen logo</label>
+              <div class="row" style="gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+                <label class="btn btn-outline btn-sm" style="cursor:pointer">Upload a logo<input type="file" id="lk-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" onchange="uploadLogo(this)" hidden></label>
+                <button type="button" class="btn btn-ghost btn-sm" id="lk-logo-clear" onclick="clearLogo()" style="display:none">Remove logo</button>
+                <span class="small muted" id="lk-logo-note">Optional. A wide PNG with a clear background works best.</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="lk-title">Welcome heading on your students’ page</label>
+              <input type="text" class="form-input" id="lk-title" maxlength="120" placeholder="Hi {name}, welcome to {course}!" oninput="drawPreview()">
+              <p class="form-hint">{name} becomes the student’s first name and {course} the course. Leave it empty for Lumen’s greeting.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="lk-text">A line under it</label>
+              <input type="text" class="form-input" id="lk-text" maxlength="200" placeholder="One lesson a day keeps the exam away 💪" oninput="drawPreview()">
+            </div>
+            <button class="btn btn-primary btn-sm" id="lk-save" onclick="saveLook()">Save look</button>
+          </div>
+          <div>
+            <div class="form-label">Preview</div>
+            <div id="lk-preview" class="look-preview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── TEST SECTIONS (teacher only) ─────────────────────── -->
     <div class="card mb24" id="sections-card" style="display:none">
       <div class="card-header"><span class="card-title">Test sections</span></div>
@@ -219,6 +282,7 @@ let me = null;
     document.getElementById('sp-whatsapp').value = me.teacher.whatsapp || '';
     document.getElementById('sp-video').value = me.teacher.intro_video_url || '';
     document.getElementById('sp-bio').value = me.teacher.bio || '';
+    openLook();
   }
 })();
 
@@ -408,6 +472,121 @@ function say(id, msg) {
   const el = document.getElementById(id);
   el.textContent = msg;
   el.style.display = msg ? 'flex' : 'none';
+}
+
+// ── Look & feel ───────────────────────────────────────────────────
+// teachers.branding (migration v19). The colours apply across both
+// portals through applyBrand (js/ui.js); the preview here only paints its
+// own box, so nothing changes for anybody until it is saved.
+let look = {};
+
+function openLook() {
+  document.getElementById('look-card').style.display = 'block';
+  look = { ...(me.teacher.branding || {}) };
+  if (!look.theme) look.theme = 'plum';
+  document.getElementById('lk-own').checked = !!look.own_name;
+  document.getElementById('lk-title').value = look.welcome_title || '';
+  document.getElementById('lk-text').value = look.welcome_text || '';
+  document.getElementById('lk-color').value = brandColor(look);
+  drawThemes(); drawPreview();
+}
+
+function drawThemes() {
+  document.getElementById('lk-themes').innerHTML = BRAND_THEMES.map(t =>
+    `<button type="button" class="swatch ${look.theme === t.key ? 'on' : ''}" onclick="pickTheme('${t.key}')"><i style="background:${t.color}"></i>${escHtml(t.name)}</button>`).join('')
+    + (look.theme === 'custom' ? `<button type="button" class="swatch on"><i style="background:${escHtml(look.primary)}"></i>Your colour</button>` : '');
+}
+
+function pickTheme(key) {
+  look.theme = key; delete look.primary;
+  document.getElementById('lk-color').value = brandColor(look);
+  drawThemes(); drawPreview();
+}
+
+function pickCustom(hex) {
+  look.theme = 'custom'; look.primary = hex;
+  drawThemes(); drawPreview();
+}
+
+function drawPreview() {
+  const own = document.getElementById('lk-own').checked;
+  const pal = brandPalette(brandColor(look));
+  const box = document.getElementById('lk-preview');
+  Object.entries(pal).forEach(([k, v]) => box.style.setProperty(k, v));
+  const name = me.teacher.display_name || 'Your space';
+  const logo = look.logo_url;
+  const brand = own
+    ? (logo ? `<img src="${escHtml(logo)}" alt="" style="max-width:96px;max-height:28px;object-fit:contain">` : `<div style="font-family:Manrope,sans-serif;font-weight:800;font-size:.86rem;line-height:1.15">${escHtml(name)}</div>`)
+    : `<img src="/assets/lumen-logo.png" alt="Lumen" style="height:16px">`;
+  const fill = (t) => escHtml(t).replace(/\{name\}/gi, 'Ahmed').replace(/\{course\}/gi, 'Senior 2');
+  const title = document.getElementById('lk-title').value.trim();
+  const text = document.getElementById('lk-text').value.trim();
+  box.innerHTML = `<div class="lp-row">
+      <div class="lp-side">${brand}
+        <div class="lp-item on" style="background:var(--primary-soft);color:var(--primary);margin-top:14px">My courses</div>
+        <div class="lp-item">Messages</div><div class="lp-item">Assignments</div><div class="lp-item">My scores</div>
+      </div>
+      <div>
+        <div class="lp-banner" style="background:var(--primary)">
+          <div style="font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;opacity:.8;font-weight:700">English course</div>
+          <div class="lp-hi">${title ? fill(title) : 'Hi Ahmed,<br>Welcome to Senior 2 !'}</div>
+          ${text ? `<div style="font-size:.78rem;opacity:.92;margin-top:6px">${fill(text)}</div>` : ''}
+          <span class="lp-btn" style="color:var(--primary)">✦ Practice</span>
+        </div>
+        <div class="lp-body"><div class="lp-card"><span><strong>Unit 1</strong> · 4 lessons</span><span class="lp-chip" style="background:var(--primary)">Start</span></div></div>
+      </div>
+    </div>`;
+  const clear = document.getElementById('lk-logo-clear');
+  clear.style.display = logo ? '' : 'none';
+}
+
+async function uploadLogo(input) {
+  const f = input.files?.[0];
+  input.value = '';
+  if (!f) return;
+  if (f.size > 2 * 1024 * 1024) { say('lk-alert', 'That image is over 2 MB. Try a smaller one.'); return; }
+  const ext = (f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `${me.teacher_id}/logo-${Date.now()}.${ext}`;
+  document.getElementById('lk-logo-note').textContent = 'Uploading…';
+  const { error } = await sb.storage.from('branding').upload(path, f, { upsert: true, contentType: f.type });
+  if (error) {
+    document.getElementById('lk-logo-note').textContent = '';
+    say('lk-alert', /policy|row-level|security/i.test(error.message)
+      ? 'Uploading a logo needs the v19 database update. Run supabase-migration-v19.sql in Supabase.'
+      : friendlyError(error.message));
+    return;
+  }
+  look.logo_url = sb.storage.from('branding').getPublicUrl(path).data.publicUrl;
+  document.getElementById('lk-own').checked = true;
+  document.getElementById('lk-logo-note').textContent = 'Uploaded — press Save look to use it.';
+  say('lk-alert', '');
+  drawPreview();
+}
+
+function clearLogo() { delete look.logo_url; drawPreview(); }
+
+async function saveLook() {
+  const branding = {
+    ...look,
+    own_name: document.getElementById('lk-own').checked,
+    welcome_title: document.getElementById('lk-title').value.trim() || null,
+    welcome_text: document.getElementById('lk-text').value.trim() || null,
+  };
+  if (branding.theme !== 'custom') delete branding.primary;
+  const btn = document.getElementById('lk-save');
+  btn.disabled = true;
+  const { error } = await sb.from('teachers').update({ branding }).eq('id', me.teacher_id);
+  btn.disabled = false;
+  if (error) {
+    say('lk-alert', /branding/.test(error.message)
+      ? 'This needs the v19 database update. Run supabase-migration-v19.sql in Supabase, then try again.'
+      : friendlyError(error.message));
+    return;
+  }
+  say('lk-alert', '');
+  me.teacher.branding = branding;
+  applyBrand(me.teacher);
+  showToast('Saved — your students will see the new look on their next page.', 'success');
 }
 </script>
 </body>

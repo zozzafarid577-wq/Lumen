@@ -583,3 +583,104 @@ function mountInstallButton(host, { style = '', label = 'Install the app' } = {}
   host.appendChild(btn);
   window.addEventListener('appinstalled', () => btn.remove());
 }
+
+// ─────────────────────────────────────────────────────────────────
+// A teacher's own look (teachers.branding, migration v19)
+//
+// One colour drives the whole palette: the button colour, its hover,
+// the soft tint behind selected things, the outline, the glow. A theme
+// is a colour with a name; "custom" is any colour the teacher picks.
+// The space's name (or uploaded logo) can stand where Lumen's logo does.
+//
+// Applied on every portal page by renderShell, and remembered on the
+// device so the next page opens in the teacher's colours rather than
+// flashing Lumen purple first.
+// ─────────────────────────────────────────────────────────────────
+const BRAND_THEMES = [
+  { key: 'plum',     name: 'Plum',     color: '#A2509F' },
+  { key: 'ocean',    name: 'Ocean',    color: '#1F6FB2' },
+  { key: 'emerald',  name: 'Emerald',  color: '#138A63' },
+  { key: 'sunset',   name: 'Sunset',   color: '#D9622B' },
+  { key: 'navy',     name: 'Navy',     color: '#2D3A8C' },
+  { key: 'rose',     name: 'Rose',     color: '#C93F72' },
+  { key: 'teal',     name: 'Teal',     color: '#0E8388' },
+  { key: 'graphite', name: 'Graphite', color: '#3D4451' },
+];
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+const rgbToHex = (rgb) => '#' + rgb.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mixRgb = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+
+function brandColor(branding) {
+  const b = branding || {};
+  if (b.theme === 'custom' && hexToRgb(b.primary)) return b.primary;
+  return (BRAND_THEMES.find(t => t.key === b.theme) || BRAND_THEMES[0]).color;
+}
+
+function brandPalette(hex) {
+  const rgb = hexToRgb(hex) || hexToRgb('#A2509F');
+  return {
+    '--primary': rgbToHex(rgb),
+    '--primary-hover': rgbToHex(mixRgb(rgb, [0, 0, 0], 0.16)),
+    '--primary-soft': rgbToHex(mixRgb(rgb, [255, 255, 255], 0.9)),
+    '--primary-line': rgbToHex(mixRgb(rgb, [255, 255, 255], 0.72)),
+    '--accent': rgbToHex(rgb),
+    '--brand-rgb': rgb.join(','),
+    '--brand-dark': rgbToHex(mixRgb(rgb, [20, 14, 20], 0.62)),
+    '--shadow-brand': `0 6px 22px rgba(${rgb.join(',')},.26)`,
+  };
+}
+
+function paintBrandColors(hex) {
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(brandPalette(hex))) root.style.setProperty(k, v);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', brandPalette(hex)['--primary']);
+}
+
+// The brand mark in the sidebar: the space's logo, or its name in the
+// sidebar's own type, instead of Lumen's.
+function paintBrandMark(teacher) {
+  const b = teacher?.branding || {};
+  if (!b.own_name) return;
+  const name = teacher.display_name || 'My space';
+  const full = document.querySelector('.sidebar-brand .b-full');
+  const mark = document.querySelector('.sidebar-brand .b-mark');
+  const logo = b.logo_url || teacher.logo_url;
+  if (full) {
+    full.innerHTML = logo
+      ? `<img src="${escHtml(logo)}" alt="${escHtml(name)}" style="max-height:34px;max-width:170px;object-fit:contain;display:block">`
+        + (b.tagline_under_logo === false ? '' : `<span class="brand-sub">${escHtml(teacher.tagline || name)}</span>`)
+      : `<span style="font-family:Manrope,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);line-height:1.15;letter-spacing:-.01em">${escHtml(name)}</span>`
+        + (teacher.tagline ? `<span class="brand-sub">${escHtml(teacher.tagline)}</span>` : '');
+  }
+  if (mark) {
+    mark.innerHTML = logo
+      ? `<img src="${escHtml(logo)}" alt="" style="width:30px;height:30px;object-fit:contain;border-radius:8px">`
+      : `<span style="display:inline-flex;width:32px;height:32px;border-radius:10px;background:var(--primary);color:#fff;align-items:center;justify-content:center;font-weight:800;font-family:Manrope,sans-serif">${escHtml(name.trim().charAt(0).toUpperCase())}</span>`;
+  }
+}
+
+function applyBrand(teacher) {
+  if (!teacher) return;
+  const b = teacher.branding || {};
+  paintBrandColors(brandColor(b));
+  paintBrandMark(teacher);
+  try {
+    localStorage.setItem('lumen_brand', JSON.stringify({ color: brandColor(b) }));
+  } catch (_) {}
+}
+
+// The colour from the last visit, straight away, before the page has
+// asked who is signed in.
+(function brandFromLastVisit() {
+  try {
+    const last = JSON.parse(localStorage.getItem('lumen_brand') || 'null');
+    if (last?.color && /\/(portal|teacher)\//.test(location.pathname)) paintBrandColors(last.color);
+  } catch (_) {}
+})();

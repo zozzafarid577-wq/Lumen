@@ -452,6 +452,20 @@ async function load() {
 // The hello. A student opening this page should be met by their own
 // name and the state of their course, not by a list — so the counts that
 // would otherwise be scattered down the page are gathered here.
+// The heading on the banner. The teacher may write their own under
+// Settings → Look & feel (teachers.branding.welcome_title, with {name} and
+// {course} filled in) and a line under it; otherwise Lumen's greeting.
+function heroWords(first, course) {
+  const b = me?.teacher?.branding || {};
+  const fill = (t) => escHtml(t).replace(/\{name\}/gi, escHtml(first || 'there')).replace(/\{course\}/gi, escHtml(course || 'your course'));
+  const title = (b.welcome_title || '').trim();
+  const text = (b.welcome_text || '').trim();
+  const head = title
+    ? `<div class="hero-hi">${fill(title)}</div>`
+    : `<div class="hero-hi">Hi ${escHtml(first || 'there')},<br><span class="thin">Welcome to</span> ${escHtml(course || 'your course')}&nbsp;!</div>`;
+  return head + (text ? `<p style="margin:10px 0 0;color:rgba(255,255,255,.9);font-size:1rem;max-width:640px;line-height:1.5">${fill(text)}</p>` : '');
+}
+
 function drawCourseCard(c, units, openTests) {
   const open = units.filter(u => moduleOpen(u));
   const all = open.flatMap(u => u.lessons || []);
@@ -479,10 +493,7 @@ function drawCourseCard(c, units, openTests) {
       ${SPARK}
       <div class="hero-inner">
         <div class="hero-kicker">${escHtml(subject)}</div>
-        <div class="hero-hi">
-          Hi ${escHtml(first || 'there')},<br>
-          <span class="thin">Welcome to</span> ${escHtml(c.title || 'your course')}&nbsp;!
-        </div>
+        ${heroWords(first, c.title)}
         <div class="hero-chips">${chips}</div>
         ${Object.values(practiceByUnit).some(Boolean) ? `
           <!-- Practice lives here, once, rather than on every unit: the
