@@ -854,3 +854,42 @@ function makeSettingsTabs() {
   open((location.hash || '').slice(1));
   window.addEventListener('hashchange', () => open((location.hash || '').slice(1)));
 }
+
+// ── Files uploaded to a lesson ────────────────────────────────────
+// A material is either a link or a file uploaded to the space's private
+// `lesson-media` bucket. An uploaded one is stored as "lumen-file:<path>",
+// where the path starts with the teacher's id (the bucket's policies make
+// that folder the space's boundary). The bucket is private, so a page
+// that shows materials signs each file into a link that works for a few
+// hours — a student cannot pass on a permanent link to it.
+const LESSON_FILE = 'lumen-file:';
+const LESSON_FILE_MAX_MB = 50;
+
+function isLessonFile(url) {
+  return typeof url === 'string' && url.startsWith(LESSON_FILE);
+}
+
+// Sets `m.href` on every material: the link itself, or a signed link to
+// the uploaded file. One request for the whole page.
+async function signMaterials(materials, hours = 6) {
+  const files = materials.filter(m => isLessonFile(m.file_url));
+  materials.forEach(m => { if (!isLessonFile(m.file_url)) m.href = m.file_url; });
+  if (!files.length) return;
+  const paths = files.map(m => m.file_url.slice(LESSON_FILE.length));
+  const { data } = await sb.storage.from('lesson-media').createSignedUrls(paths, hours * 3600);
+  const signed = new Map((data || []).filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
+  files.forEach(m => { m.href = signed.get(m.file_url.slice(LESSON_FILE.length)) || '#'; });
+}
+
+// What an uploaded file is, from its name: "PDF", "Word", "Image"…
+function lessonFileLabel(url) {
+  const ext = (String(url).split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return 'PDF';
+  if (['doc', 'docx'].includes(ext)) return 'Word file';
+  if (['ppt', 'pptx'].includes(ext)) return 'Slides';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Spreadsheet';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(ext)) return 'Image';
+  if (['mp4', 'mov', 'webm', 'm4v'].includes(ext)) return 'Video';
+  if (['mp3', 'm4a', 'wav', 'ogg'].includes(ext)) return 'Audio';
+  return 'File';
+}

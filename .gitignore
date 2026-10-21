@@ -5,3 +5,4 @@ node_modules/
 .DS_Store
 coverage/
 .psych-u1.json
+.psych-fix.json

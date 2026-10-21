@@ -214,11 +214,16 @@
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Materials</label>
         <div id="lm-materials"></div>
-        <div class="form-row" style="margin-top:10px">
-          <input type="text" class="form-input" id="lm-mat-title" placeholder="Sheet title">
-          <input type="url" class="form-input" id="lm-mat-url" placeholder="https://… (PDF or link)">
+        <input type="text" class="form-input" id="lm-mat-title" placeholder="Title (a file's own name if left empty)" style="margin-top:10px">
+        <div class="form-row" style="margin-top:10px;align-items:center">
+          <input type="url" class="form-input" id="lm-mat-url" placeholder="https://… (a link)">
+          <label class="btn btn-outline btn-sm" style="margin:0;justify-content:center" id="lm-file-btn">
+            <input type="file" id="lm-mat-file" style="display:none" onchange="pickedFile()">
+            <span id="lm-file-name">…or upload a file</span>
+          </label>
         </div>
         <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="addMaterial()" id="lm-mat-add">Attach</button>
+        <p class="form-hint" style="margin-top:6px">PDFs, Word, slides, images, audio or short videos, up to 50 MB. Long recordings are better as a link.</p>
         <p class="form-hint" id="lm-mat-hint">Save the lesson first, then attach its materials.</p>
       </div>
     </div>
@@ -421,7 +426,7 @@ async function loadUnits() {
 
   const [{ data, error }, { data: tests }] = await Promise.all([
     sb.from('modules')
-      .select('*, lessons(*, lesson_materials(id, title, file_url))')
+      .select('*, lessons(*, lesson_materials(id, title, file_url, kind))')
       .eq('course_id', course.id).order('order_index'),
     // Where each paper was filed, shown next to the lesson it was filed
     // under. A teacher who has set four papers on a unit should be able
@@ -432,6 +437,7 @@ async function loadUnits() {
   if (error) { pane.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
 
   units = (data || []).map(u => ({ ...u, lessons: (u.lessons || []).sort((a, b) => a.order_index - b.order_index) }));
+  await signMaterials(units.flatMap(u => u.lessons.flatMap(l => l.lesson_materials || [])));
 
   testsByLesson = new Map();
   testsByUnit = new Map();
@@ -648,6 +654,7 @@ function editLesson(unitId, lessonId) {
   document.getElementById('lm-desc').value = l?.description || '';
   document.getElementById('lm-mat-title').value = '';
   document.getElementById('lm-mat-url').value = '';
+  clearPickedFile();
   say('lm-alert', '');
   renderMaterials();
   openModal('lesson-modal');
@@ -665,35 +672,96 @@ function renderMaterials() {
   const mats = l?.lesson_materials || [];
   box.innerHTML = mats.length
     ? mats.map(m => `<div class="spread" style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <a href="${escHtml(m.file_url)}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>
+        <a href="${escHtml(m.href || m.file_url)}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>${isLessonFile(m.file_url) ? ` <span class="small muted">· ${escHtml(lessonFileLabel(m.file_url))}</span>` : ''}
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="removeMaterial('${m.id}')">Remove</button>
       </div>`).join('')
     : (canAttach ? '<p class="small muted">Nothing attached yet.</p>' : '');
 }
 
+function pickedFile() {
+  const f = document.getElementById('lm-mat-file').files[0];
+  document.getElementById('lm-file-name').textContent = f ? f.name : '…or upload a file';
+  if (f) document.getElementById('lm-mat-url').value = '';
+}
+
+function clearPickedFile() {
+  document.getElementById('lm-mat-file').value = '';
+  document.getElementById('lm-file-name').textContent = '…or upload a file';
+}
+
+// A file goes into the space's own folder of the private lesson-media
+// bucket, under the lesson, with a time stamp so two files called
+// "worksheet.pdf" do not overwrite each other. The name in the path is
+// kept to safe characters; the title keeps the name as the teacher wrote it.
+async function uploadLessonFile(lesson, f) {
+  const safe = f.name.replace(/[^\w.\-]+/g, '-').replace(/-+/g, '-').slice(-80) || 'file';
+  const path = `${me.teacher_id}/lessons/${lesson.id}/${Date.now()}-${safe}`;
+  const { error } = await sb.storage.from('lesson-media').upload(path, f, { contentType: f.type || undefined });
+  if (error) throw new Error(/exceeded|too large|413/i.test(error.message)
+    ? `That file is too big. Files can be up to ${LESSON_FILE_MAX_MB} MB.` : friendlyError(error.message));
+  return path;
+}
+
 async function addMaterial() {
   const l = editing.lesson;
   if (!l) return;
-  const title = document.getElementById('lm-mat-title').value.trim();
+  const f = document.getElementById('lm-mat-file').files[0];
   const url = document.getElementById('lm-mat-url').value.trim();
-  if (!title || !url) { say('lm-alert', 'A material needs both a title and a link.'); return; }
+  const title = document.getElementById('lm-mat-title').value.trim() || (f ? f.name.replace(/\.[^.]+$/, '') : '');
+  if (!f && !url) { say('lm-alert', 'Paste a link or choose a file to upload.'); return; }
+  if (!title) { say('lm-alert', 'Give the link a title.'); return; }
+  if (f && f.size > LESSON_FILE_MAX_MB * 1024 * 1024) {
+    say('lm-alert', `That file is ${(f.size / 1048576).toFixed(0)} MB. Files can be up to ${LESSON_FILE_MAX_MB} MB — put a long recording on YouTube or Drive and attach the link.`);
+    return;
+  }
 
-  const { data, error } = await sb.from('lesson_materials').insert({
-    teacher_id: me.teacher_id, lesson_id: l.id, title, file_url: url,
-    kind: /\.pdf($|\?)/i.test(url) ? 'pdf' : 'link',
-  }).select().single();
-  if (error) { say('lm-alert', friendlyError(error.message)); return; }
+  const btn = document.getElementById('lm-mat-add');
+  btn.disabled = true;
+  btn.textContent = f ? 'Uploading…' : 'Attaching…';
+  try {
+    let row;
+    if (f) {
+      const path = await uploadLessonFile(l, f);
+      row = { file_url: LESSON_FILE + path, file_size: f.size,
+        kind: /\.pdf$/i.test(f.name) ? 'pdf' : /^(video|audio)\//.test(f.type) ? 'recording' : 'sheet' };
+    } else {
+      row = { file_url: url, kind: /\.pdf($|\?)/i.test(url) ? 'pdf' : 'link' };
+    }
+    const { data, error } = await sb.from('lesson_materials').insert({
+      teacher_id: me.teacher_id, lesson_id: l.id, title, ...row,
+    }).select().single();
+    if (error) {
+      // The row is what students see; without it the upload is litter.
+      if (f) await sb.storage.from('lesson-media').remove([row.file_url.slice(LESSON_FILE.length)]);
+      throw new Error(friendlyError(error.message));
+    }
+    await signMaterials([data]);
+    l.lesson_materials = [...(l.lesson_materials || []), data];
+    document.getElementById('lm-mat-title').value = '';
+    document.getElementById('lm-mat-url').value = '';
+    clearPickedFile();
+    say('lm-alert', '');
+    renderMaterials();
+    showToast(f ? 'File uploaded.' : 'Link attached.', 'success');
+  } catch (err) {
+    say('lm-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Attach';
+  }
+}
 
-  l.lesson_materials = [...(l.lesson_materials || []), data];
-  document.getElementById('lm-mat-title').value = '';
-  document.getElementById('lm-mat-url').value = '';
-  say('lm-alert', '');
-  renderMaterials();
+// Removing an uploaded material removes the file too.
+async function removeLessonFiles(materials) {
+  const paths = materials.filter(m => isLessonFile(m.file_url)).map(m => m.file_url.slice(LESSON_FILE.length));
+  if (paths.length) await sb.storage.from('lesson-media').remove(paths);
 }
 
 async function removeMaterial(id) {
+  const m = (editing.lesson.lesson_materials || []).find(x => x.id === id);
   const { error } = await sb.from('lesson_materials').delete().eq('id', id);
   if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  if (m) await removeLessonFiles([m]);
   editing.lesson.lesson_materials = (editing.lesson.lesson_materials || []).filter(m => m.id !== id);
   renderMaterials();
 }
@@ -740,8 +808,10 @@ async function saveLesson() {
 
 async function deleteLesson(id) {
   if (!confirm('Delete this lesson and its materials? This cannot be undone.')) return;
+  const lesson = units.flatMap(u => u.lessons).find(l => l.id === id);
   const { error } = await sb.from('lessons').delete().eq('id', id);
   if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  await removeLessonFiles(lesson?.lesson_materials || []);
   showToast('Lesson deleted.', 'success');
   await loadUnits();
 }
