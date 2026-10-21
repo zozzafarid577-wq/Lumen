@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>File | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#A2509F">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .file-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .file-head h1 { font-size: 1.15rem; margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .pdf-pages { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .pdf-page { width: 100%; background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.12); overflow: hidden; }
+  .pdf-page canvas { display: block; width: 100%; height: auto; }
+  .file-media { display: block; max-width: 100%; margin: 0 auto; border-radius: 10px; background: #000; }
+  .file-img { display: block; max-width: 100%; margin: 0 auto; border-radius: 10px; }
+  .office-frame { width: 100%; height: 78vh; border: 0; border-radius: 10px; background: #fff; }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">File</span>
+    </div>
+  </header>
+
+  <main class="content" style="max-width:900px">
+    <div class="file-head">
+      <button class="btn btn-ghost btn-sm" onclick="goBack()">&larr; Back</button>
+      <h1 id="f-title"></h1>
+      <a class="btn btn-outline btn-sm" id="f-download" style="display:none" target="_blank" rel="noopener">Download</a>
+    </div>
+    <div id="f-body"><div class="skel" style="height:420px"></div></div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+// A file uploaded to a lesson, shown on Lumen's own page.
+//
+// The file sits in the private lesson-media bucket. Opening its signed
+// link directly works in a desktop browser, but not in the phone app:
+// the app keeps storage links inside itself, and the Android web view
+// cannot show a PDF — the student got a blank screen. So a PDF is drawn
+// here, page by page, with PDF.js; pictures, audio and video use the
+// page's own tags; Word, PowerPoint and Excel files go through
+// Microsoft's online viewer. The material is read by its id, so the
+// database decides who may see it, exactly as it does for the lesson.
+const PDFJS = '/assets/vendor/pdfjs-4.10.38/';
+
+function goBack() {
+  if (history.length > 1) history.back();
+  else location.href = '/portal/courses.html';
+}
+
+function fail(title, detail) {
+  document.getElementById('f-body').innerHTML =
+    `<div class="card"><div class="card-body">${emptyState(title, detail,
+      '<a href="/portal/courses.html" class="btn btn-primary btn-sm">Back to my courses</a>')}</div></div>`;
+}
+
+(async () => {
+  const me = await requireAuth();
+  if (!me) return;
+  renderShell(me.role === 'student' || me.preview ? 'student' : 'teacher', me, { title: 'File' });
+
+  const id = new URLSearchParams(location.search).get('m');
+  const { data: m } = id
+    ? await sb.from('lesson_materials').select('id, title, file_url, kind').eq('id', id).maybeSingle()
+    : { data: null };
+  if (!m) { fail('This file is not available.', 'Its lesson may not be open yet, or it has been removed.'); return; }
+
+  document.getElementById('f-title').textContent = m.title;
+  document.title = `${m.title} | Lumen`;
+  if (!isLessonFile(m.file_url)) { location.replace(m.file_url); return; }
+
+  const path = m.file_url.slice(LESSON_FILE.length);
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  const name = m.title + (ext && !m.title.toLowerCase().endsWith('.' + ext) ? '.' + ext : '');
+  const [view, save] = await Promise.all([
+    sb.storage.from('lesson-media').createSignedUrl(path, 3600),
+    sb.storage.from('lesson-media').createSignedUrl(path, 3600, { download: name }),
+  ]);
+  if (view.error || !view.data?.signedUrl) { fail('We could not open this file.', 'Try again in a moment. If it keeps happening, let your teacher know.'); return; }
+  const url = view.data.signedUrl;
+  if (save.data?.signedUrl) {
+    const dl = document.getElementById('f-download');
+    dl.href = save.data.signedUrl;
+    dl.style.display = '';
+  }
+
+  const body = document.getElementById('f-body');
+  try {
+    if (ext === 'pdf') await showPdf(body, url);
+    else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) body.innerHTML = `<img class="file-img" src="${escHtml(url)}" alt="${escHtml(m.title)}">`;
+    else if (['mp4', 'webm', 'm4v', 'mov'].includes(ext)) body.innerHTML = `<video class="file-media" src="${escHtml(url)}" controls playsinline preload="metadata"></video>`;
+    else if (['mp3', 'm4a', 'wav', 'ogg'].includes(ext)) body.innerHTML = `<audio src="${escHtml(url)}" controls style="width:100%"></audio>`;
+    else if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) {
+      body.innerHTML = `<iframe class="office-frame" title="${escHtml(m.title)}" src="https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}"></iframe>`;
+    } else {
+      body.innerHTML = `<div class="card"><div class="card-body">${emptyState('This file cannot be shown here', 'Use Download to open it on your device.')}</div></div>`;
+    }
+  } catch (err) {
+    console.error('file view failed:', err);
+    fail('We could not show this file.', 'Use Download to open it on your device instead.');
+    document.getElementById('f-download').style.display = save.data?.signedUrl ? '' : 'none';
+  }
+})();
+
+// Every page gets a box of the right shape at once, so the scroll bar is
+// honest; a page is drawn when it comes near the screen, so a 60-page
+// booklet does not hold up the first page or fill a phone's memory.
+async function showPdf(body, url) {
+  const pdfjs = await import(PDFJS + 'pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.mjs';
+  const doc = await pdfjs.getDocument({ url, isEvalSupported: false }).promise;
+
+  body.innerHTML = '<div class="pdf-pages" id="pdf-pages"></div>';
+  const host = document.getElementById('pdf-pages');
+  const first = await doc.getPage(1);
+  const ratio = first.getViewport({ scale: 1 }).height / first.getViewport({ scale: 1 }).width;
+
+  const boxes = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const box = document.createElement('div');
+    box.className = 'pdf-page';
+    box.style.aspectRatio = `1 / ${ratio}`;
+    box.dataset.n = n;
+    host.appendChild(box);
+    boxes.push(box);
+  }
+
+  const draw = async (box) => {
+    if (box.dataset.drawn) return;
+    box.dataset.drawn = '1';
+    const page = await doc.getPage(Number(box.dataset.n));
+    const base = page.getViewport({ scale: 1 });
+    const scale = (box.clientWidth * Math.min(window.devicePixelRatio || 1, 2)) / base.width;
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(vp.width);
+    canvas.height = Math.floor(vp.height);
+    box.style.aspectRatio = `${vp.width} / ${vp.height}`;
+    box.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  };
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target); draw(e.target); } });
+    }, { rootMargin: '600px 0px' });
+    boxes.forEach(b => io.observe(b));
+  } else {
+    for (const b of boxes) await draw(b);
+  }
+}
+</script>
+</body>
+</html>

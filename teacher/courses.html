@@ -437,7 +437,6 @@ async function loadUnits() {
   if (error) { pane.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
 
   units = (data || []).map(u => ({ ...u, lessons: (u.lessons || []).sort((a, b) => a.order_index - b.order_index) }));
-  await signMaterials(units.flatMap(u => u.lessons.flatMap(l => l.lesson_materials || [])));
 
   testsByLesson = new Map();
   testsByUnit = new Map();
@@ -672,7 +671,7 @@ function renderMaterials() {
   const mats = l?.lesson_materials || [];
   box.innerHTML = mats.length
     ? mats.map(m => `<div class="spread" style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <a href="${escHtml(m.href || m.file_url)}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>${isLessonFile(m.file_url) ? ` <span class="small muted">· ${escHtml(lessonFileLabel(m.file_url))}</span>` : ''}
+        <a href="${escHtml(materialHref(m))}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>${isLessonFile(m.file_url) ? ` <span class="small muted">· ${escHtml(lessonFileLabel(m.file_url))}</span>` : ''}
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="removeMaterial('${m.id}')">Remove</button>
       </div>`).join('')
     : (canAttach ? '<p class="small muted">Nothing attached yet.</p>' : '');
@@ -735,7 +734,6 @@ async function addMaterial() {
       if (f) await sb.storage.from('lesson-media').remove([row.file_url.slice(LESSON_FILE.length)]);
       throw new Error(friendlyError(error.message));
     }
-    await signMaterials([data]);
     l.lesson_materials = [...(l.lesson_materials || []), data];
     document.getElementById('lm-mat-title').value = '';
     document.getElementById('lm-mat-url').value = '';

@@ -859,9 +859,9 @@ function makeSettingsTabs() {
 // A material is either a link or a file uploaded to the space's private
 // `lesson-media` bucket. An uploaded one is stored as "lumen-file:<path>",
 // where the path starts with the teacher's id (the bucket's policies make
-// that folder the space's boundary). The bucket is private, so a page
-// that shows materials signs each file into a link that works for a few
-// hours — a student cannot pass on a permanent link to it.
+// that folder the space's boundary). The bucket is private: the file page
+// signs it into a link that works for an hour, so a student cannot pass
+// on a permanent link to it.
 const LESSON_FILE = 'lumen-file:';
 const LESSON_FILE_MAX_MB = 50;
 
@@ -869,16 +869,11 @@ function isLessonFile(url) {
   return typeof url === 'string' && url.startsWith(LESSON_FILE);
 }
 
-// Sets `m.href` on every material: the link itself, or a signed link to
-// the uploaded file. One request for the whole page.
-async function signMaterials(materials, hours = 6) {
-  const files = materials.filter(m => isLessonFile(m.file_url));
-  materials.forEach(m => { if (!isLessonFile(m.file_url)) m.href = m.file_url; });
-  if (!files.length) return;
-  const paths = files.map(m => m.file_url.slice(LESSON_FILE.length));
-  const { data } = await sb.storage.from('lesson-media').createSignedUrls(paths, hours * 3600);
-  const signed = new Map((data || []).filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
-  files.forEach(m => { m.href = signed.get(m.file_url.slice(LESSON_FILE.length)) || '#'; });
+// Where a material opens: a link goes where it points; an uploaded file
+// opens on Lumen's own file page (portal/file.html), which signs it and
+// shows it — in the phone app too, where a storage link shows nothing.
+function materialHref(m) {
+  return isLessonFile(m.file_url) ? `/portal/file.html?m=${encodeURIComponent(m.id)}` : m.file_url;
 }
 
 // What an uploaded file is, from its name: "PDF", "Word", "Image"…

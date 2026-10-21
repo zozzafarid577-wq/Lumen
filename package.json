@@ -16,6 +16,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "pdfjs-dist": "^4.10.38",
     "vitest": "^4.1.8"
   }
 }

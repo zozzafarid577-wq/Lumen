@@ -385,7 +385,6 @@ async function load() {
   ]);
 
   if (error) { host.innerHTML = `<div class="card"><div class="card-body">${escHtml(friendlyError(error.message))}</div></div>`; return; }
-  await signMaterials((data || []).flatMap(u => (u.lessons || []).flatMap(l => l.lesson_materials || [])));
 
   // The earliest deadline wins if a test is set both to the whole course
   // and to their group: the sooner one is the one they have to meet.
@@ -658,7 +657,7 @@ function materialRow(m) {
       <div class="lr-title">${escHtml(m.title)}</div>
       <div class="lr-sub">${escHtml(kind)}</div>
     </div>
-    <a href="${escHtml(m.href || m.file_url)}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">Open</a>
+    <a href="${escHtml(materialHref(m))}"${isLessonFile(m.file_url) ? '' : ' target="_blank" rel="noopener"'} class="btn btn-outline btn-xs">Open</a>
   </div>`;
 }
 

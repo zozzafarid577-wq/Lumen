@@ -28,6 +28,7 @@ What is here is the real published artifact.)
 | File | Package | Version |
 | --- | --- | --- |
 | `supabase-2.117.0.js` | `@supabase/supabase-js` | 2.117.0 |
+| `pdfjs-4.10.38/pdf.min.mjs`, `pdf.worker.min.mjs` | `pdfjs-dist` (legacy build) | 4.10.38 |
 
 Taken from `node_modules`, which npm installed and integrity-checked
 against `package-lock.json`, and verified byte-for-byte against the
@@ -46,3 +47,10 @@ copy jsdelivr serves.
 The new filename is the cache-bust: `vercel.json` tells browsers to
 keep anything under `/assets/vendor/` for a year, which is only safe
 because the version is in the name.
+
+PDF.js draws uploaded lesson PDFs on `portal/file.html`, the only page
+that loads it (as a module, on demand). The legacy build is the one that
+still runs in older Android web views. Upgrade by installing the new
+`pdfjs-dist`, copying both files from `node_modules/pdfjs-dist/legacy/build/`
+into a folder named for the new version, and changing `PDFJS` in
+`portal/file.html`.
