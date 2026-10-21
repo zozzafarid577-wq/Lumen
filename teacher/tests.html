@@ -402,7 +402,7 @@ async function openBuilder(id, seed = null) {
   // a test students have already done.
   if (t) {
     const { data } = await sb.from('test_questions')
-      .select('question_text, options, explanation, points, order_index')
+      .select('question_text, options, explanation, image_url, points, order_index')
       .eq('test_id', t.id).order('order_index');
     chosen = (data || []).map(q => ({ ...q, id: 'existing-' + q.order_index }));
   } else if (seed?.ids?.length) {
@@ -664,6 +664,7 @@ async function saveTest() {
         question_text: c.question_text,
         options: c.options,
         explanation: c.explanation,
+        image_url: c.image_url || null,
         points: c.points || 1,
       })),
     });

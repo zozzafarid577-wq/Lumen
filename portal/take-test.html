@@ -56,6 +56,7 @@
   @keyframes tick { 50% { opacity: .55; } }
   .q-block { border: 1px solid var(--border); border-radius: 15px; padding: 22px 24px; margin-bottom: 16px; background: var(--card); }
   .q-num { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+  .q-img { display: block; max-width: 100%; max-height: 420px; margin: -4px 0 16px; border-radius: 10px; border: 1px solid var(--border, #e5e7eb); background: #fff; }
   .q-text { font-size: .95rem; font-weight: 600; line-height: 1.55; margin-bottom: 16px; white-space: pre-line; }
   .q-opt {
     display: flex; align-items: flex-start; gap: 11px; padding: 12px 15px; margin-bottom: 9px;
@@ -128,7 +129,7 @@ let submitted = false;
   // an empty list here means something is wrong with the test itself
   // rather than with this student.
   const { data: qs, error: qErr } = await sb.from('test_questions')
-    .select('id, question_text, options, explanation, points, order_index')
+    .select('id, question_text, options, explanation, image_url, points, order_index')
     .eq('test_id', id).order('order_index');
   if (qErr) { fail('We could not load the questions.', friendlyError(qErr.message)); return; }
   if (!qs?.length) { fail('This test has no questions yet.', 'Let your teacher know.'); return; }
@@ -266,6 +267,11 @@ function gotRight(q) {
   return chosen.length === right.length && right.every(j => chosen.includes(j));
 }
 
+// A figure the question refers to: a graph, a brain diagram, a chart.
+function qImage(q) {
+  return q.image_url ? `<img class="q-img" src="${escHtml(q.image_url)}" alt="Figure for this question" loading="lazy">` : '';
+}
+
 function renderQuestions() {
   document.getElementById('wrap').innerHTML = questions.map((q, i) => {
     const multi = isMulti(q);
@@ -273,6 +279,7 @@ function renderQuestions() {
     <div class="q-block" id="q-${q.id}">
       <div class="q-num">Question ${i + 1} of ${questions.length}${q.points > 1 ? ` · ${q.points} marks` : ''}</div>
       <div class="q-text">${escHtml(q.question_text)}</div>
+      ${qImage(q)}
       ${multi ? `<p class="small muted" style="margin:-4px 0 10px">Choose ${rightAnswers(q).length} answers — you only score if you get all of them and nothing else.</p>` : ''}
       ${(q.options || []).map((o, j) => `
         <label class="q-opt" data-q="${q.id}" data-i="${j}">
@@ -454,6 +461,7 @@ function reviewBlock(q, i) {
   return `<div class="q-block">
     <div class="q-num">Question ${i + 1}</div>
     <div class="q-text">${escHtml(q.question_text)}</div>
+    ${qImage(q)}
     ${(q.options || []).map((o, j) => {
       const isChosen = chosen.includes(j);
       const cls = o.correct ? ' correct' : (isChosen ? ' wrong' : '');
