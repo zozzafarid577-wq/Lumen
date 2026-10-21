@@ -224,7 +224,6 @@
         </div>
         <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="addMaterial()" id="lm-mat-add">Attach</button>
         <p class="form-hint" style="margin-top:6px">PDFs, Word, slides, images, audio or short videos, up to 50 MB. Long recordings are better as a link.</p>
-        <p class="form-hint" id="lm-mat-hint">Save the lesson first, then attach its materials.</p>
       </div>
     </div>
     <div class="modal-foot">
@@ -659,22 +658,18 @@ function editLesson(unitId, lessonId) {
   openModal('lesson-modal');
 }
 
-// Materials hang off a lesson id, so there is nothing to attach them to
-// until the lesson exists. Say that rather than silently dropping them.
+// Materials hang off a lesson id. On a lesson that does not exist yet,
+// attaching saves the lesson first, so a file can be picked straight away.
 function renderMaterials() {
   const l = editing.lesson;
   const box = document.getElementById('lm-materials');
-  const canAttach = !!l;
-  document.getElementById('lm-mat-add').disabled = !canAttach;
-  document.getElementById('lm-mat-hint').style.display = canAttach ? 'none' : 'block';
-
   const mats = l?.lesson_materials || [];
   box.innerHTML = mats.length
     ? mats.map(m => `<div class="spread" style="padding:8px 0;border-bottom:1px solid var(--border)">
         <a href="${escHtml(materialHref(m))}" target="_blank" rel="noopener" class="small" style="color:var(--primary);font-weight:600">${escHtml(m.title)}</a>${isLessonFile(m.file_url) ? ` <span class="small muted">· ${escHtml(lessonFileLabel(m.file_url))}</span>` : ''}
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="removeMaterial('${m.id}')">Remove</button>
       </div>`).join('')
-    : (canAttach ? '<p class="small muted">Nothing attached yet.</p>' : '');
+    : '<p class="small muted">Nothing attached yet.</p>';
 }
 
 function pickedFile() {
@@ -701,18 +696,24 @@ async function uploadLessonFile(lesson, f) {
   return path;
 }
 
+// A link typed or a file picked but not attached yet.
+function pendingMaterial() {
+  return !!document.getElementById('lm-mat-file').files[0] || !!document.getElementById('lm-mat-url').value.trim();
+}
+
+// Returns true once the material is attached, false if it could not be.
 async function addMaterial() {
-  const l = editing.lesson;
-  if (!l) return;
   const f = document.getElementById('lm-mat-file').files[0];
   const url = document.getElementById('lm-mat-url').value.trim();
   const title = document.getElementById('lm-mat-title').value.trim() || (f ? f.name.replace(/\.[^.]+$/, '') : '');
-  if (!f && !url) { say('lm-alert', 'Paste a link or choose a file to upload.'); return; }
-  if (!title) { say('lm-alert', 'Give the link a title.'); return; }
+  if (!f && !url) { say('lm-alert', 'Paste a link or choose a file to upload.'); return false; }
+  if (!title) { say('lm-alert', 'Give the link a title.'); return false; }
   if (f && f.size > LESSON_FILE_MAX_MB * 1024 * 1024) {
     say('lm-alert', `That file is ${(f.size / 1048576).toFixed(0)} MB. Files can be up to ${LESSON_FILE_MAX_MB} MB — put a long recording on YouTube or Drive and attach the link.`);
-    return;
+    return false;
   }
+  const l = editing.lesson || await saveLesson({ forAttach: true });
+  if (!l) return false;
 
   const btn = document.getElementById('lm-mat-add');
   btn.disabled = true;
@@ -741,8 +742,10 @@ async function addMaterial() {
     say('lm-alert', '');
     renderMaterials();
     showToast(f ? 'File uploaded.' : 'Link attached.', 'success');
+    return true;
   } catch (err) {
     say('lm-alert', err.message);
+    return false;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Attach';
@@ -764,9 +767,13 @@ async function removeMaterial(id) {
   renderMaterials();
 }
 
-async function saveLesson() {
+// `forAttach`: called by Attach on a lesson not saved yet. It saves and
+// hands back the lesson, and leaves the box open for the upload.
+// Otherwise a file picked or a link typed but not attached goes up with
+// the save — pressing "Save lesson" after choosing a file must not drop it.
+async function saveLesson({ forAttach = false } = {}) {
   const title = document.getElementById('lm-name').value.trim();
-  if (!title) { say('lm-alert', 'Give the lesson a title.'); return; }
+  if (!title) { say('lm-alert', 'Give the lesson a title.'); return null; }
 
   const mins = parseInt(document.getElementById('lm-mins').value, 10);
   const row = {
@@ -786,22 +793,28 @@ async function saveLesson() {
     : await sb.from('lessons').insert(row).select().single();
   btn.disabled = false;
 
-  if (error) { say('lm-alert', friendlyError(error.message)); return; }
+  if (error) { say('lm-alert', friendlyError(error.message)); return null; }
 
-  // Stay open on a brand-new lesson so its materials can be attached
-  // without hunting for it again in the list.
-  if (!editing.lesson) {
-    editing.lesson = { ...data, lesson_materials: [] };
-    document.getElementById('lm-title').textContent = 'Edit lesson';
+  const isNew = !editing.lesson;
+  editing.lesson = { ...(editing.lesson || { lesson_materials: [] }), ...data };
+  document.getElementById('lm-title').textContent = 'Edit lesson';
+  if (forAttach) { loadUnits(); return editing.lesson; }
+
+  if (pendingMaterial()) {
+    if (!await addMaterial()) { await loadUnits(); return null; }
+  } else if (isNew) {
+    // Stay open on a brand-new lesson so its materials can be attached
+    // without hunting for it again in the list.
     renderMaterials();
     showToast('Lesson saved — you can attach materials now.', 'success');
     await loadUnits();
-    return;
+    return editing.lesson;
   }
 
   closeModal('lesson-modal');
   showToast('Lesson saved.', 'success');
   await loadUnits();
+  return editing.lesson;
 }
 
 async function deleteLesson(id) {

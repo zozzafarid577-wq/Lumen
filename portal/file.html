@@ -108,6 +108,10 @@ function fail(title, detail) {
 (async () => {
   const me = await requireAuth();
   if (!me) return;
+  // A teacher in "View as student" stays in it here, banner and all.
+  let preview = false;
+  try { preview = sessionStorage.getItem('lumen_preview') === '1'; } catch (_) {}
+  if (me.role !== 'student' && preview) me.preview = true;
   renderShell(me.role === 'student' || me.preview ? 'student' : 'teacher', me, { title: 'File' });
 
   const id = new URLSearchParams(location.search).get('m');
