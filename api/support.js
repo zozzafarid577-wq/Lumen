@@ -65,7 +65,7 @@ export default handler(async (req, res) => {
       emails: [
         ...samples,
         ...groups.groups.map(g => ({ email: `Group marks report — ${g.group}`, sent: g.sent, files: g.files, pdfError: g.pdfError, error: g.error })),
-        ...hard.teachers.flatMap(x => (x.sent || []).map(s => ({ email: 'Hardest questions', sent: s.sent, files: s.files, error: s.error }))),
+        ...hard.teachers.flatMap(x => (x.sent || []).map(s => ({ email: `Hardest questions — ${s.course}`, sent: s.sent, files: s.files, pdfError: s.pdfError, error: s.error }))),
       ],
     });
   }

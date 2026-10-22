@@ -61,11 +61,11 @@ describe('sending on request', () => {
 });
 
 describe('split by course', () => {
-  it('gives each course its own tab in the sheet', async () => {
+  it('sends each course its own email, with its own sheet', async () => {
     const { runHardQuestions } = await import('../../api/_lib/hard-questions.js');
     const ExcelJS = (await import('exceljs')).default;
-    let sentAttachment = null;
-    const fetchMock = vi.fn(async (_u, opts) => { sentAttachment = JSON.parse(opts.body).attachment?.[0]; return { ok: true, status: 201, text: async () => '{}', json: async () => ({}) }; });
+    const mails = [];
+    const fetchMock = vi.fn(async (_u, opts) => { mails.push(JSON.parse(opts.body)); return { ok: true, status: 201, text: async () => '{}', json: async () => ({}) }; });
     vi.stubGlobal('fetch', fetchMock);
     process.env.BREVO_API_KEY = 'k'; process.env.BREVO_SENDER_EMAIL = 'from@example.com';
     configureSupabaseMock({ results: {
@@ -75,10 +75,42 @@ describe('split by course', () => {
       ], error: null },
       'test_questions.select': { data: [Q1, { ...Q1, id: 'q4', test_id: 't2' }], error: null },
     } });
-    await runHardQuestions(new Date('2026-10-08T08:00:00Z'), { onlyTeacher: 'teacher-1', to: 'lumen@example.com' });
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(Buffer.from(sentAttachment.content, 'base64'));
-    expect(wb.worksheets.map(w => w.name)).toEqual(['Senior 1', 'Senior 2']);
+    const out = await runHardQuestions(new Date('2026-10-08T08:00:00Z'), { onlyTeacher: 'teacher-1', to: 'lumen@example.com' });
+    expect(out.teachers[0].sent.map(s => s.course)).toEqual(['Senior 1', 'Senior 2']);
+    expect(mails.map(m => m.subject)).toEqual([
+      expect.stringContaining('Hardest questions — Senior 1 —'),
+      expect.stringContaining('Hardest questions — Senior 2 —'),
+    ]);
+    for (const [i, course] of ['Senior 1', 'Senior 2'].entries()) {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(Buffer.from(mails[i].attachment[0].content, 'base64'));
+      expect(wb.worksheets.map(w => w.name)).toEqual([course]);
+    }
     vi.unstubAllGlobals();
+  });
+});
+
+describe('the sheets to print', () => {
+  const row = { test: 'Unit 1 - Lesson 1', number: 2, wrong: 3, sat: 4, question: 'Hard one', options: ['right', 'trap', 'other'], right: [0], explanation: 'Because it is.', image: '' };
+
+  it('gives the students the questions and nothing that shows the answer', async () => {
+    const { printSheet } = await import('../../api/_lib/hard-questions.js');
+    const html = printSheet({ course: 'Senior 2', dayLabel: 'the last 7 days', list: [row], key: false });
+    expect(html).toContain('Hard one');
+    expect(html).toContain('trap');
+    expect(html).toContain('Name:');
+    expect(html).not.toContain('Answer:');
+    expect(html).not.toContain('Because it is.');
+    expect(html).not.toContain('class="ok"');
+    expect(html).not.toContain('got it wrong');
+  });
+
+  it('marks the right answer, with its explanation, on the key', async () => {
+    const { printSheet } = await import('../../api/_lib/hard-questions.js');
+    const html = printSheet({ course: 'Senior 2', dayLabel: 'the last 7 days', list: [row], key: true });
+    expect(html).toContain('Answer key');
+    expect(html).toContain('Answer: A');
+    expect(html).toContain('Because it is.');
+    expect(html).toContain('3 of 4 got it wrong');
   });
 });

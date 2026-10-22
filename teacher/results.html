@@ -139,7 +139,7 @@
     <!-- Always shown (the bell sits here too); the paper's own buttons are
          beside it and appear only while a paper is open. -->
     <div class="topbar-right no-print">
-      <button class="btn btn-outline btn-sm" id="hard-btn" onclick="sendHardest()" title="Email the teacher yesterday's hardest questions, with the Excel sheet">Email hardest questions</button>
+      <button class="btn btn-outline btn-sm" id="hard-btn" onclick="sendHardest()" title="Email the teacher the week's hardest questions: one email per course, with a worksheet to print and its answer key">Email hardest questions</button>
     </div>
     <div class="topbar-right" id="paper-actions" style="display:none">
       <button class="btn btn-outline btn-sm" onclick="closePaper()">← All results</button>
@@ -236,21 +236,23 @@
 <script src="/js/auth.js"></script>
 <script src="/js/shell.js"></script>
 <script>
-// Yesterday's hardest questions, emailed now to the address set under
-// Students → Groups — the same email that goes out every morning.
+// The week's hardest questions, emailed now to the addresses set under
+// Students → Groups — the same emails that go out every morning, one per
+// course, each with a worksheet to print and its answer key.
 async function sendHardest() {
-  if (!confirm("Email yesterday's hardest questions to the teacher now?")) return;
+  if (!confirm("Email the hardest questions of the last 7 days to the teacher now? One email per course.")) return;
   const btn = document.getElementById('hard-btn');
   btn.disabled = true; const label = btn.textContent; btn.textContent = 'Sending…';
   try {
     const out = await apiPost('/api/support', { flow: 'hard-questions-send' });
     const t = out.teachers[0];
-    if (!t) showToast('That report was already sent for yesterday, or nobody sat a test yesterday.', 'error');
+    if (!t) showToast('Nobody sat a test in the last 7 days.', 'error');
     else if (t.error) showToast(t.error, 'error');
-    else if (!t.questions) showToast('Nobody got a question wrong yesterday — nothing to send.', 'success');
+    else if (!t.questions) showToast('Nobody got a question wrong in the last 7 days — nothing to send.', 'success');
     else {
-      const ok = t.sent.filter(x => x.sent).map(x => x.to);
-      if (ok.length) showToast(`Sent to ${ok.join(', ')} · ${t.questions} questions from ${t.attempts} tests.`, 'success');
+      const ok = [...new Set(t.sent.filter(x => x.sent).map(x => x.to))];
+      const courses = [...new Set(t.sent.filter(x => x.sent).map(x => x.course))];
+      if (ok.length) showToast(`Sent ${courses.join(', ')} to ${ok.join(', ')} · ${t.questions} questions from ${t.attempts} tests.`, 'success');
       else showToast(`Could not send it: ${t.sent[0]?.error || 'the mail provider refused it'}`, 'error');
     }
   } catch (err) { showToast(err.message, 'error'); }

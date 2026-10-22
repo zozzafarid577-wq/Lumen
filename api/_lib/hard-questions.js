@@ -3,18 +3,22 @@ import { admin } from './supabase.js';
 import { sendEmail, teacherReport, reportBits } from './email.js';
 import { logActivity } from './auth.js';
 import { cairoDay, cairoMidnight, addDays, reportRecipients } from './group-report.js';
+import { htmlToPdf, lastPdfError } from './pdf.js';
 
 // Every morning, the questions students found hardest over the last week.
 //
-// For each teacher: every test sat on Lumen during yesterday (Cairo
+// For each teacher: every test sat on Lumen over the last week (Cairo
 // time), question by question — how many of the students who sat it got
 // it wrong. A blank counts as wrong: the student did not get it right.
-// The email lists the hardest fifteen with the right answer and the
-// wrong answer most of them chose; the Excel sheet has every question,
-// hardest first. Papers done in class have no questions and are left out.
+// Papers done in class have no questions and are left out.
+//
+// One email per course (Senior 1, Senior 2, Senior 3 each on its own),
+// carrying three files: the course's Excel sheet with every question it
+// got wrong, and two PDFs of its hardest questions to print — a worksheet
+// for the students with no answers on it, and the answer key.
 //
 // Sent by the morning run (GET /api/health?task=morning), to the same
-// address as the group reports. notify_log keeps it to one a day.
+// addresses as the group reports. notify_log keeps it to one a day.
 
 const TOP = 25;     // per course
 const DAYS = 7;     // how far back each morning's email looks
@@ -52,7 +56,7 @@ export async function hardestQuestions(teacherId, from, until) {
   for (let i = 0; i < testIds.length; i += 100) {
     const chunk = testIds.slice(i, i + 100);
     questions.push(...await everyRow(() => admin.from('test_questions')
-      .select('id, test_id, question_text, options, order_index').in('test_id', chunk)));
+      .select('id, test_id, question_text, options, explanation, image_url, order_index').in('test_id', chunk)));
   }
 
   const byTest = new Map();
@@ -61,8 +65,9 @@ export async function hardestQuestions(teacherId, from, until) {
   const stats = new Map();     // question id -> { q, sat, wrong, picks: Map(index -> count) }
   for (const a of sat) {
     for (const q of byTest.get(a.test_id) || []) {
-      const s = stats.get(q.id) || { q, test: a.practice_tests, sat: 0, wrong: 0, blank: 0, picks: new Map() };
+      const s = stats.get(q.id) || { q, test: a.practice_tests, sat: 0, wrong: 0, blank: 0, picks: new Map(), attempts: new Set() };
       s.sat++;
+      s.attempts.add(a.id);
       const given = a.answers[q.id];
       if (!isRight(q, given)) {
         s.wrong++;
@@ -81,9 +86,13 @@ export async function hardestQuestions(teacherId, from, until) {
       test: s.test?.title || 'Test', course: s.test?.courses?.title || '',
       number: (s.q.order_index ?? 0) + 1,
       question: s.q.question_text,
+      options: (s.q.options || []).map(o => o?.text ?? ''),
+      right: right(s.q),
+      explanation: s.q.explanation || '',
+      image: s.q.image_url || '',
       answer: right(s.q).map(i => s.q.options[i]?.text).join(' / '),
       commonWrong: common ? `${s.q.options[common[0]]?.text ?? ''} (${common[1]})` : '',
-      sat: s.sat, wrong: s.wrong, blank: s.blank,
+      sat: s.sat, wrong: s.wrong, blank: s.blank, attemptIds: [...s.attempts],
       pct: Math.round((s.wrong / s.sat) * 100),
     };
   })
@@ -102,7 +111,7 @@ function byCourse(rows) {
   return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 }
 
-async function sheet(rows, dayIso) {
+async function sheet(rows, dayIso, slug = '') {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Lumen';
   for (const [course, list] of byCourse(rows)) {
@@ -120,7 +129,73 @@ async function sheet(rows, dayIso) {
     ws.getColumn(7).alignment = { wrapText: true, vertical: 'top' };
   }
   const buf = await wb.xlsx.writeBuffer();
-  return { name: `hardest-questions-${dayIso}.xlsx`, content: Buffer.from(buf).toString('base64') };
+  return { name: `hardest-questions-${slug ? slug + '-' : ''}${dayIso}.xlsx`, content: Buffer.from(buf).toString('base64') };
+}
+
+// "Senior 2" -> "Senior-2", for file names.
+const slugOf = (course) => String(course || 'Course').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'Course';
+const LETTERS = 'ABCDEFGH';
+
+// The hardest questions of one course as a page to print: `key` false is
+// the students' worksheet — nothing on it gives the answer away — and
+// `key` true is the same questions in the same order with the right
+// answer marked and the explanation under it. The whole question goes on
+// the page, reading passage included: a student cannot answer from half.
+// A reading passage above its question is set in plain type; the
+// question itself, the last paragraph, in bold.
+function qText(text) {
+  const { esc } = reportBits;
+  const parts = String(text || '').split('\n\n');
+  const q = parts.pop();
+  return `${parts.length ? `<div class="pt" dir="auto">${esc(parts.join('\n\n'))}</div>` : ''}<div class="qt" dir="auto">${esc(q)}</div>`;
+}
+
+export function printSheet({ course, dayLabel, list, key, spaceName = '' }) {
+  const { esc } = reportBits;
+  const items = list.map((r, i) => `
+    <section class="q">
+      <div class="qn">${i + 1}.</div>
+      <div class="qb">
+        ${key ? `<div class="meta">${esc(r.test)} · Q${r.number} · ${r.wrong} of ${r.sat} got it wrong</div>` : ''}
+        ${qText(r.question)}
+        ${r.image ? `<img class="fig" src="${esc(r.image)}" alt="">` : ''}
+        <ol class="opts">${r.options.map((o, j) => {
+          const ok = key && r.right.includes(j);
+          return `<li class="${ok ? 'ok' : ''}"><span class="b">${ok ? '&#10003;' : LETTERS[j] || j + 1}</span><span dir="auto">${esc(o)}</span></li>`;
+        }).join('')}</ol>
+        ${key ? `<div class="ans">Answer: ${r.right.map(j => LETTERS[j] || j + 1).join(' and ')}</div>` : ''}
+        ${key && r.explanation ? `<div class="ex" dir="auto">${esc(r.explanation)}</div>` : ''}
+      </div>
+    </section>`).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body { font-family: Arial, sans-serif; color: #1B1A1F; font-size: 12.5px; line-height: 1.45; margin: 0; }
+    header { border-bottom: 2px solid #1B1A1F; padding-bottom: 8px; margin-bottom: 14px; }
+    h1 { font-size: 19px; margin: 0 0 2px; }
+    .sub { color: #555; font-size: 12px; }
+    .who { display: flex; gap: 28px; margin-top: 12px; font-size: 13px; }
+    .who span { flex: 1; border-bottom: 1px solid #999; padding-bottom: 2px; }
+    .q { display: flex; gap: 8px; padding: 10px 0; border-bottom: 1px solid #E4E1E6; break-inside: avoid; page-break-inside: avoid; }
+    .qn { font-weight: 700; min-width: 24px; }
+    .qb { flex: 1; min-width: 0; }
+    .meta { color: #777; font-size: 10.5px; margin-bottom: 3px; }
+    .pt { white-space: pre-line; margin-bottom: 6px; }
+    .qt { white-space: pre-line; font-weight: 600; margin-bottom: 6px; }
+    .fig { display: block; max-width: 70%; max-height: 260px; margin: 4px 0 8px; }
+    .opts { list-style: none; margin: 0; padding: 0; }
+    .opts li { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
+    .opts .b { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1.3px solid #555; border-radius: 50%; font-size: 10px; font-weight: 700; flex: none; }
+    .opts li.ok { font-weight: 700; color: #1F7A4D; }
+    .opts li.ok .b { background: #1F7A4D; border-color: #1F7A4D; color: #fff; }
+    .ans { margin-top: 5px; font-weight: 700; color: #1F7A4D; }
+    .ex { margin-top: 3px; color: #444; font-size: 11.5px; }
+  </style></head><body>
+    <header>
+      <h1>${esc(course)} — ${key ? 'Answer key' : 'Practice: the questions most students missed'}</h1>
+      <div class="sub">${esc(spaceName ? spaceName + ' · ' : '')}${list.length} question${list.length === 1 ? '' : 's'} · from the tests sat over ${esc(dayLabel)}</div>
+      ${key ? '' : '<div class="who"><span>Name:</span><span>Group:</span><span>Score:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ ' + list.length + '</span></div>'}
+    </header>
+    ${items}
+  </body></html>`;
 }
 
 // Long reading passages are cut to the question itself for the email.
@@ -154,17 +229,22 @@ function card(r, i) {
     </tr>`;
 }
 
-export function hardEmail({ dayLabel, result }) {
+// `course`: the email for one course only. Without it, every course in
+// one email, as the trial samples show it.
+export function hardEmail({ dayLabel, result, course = null }) {
   const { esc } = reportBits;
-  const courses = byCourse(result.questions);
+  const courses = byCourse(result.questions).filter(([c]) => !course || c === course);
+  const asked = courses.reduce((n, [, l]) => n + l.length, 0);
+  const sat = course ? new Set(result.questions.filter(q => (q.course || 'Other') === course).flatMap(q => q.attemptIds || [])).size : result.attempts;
   return teacherReport({
-    eyebrow: 'Hardest questions',
-    heading: `Where students struggled`,
-    intro: `The questions most students got wrong in the tests sat over <strong>${esc(dayLabel)}</strong>, course by course. A blank answer counts as wrong.`,
+    eyebrow: course ? `Hardest questions · ${course}` : 'Hardest questions',
+    heading: course ? `Where ${course} struggled` : `Where students struggled`,
+    intro: `The questions most students got wrong in the tests sat over <strong>${esc(dayLabel)}</strong>${course ? '' : ', course by course'}. A blank answer counts as wrong.`
+      + (course ? ' Attached: a worksheet of the hardest ones to print for the students, with no answers on it, and its answer key.' : ''),
     tiles: [
-      [String(result.attempts), 'Tests sat'],
-      [String(result.questions.length), 'Questions got wrong', 'bad'],
-      [String(courses.length), courses.length === 1 ? 'Course' : 'Courses'],
+      [String(sat), 'Tests sat'],
+      [String(asked), 'Questions got wrong', 'bad'],
+      ...(course ? [[String(Math.min(TOP, courses[0]?.[1].length || 0)), 'On the worksheet']] : [[String(courses.length), courses.length === 1 ? 'Course' : 'Courses']]),
     ],
     sections: courses.map(([course, list]) => ({
       title: course,
@@ -172,11 +252,12 @@ export function hardEmail({ dayLabel, result }) {
       html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${list.slice(0, TOP).map(card).join('')}</table>`,
     })),
     button: { label: 'Open Test results in Lumen', url: SITE() + '/teacher/results' },
-    footer: 'Every question anybody got wrong is in the attached sheet — one tab per course, hardest first.<br>Sent by Lumen every morning.',
+    footer: (course ? 'Every question anybody got wrong is in the attached sheet, hardest first.' : 'Every question anybody got wrong is in the attached sheet — one tab per course, hardest first.') + '<br>Sent by Lumen every morning.',
   });
 }
 
-// One email per teacher who had any tests sat yesterday.
+// For each teacher who had tests sat over the week: one email per course,
+// to each recipient.
 export async function runHardQuestions(now = new Date(), { onlyTeacher = null, to = null, force = false } = {}) {
   // `force`: a button press. It always sends, and does not use up the morning's.
   const record = !to && !force;
@@ -208,19 +289,33 @@ export async function runHardQuestions(now = new Date(), { onlyTeacher = null, t
       const result = await hardestQuestions(teacherId, from, until);
       if (!result.questions.length) { out.push({ teacherId, questions: 0, sent: [] }); continue; }
       const recipients = to ? [{ email: to, name: 'Lumen' }] : await reportRecipients(teacherId);
-      const attachment = await sheet(result.questions, dayIso);
+      const { data: t } = await admin.from('teachers').select('display_name').eq('id', teacherId).maybeSingle();
       const sent = [];
-      for (const r of recipients) {
-        const res = await sendEmail({
-          to: r.email, toName: r.name,
-          subject: `${to ? '[TEST] ' : ''}Hardest questions — ${dayLabel}`,
-          html: hardEmail({ dayLabel, result }), attachments: [attachment],
-        });
-        sent.push({ to: r.email, sent: res.sent, files: res.files || [], error: res.error || null });
+      for (const [course, list] of byCourse(result.questions)) {
+        const slug = slugOf(course);
+        const top = list.slice(0, TOP);
+        const files = [await sheet(list, dayIso, slug)];
+        let pdfError = null;
+        for (const [withAnswers, label] of [[false, 'worksheet'], [true, 'answer-key']]) {
+          const pdf = await htmlToPdf(printSheet({ course, dayLabel, list: top, key: withAnswers, spaceName: t?.display_name || '' }));
+          if (pdf) files.push({ name: `${slug}-hardest-questions-${label}-${dayIso}.pdf`, content: pdf.toString('base64') });
+          else pdfError = pdfError || lastPdfError;
+        }
+        for (const r of recipients) {
+          const res = await sendEmail({
+            to: r.email, toName: r.name,
+            subject: `${to ? '[TEST] ' : ''}Hardest questions — ${course} — ${dayLabel}`,
+            html: hardEmail({ dayLabel, result, course }), attachments: files,
+            // The worksheet and the key are the PDFs; a third, of the
+            // email itself, would only be in the way of printing.
+            pdf: false,
+          });
+          sent.push({ to: r.email, course, sent: res.sent, files: res.files || [], error: res.error || null, ...(pdfError ? { pdfError } : {}) });
+        }
       }
       if (!to) {
         if (record && !sent.some(s => s.sent)) await admin.from('notify_log').delete().eq('key', key);
-        else if (sent.some(s => s.sent)) await logActivity(teacherId, null, 'hard_questions_sent', `${dayLabel} → ${sent.filter(s => s.sent).map(s => s.to).join(', ')}`);
+        else if (sent.some(s => s.sent)) await logActivity(teacherId, null, 'hard_questions_sent', `${dayLabel} · ${[...new Set(sent.filter(s => s.sent).map(s => s.course))].join(', ')} → ${[...new Set(sent.filter(s => s.sent).map(s => s.to))].join(', ')}`);
       }
       out.push({ teacherId, questions: result.questions.length, attempts: result.attempts, sent });
     } catch (err) {
