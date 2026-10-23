@@ -122,6 +122,11 @@
     .opt, .paper-q { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .print-head { display: none; margin-bottom: 18px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9999px; padding: 3px; gap: 2px; background: var(--surface, #fff); }
+  .seg-btn { border: 0; background: transparent; padding: 6px 14px; border-radius: 9999px; font: inherit; font-size: .82rem; font-weight: 600; color: var(--text-2, #555); cursor: pointer; }
+  .seg-btn.on { background: var(--primary); color: #fff; }
+  #print-btn { display: inline-flex; align-items: center; gap: 6px; }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 5px 7px; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -143,7 +148,7 @@
     </div>
     <div class="topbar-right" id="paper-actions" style="display:none">
       <button class="btn btn-outline btn-sm" onclick="closePaper()">← All results</button>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">Print this paper</button>
+      <button class="btn btn-primary btn-sm" onclick="printPaper()" id="print-btn" title="Print what is shown below"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span id="print-label">Print wrong answers</span></button>
     </div>
   </header>
 
@@ -220,6 +225,13 @@
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px" id="p-badges"></div>
         </div>
+      </div>
+
+      <!-- Which questions: what they got wrong (and left blank), or the
+           whole paper. Printing prints whichever is showing. -->
+      <div class="seg no-print mb16" role="tablist" id="p-filter">
+        <button class="seg-btn on" data-f="wrong" onclick="setPaperFilter('wrong')">Wrong only</button>
+        <button class="seg-btn" data-f="all" onclick="setPaperFilter('all')">All questions</button>
       </div>
 
       <div id="p-questions"></div>
@@ -380,6 +392,7 @@ function render() {
         <td class="small muted">${fmtDateTime(a.completed_at)}</td>
         <td style="text-align:right;white-space:nowrap">
           <button class="btn btn-outline btn-xs" onclick="openPaper('${a.id}')">See the paper</button>
+          <button class="btn btn-ghost btn-xs icon-btn" onclick="openPaper('${a.id}', { print: true })" title="Print the questions ${escHtml(a.student_name)} got wrong" aria-label="Print the questions they got wrong"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
         </td>
       </tr>`;
     }).join('');
@@ -459,7 +472,48 @@ function isRight(q, given) {
 }
 
 // ── One paper ─────────────────────────────────────────────────────
-async function openPaper(attemptId) {
+// A paper opens on what the student got wrong — a blank counts as wrong —
+// because that is what a teacher goes over with them; the whole paper is
+// one tap away. Each question keeps its number from the test, so "13"
+// on the printout is question 13 on the paper they sat.
+let paperFilter = 'wrong';
+let paperQuestions = [];
+
+function setPaperFilter(f) {
+  paperFilter = f;
+  document.querySelectorAll('#p-filter .seg-btn').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  drawPaperQuestions();
+}
+
+function drawPaperQuestions() {
+  const a = openAttempt;
+  if (!a) return;
+  const answers = a.answers || {};
+  const all = paperQuestions.map((q, i) => ({ q, i }));
+  const wrong = all.filter(({ q }) => !isRight(q, answers[q.id]));
+  const shown = paperFilter === 'wrong' ? wrong : all;
+
+  document.querySelector('#p-filter [data-f="wrong"]').textContent = `Wrong only (${wrong.length})`;
+  document.querySelector('#p-filter [data-f="all"]').textContent = `All questions (${all.length})`;
+  document.getElementById('print-label').textContent = paperFilter === 'wrong' ? 'Print wrong answers' : 'Print whole paper';
+  document.getElementById('pr-sub').textContent = `${mark(a)} · finished ${fmtDateTime(a.completed_at)}`
+    + (paperFilter === 'wrong' ? ` · the ${wrong.length} question${wrong.length === 1 ? '' : 's'} they got wrong` : '');
+
+  document.getElementById('p-questions').innerHTML = !paperQuestions.length
+    ? '<div class="card"><div class="card-body"><p class="small muted">This test’s questions have been deleted, so the paper cannot be shown.</p></div></div>'
+    : !shown.length
+      ? `<div class="card"><div class="card-body">${emptyState('Nothing wrong', 'They got every question on this paper right.')}</div></div>`
+      : shown.map(({ q, i }) => drawQuestion(q, i, answers[q.id])).join('');
+}
+
+// Printing waits for the pictures on the paper, or they print as gaps.
+async function printPaper() {
+  const imgs = [...document.querySelectorAll('#p-questions img')];
+  await Promise.all(imgs.map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
+  window.print();
+}
+
+async function openPaper(attemptId, { print = false } = {}) {
   const a = attempts.find(x => x.id === attemptId);
   if (!a) return;
   openAttempt = a;
@@ -472,10 +526,9 @@ async function openPaper(attemptId) {
   document.getElementById('p-pct').textContent = mark(a);
   document.getElementById('p-score').textContent = a.passed ? 'Passed' : 'Not passed';
 
-  // The same two lines, for the top of the printed sheet.
+  // The same two lines, for the top of the printed sheet (the second is
+  // written with the questions, since it says which ones are printed).
   document.getElementById('pr-title').textContent = `${a.student_name} — ${a.test?.title || 'Test'}`;
-  document.getElementById('pr-sub').textContent =
-    `${mark(a)} · finished ${fmtDateTime(a.completed_at)}`;
 
   const wrong = questions.filter(q => !isRight(q, answers[q.id])).length;
   const blank = questions.filter(q => !givenIndexes(answers[q.id]).length).length;
@@ -488,14 +541,15 @@ async function openPaper(attemptId) {
     `<span class="small muted">Finished ${fmtDateTime(a.completed_at)}</span>`,
   ].filter(Boolean).join('');
 
-  document.getElementById('p-questions').innerHTML = questions.length
-    ? questions.map((q, i) => drawQuestion(q, i, answers[q.id])).join('')
-    : '<div class="card"><div class="card-body"><p class="small muted">This test’s questions have been deleted, so the paper cannot be shown.</p></div></div>';
+  paperQuestions = questions;
+  paperFilter = 'wrong';
+  setPaperFilter('wrong');
 
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('paper-view').style.display = 'block';
   document.getElementById('paper-actions').style.display = 'flex';
   window.scrollTo(0, 0);
+  if (print) printPaper();
 }
 
 function drawQuestion(q, i, given) {

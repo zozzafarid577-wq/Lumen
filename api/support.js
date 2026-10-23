@@ -69,6 +69,16 @@ export default handler(async (req, res) => {
       ],
     });
   }
+  // A trial of the parents digest, marked [TEST], to Lumen's inbox or
+  // to one address the teacher names (it goes to staff, never parents).
+  if (body.flow === 'parent-digest-test') {
+    if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
+    const asked = String(body.to || '').trim().toLowerCase();
+    if (asked && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(asked)) throw new HttpError(400, 'That does not look like an email address.');
+    const { runParentDigest } = await import('./_lib/parent-digest.js');
+    const inbox = asked || (process.env.SUPPORT_EMAIL || '').trim() || FALLBACK_INBOX;
+    return res.status(200).json(await runParentDigest(new Date(), { onlyTeacher: profile.teacher_id, to: inbox }));
+  }
   // A trial of the hardest-questions emails, marked [TEST], to Lumen's
   // inbox — or to one address the teacher names. They hold questions and
   // counts, no student's name, so a trial can go to any inbox.

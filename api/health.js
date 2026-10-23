@@ -45,14 +45,20 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Not allowed.' });
     }
     try {
-      // The morning run: group reports for tomorrow's groups, then
-      // yesterday's hardest questions. One schedule for both.
+      // The morning run: group reports for tomorrow's groups, the week's
+      // hardest questions, and yesterday's results sent to parents. One
+      // schedule for all three; one failing does not stop the others.
       if (req.query.task === 'morning') {
         const { runGroupReports } = await import('./_lib/group-report.js');
         const { runHardQuestions } = await import('./_lib/hard-questions.js');
-        const groups = await runGroupReports();
-        const hard = await runHardQuestions();
-        return res.status(200).json({ ok: true, groups, hard: { day: hard.day, teachers: hard.teachers.length } });
+        const { runParentDigest } = await import('./_lib/parent-digest.js');
+        const step = async (name, fn) => { try { return await fn(); } catch (err) { console.error(`morning ${name} failed:`, err); return { error: err.message }; } };
+        const groups = await step('group reports', () => runGroupReports());
+        const hard = await step('hardest questions', () => runHardQuestions());
+        const parents = await step('parent digest', () => runParentDigest());
+        return res.status(200).json({ ok: true, groups,
+          hard: hard.error ? hard : { day: hard.day, teachers: hard.teachers.length },
+          parents: parents.error ? parents : { day: parents.day, teachers: parents.teachers.length } });
       }
       if (req.query.task === 'hard-questions') {
         const { runHardQuestions } = await import('./_lib/hard-questions.js');
