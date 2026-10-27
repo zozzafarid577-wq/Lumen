@@ -410,11 +410,37 @@ async function deleteCourse() {
   const c = courses.find(x => x.id === currentCourseId);
   if (!c) return;
   if (!confirm(`Delete "${c.title}"? Its units, lessons, tests and every result on them go too. This cannot be undone.`)) return;
+  const files = units.flatMap(u => u.lessons.flatMap(l => l.lesson_materials || []));
   const { error } = await sb.from('courses').delete().eq('id', c.id);
   if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  await removeLessonFiles(files);
   currentCourseId = null;
   showToast('Course deleted.', 'success');
   await loadCourses();
+}
+
+// A copy for a new batch: the units, lessons, PDFs and worksheets, and
+// every test with its questions and pictures. No students, groups, marks
+// or recordings. Its units start not ready, so students see nothing of
+// it until each unit is released (api/_lib/course-copy.js does the work).
+async function copyCourse() {
+  const c = courses.find(x => x.id === currentCourseId);
+  if (!c) return;
+  const title = prompt(`Name the copy of "${c.title}".\n\nIt gets every unit, lesson, PDF and test — no students, marks or recordings. Its units start hidden from students.`, `${c.title} — new batch`);
+  if (title == null) return;
+  const btn = document.getElementById('copy-course-btn');
+  btn.disabled = true; btn.textContent = 'Copying…';
+  try {
+    const out = await apiPost('/api/support', { flow: 'course-copy', course_id: c.id, title: title.trim() });
+    const bits = [`${out.units} units`, `${out.lessons} lessons`, `${out.files + out.links} PDFs and links`, `${out.tests} tests`, `${out.questions} questions`];
+    showToast(`Copied: ${bits.join(', ')}.${out.failed.length ? ` ${out.failed.length} file${out.failed.length === 1 ? '' : 's'} could not be copied.` : ''}`, out.failed.length ? 'error' : 'success');
+    if (out.failed.length) console.warn('not copied:', out.failed);
+    await loadCourses(out.course_id);
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Copy for a new batch';
+  }
 }
 
 // ── Units and lessons ─────────────────────────────────────────────
@@ -456,6 +482,7 @@ async function loadUnits() {
         </div>
         <div class="row">
           <button class="btn btn-outline btn-sm" onclick="editCourse('${course.id}')">Edit course</button>
+          <button class="btn btn-outline btn-sm" onclick="copyCourse()" id="copy-course-btn" title="A copy for a new batch: units, lessons, PDFs and tests — no students, marks or recordings">Copy for a new batch</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCourse()">Delete</button>
           <button class="btn btn-primary btn-sm" onclick="editUnit()">Add unit</button>
         </div>
@@ -683,17 +710,25 @@ function clearPickedFile() {
   document.getElementById('lm-file-name').textContent = '…or upload a file';
 }
 
-// A file goes into the space's own folder of the private lesson-media
-// bucket, under the lesson, with a time stamp so two files called
-// "worksheet.pdf" do not overwrite each other. The name in the path is
-// kept to safe characters; the title keeps the name as the teacher wrote it.
+// A file goes to Cloudflare R2, into the space's own folder, under the
+// lesson, with a time stamp so two files called "worksheet.pdf" do not
+// overwrite each other. The server names the key and hands back a link
+// that takes one upload; the browser sends the file straight to R2.
+// Returns what the material row stores: "r2:<key>".
 async function uploadLessonFile(lesson, f) {
-  const safe = f.name.replace(/[^\w.\-]+/g, '-').replace(/-+/g, '-').slice(-80) || 'file';
-  const path = `${me.teacher_id}/lessons/${lesson.id}/${Date.now()}-${safe}`;
-  const { error } = await sb.storage.from('lesson-media').upload(path, f, { contentType: f.type || undefined });
-  if (error) throw new Error(/exceeded|too large|413/i.test(error.message)
-    ? `That file is too big. Files can be up to ${LESSON_FILE_MAX_MB} MB.` : friendlyError(error.message));
-  return path;
+  const link = await apiPost('/api/support', { flow: 'file-upload', lesson_id: lesson.id, name: f.name, size: f.size, type: f.type });
+  if (!link.r2) {
+    // R2 is not switched on yet: Supabase storage, as before.
+    const safe = f.name.replace(/[^\w.\-]+/g, '-').replace(/-+/g, '-').slice(-80) || 'file';
+    const path = `${me.teacher_id}/lessons/${lesson.id}/${Date.now()}-${safe}`;
+    const { error } = await sb.storage.from('lesson-media').upload(path, f, { contentType: f.type || undefined });
+    if (error) throw new Error(/exceeded|too large|413/i.test(error.message)
+      ? `That file is too big. Files can be up to ${LESSON_FILE_MAX_MB} MB.` : friendlyError(error.message));
+    return LESSON_FILE + path;
+  }
+  const res = await fetch(link.url, { method: 'PUT', body: f, headers: f.type ? { 'Content-Type': f.type } : {} });
+  if (!res.ok) throw new Error('The upload did not go through. Check your connection and try again.');
+  return link.file_url;
 }
 
 // A link typed or a file picked but not attached yet.
@@ -721,8 +756,8 @@ async function addMaterial() {
   try {
     let row;
     if (f) {
-      const path = await uploadLessonFile(l, f);
-      row = { file_url: LESSON_FILE + path, file_size: f.size,
+      const fileUrl = await uploadLessonFile(l, f);
+      row = { file_url: fileUrl, file_size: f.size,
         kind: /\.pdf$/i.test(f.name) ? 'pdf' : /^(video|audio)\//.test(f.type) ? 'recording' : 'sheet' };
     } else {
       row = { file_url: url, kind: /\.pdf($|\?)/i.test(url) ? 'pdf' : 'link' };
@@ -732,7 +767,7 @@ async function addMaterial() {
     }).select().single();
     if (error) {
       // The row is what students see; without it the upload is litter.
-      if (f) await sb.storage.from('lesson-media').remove([row.file_url.slice(LESSON_FILE.length)]);
+      if (f) await removeLessonFiles([row]);
       throw new Error(friendlyError(error.message));
     }
     l.lesson_materials = [...(l.lesson_materials || []), data];
@@ -752,10 +787,15 @@ async function addMaterial() {
   }
 }
 
-// Removing an uploaded material removes the file too.
+// Removing an uploaded material removes the file too, wherever it lives.
+// Best effort: a file left behind costs a few kilobytes, an error here
+// must not undo the removal the teacher asked for.
 async function removeLessonFiles(materials) {
-  const paths = materials.filter(m => isLessonFile(m.file_url)).map(m => m.file_url.slice(LESSON_FILE.length));
-  if (paths.length) await sb.storage.from('lesson-media').remove(paths);
+  const files = materials.filter(m => isLessonFile(m.file_url));
+  const r2 = files.filter(m => m.file_url.startsWith(R2_FILE)).map(m => lessonFileKey(m.file_url));
+  const old = files.filter(m => !m.file_url.startsWith(R2_FILE)).map(m => lessonFileKey(m.file_url));
+  try { if (r2.length) await apiPost('/api/support', { flow: 'file-delete', keys: r2 }); } catch (err) { console.warn('file not removed:', err); }
+  try { if (old.length) await sb.storage.from('lesson-media').remove(old); } catch (err) { console.warn('file not removed:', err); }
 }
 
 async function removeMaterial(id) {

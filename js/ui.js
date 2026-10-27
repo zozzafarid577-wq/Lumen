@@ -856,17 +856,23 @@ function makeSettingsTabs() {
 }
 
 // ── Files uploaded to a lesson ────────────────────────────────────
-// A material is either a link or a file uploaded to the space's private
-// `lesson-media` bucket. An uploaded one is stored as "lumen-file:<path>",
-// where the path starts with the teacher's id (the bucket's policies make
-// that folder the space's boundary). The bucket is private: the file page
-// signs it into a link that works for an hour, so a student cannot pass
-// on a permanent link to it.
+// A material is either a link or an uploaded file. Uploaded files live
+// on Cloudflare R2, stored as "r2:<key>" (older ones, until they are
+// moved, in Supabase storage as "lumen-file:<path>"). Either way the key
+// starts with the teacher's id, the bucket is private, and the file page
+// asks the server for a link that works for an hour — a student cannot
+// pass on a permanent link to it.
 const LESSON_FILE = 'lumen-file:';
+const R2_FILE = 'r2:';
 const LESSON_FILE_MAX_MB = 50;
 
 function isLessonFile(url) {
-  return typeof url === 'string' && url.startsWith(LESSON_FILE);
+  return typeof url === 'string' && (url.startsWith(R2_FILE) || url.startsWith(LESSON_FILE));
+}
+
+// The storage key of an uploaded file, without its "r2:" or "lumen-file:".
+function lessonFileKey(url) {
+  return String(url).startsWith(R2_FILE) ? url.slice(R2_FILE.length) : String(url).slice(LESSON_FILE.length);
 }
 
 // Where a material opens: a link goes where it points; an uploaded file

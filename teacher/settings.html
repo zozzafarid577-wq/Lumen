@@ -551,18 +551,28 @@ async function uploadLogo(input) {
   input.value = '';
   if (!f) return;
   if (f.size > 2 * 1024 * 1024) { say('lk-alert', 'That image is over 2 MB. Try a smaller one.'); return; }
-  const ext = (f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const path = `${me.teacher_id}/logo-${Date.now()}.${ext}`;
+  // The logo goes to Cloudflare R2's public bucket: every student of the
+  // space sees it, so it needs no signed link.
   document.getElementById('lk-logo-note').textContent = 'Uploading…';
-  const { error } = await sb.storage.from('branding').upload(path, f, { upsert: true, contentType: f.type });
-  if (error) {
+  try {
+    const link = await apiPost('/api/support', { flow: 'picture-upload', purpose: 'branding', name: f.name, size: f.size, type: f.type });
+    if (link.r2) {
+      const res = await fetch(link.url, { method: 'PUT', body: f, headers: { 'Content-Type': f.type } });
+      if (!res.ok) throw new Error('The upload did not go through. Check your connection and try again.');
+      look.logo_url = link.public_url;
+    } else {
+      // R2 is not switched on yet: the Supabase bucket, as before.
+      const ext = (f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const path = `${me.teacher_id}/logo-${Date.now()}.${ext}`;
+      const { error } = await sb.storage.from('branding').upload(path, f, { upsert: true, contentType: f.type });
+      if (error) throw new Error(friendlyError(error.message));
+      look.logo_url = sb.storage.from('branding').getPublicUrl(path).data.publicUrl;
+    }
+  } catch (err) {
     document.getElementById('lk-logo-note').textContent = '';
-    say('lk-alert', /policy|row-level|security/i.test(error.message)
-      ? 'Uploading a logo needs the v19 database update. Run supabase-migration-v19.sql in Supabase.'
-      : friendlyError(error.message));
+    say('lk-alert', err.message);
     return;
   }
-  look.logo_url = sb.storage.from('branding').getPublicUrl(path).data.publicUrl;
   document.getElementById('lk-own').checked = true;
   document.getElementById('lk-logo-note').textContent = 'Uploaded — press Save look to use it.';
   say('lk-alert', '');

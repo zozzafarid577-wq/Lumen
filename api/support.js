@@ -33,6 +33,19 @@ export default handler(async (req, res) => {
   // Phone pop-ups ride on this function: the plan allows twelve, and
   // "tell someone something" is close enough to what this one does.
   if (body.flow === 'push') return runPush(req, res, profile);
+  // Files on Cloudflare R2 (api/_lib/files.js) and copying a course for a
+  // new batch (api/_lib/course-copy.js). Each checks its own permissions.
+  if (body.flow === 'file-upload') return res.status(200).json(await (await import('./_lib/files.js')).lessonUploadLink(profile, body));
+  if (body.flow === 'file-view') return res.status(200).json(await (await import('./_lib/files.js')).lessonViewLink(req, profile, body));
+  if (body.flow === 'file-delete') return res.status(200).json(await (await import('./_lib/files.js')).deleteLessonFiles(profile, body));
+  if (body.flow === 'picture-upload') return res.status(200).json(await (await import('./_lib/files.js')).publicUploadLink(profile, body));
+  if (body.flow === 'files-to-r2') return res.status(200).json(await (await import('./_lib/files.js')).moveFilesToR2(profile, body));
+  if (body.flow === 'files-left') {
+    if (!['teacher', 'owner'].includes(profile.role)) throw new HttpError(403, 'Only the teacher can do that.');
+    const F = await import('./_lib/files.js');
+    return res.status(200).json(await F.filesLeftOffR2(profile.role === 'owner' ? String(body.teacher_id || '') : profile.teacher_id));
+  }
+  if (body.flow === 'course-copy') return res.status(200).json(await (await import('./_lib/course-copy.js')).copyCourse(profile, body));
   // The group report, now, to the teacher — from the Groups list.
   if (body.flow === 'group-report-send') {
     if (!['teacher', 'assistant'].includes(profile.role)) throw new HttpError(403, 'You do not have access to do that.');

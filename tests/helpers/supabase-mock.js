@@ -100,6 +100,7 @@ class QueryBuilder {
   gte(col, val) { this.call.filters['gte:' + col] = val; return this; }
   lt(col, val)  { this.call.filters['lt:' + col] = val; return this; }
   lte(col, val) { this.call.filters['lte:' + col] = val; return this; }
+  like(col, val) { this.call.filters['like:' + col] = val; return this; }
   order() { return this; }
   limit(n) { this.call.limit = n; return this; }
   range() { return this; }

@@ -124,18 +124,29 @@ function fail(title, detail) {
   document.title = `${m.title} | Lumen`;
   if (!isLessonFile(m.file_url)) { location.replace(m.file_url); return; }
 
-  const path = m.file_url.slice(LESSON_FILE.length);
+  // Two links that work for an hour: one to show the file, one that
+  // downloads it under its title. Files on Cloudflare R2 are signed by
+  // the server; older ones still in Supabase storage, by Supabase.
+  const path = lessonFileKey(m.file_url);
   const ext = (path.split('.').pop() || '').toLowerCase();
-  const name = m.title + (ext && !m.title.toLowerCase().endsWith('.' + ext) ? '.' + ext : '');
-  const [view, save] = await Promise.all([
-    sb.storage.from('lesson-media').createSignedUrl(path, 3600),
-    sb.storage.from('lesson-media').createSignedUrl(path, 3600, { download: name }),
-  ]);
-  if (view.error || !view.data?.signedUrl) { fail('We could not open this file.', 'Try again in a moment. If it keeps happening, let your teacher know.'); return; }
-  const url = view.data.signedUrl;
-  if (save.data?.signedUrl) {
+  let url = null, downloadUrl = null;
+  if (m.file_url.startsWith(R2_FILE)) {
+    try {
+      const out = await apiPost('/api/support', { flow: 'file-view', material_id: m.id });
+      url = out.url; downloadUrl = out.download;
+    } catch (_) { /* told below */ }
+  } else {
+    const name = m.title + (ext && !m.title.toLowerCase().endsWith('.' + ext) ? '.' + ext : '');
+    const [view, save] = await Promise.all([
+      sb.storage.from('lesson-media').createSignedUrl(path, 3600),
+      sb.storage.from('lesson-media').createSignedUrl(path, 3600, { download: name }),
+    ]);
+    url = view.data?.signedUrl || null; downloadUrl = save.data?.signedUrl || null;
+  }
+  if (!url) { fail('We could not open this file.', 'Try again in a moment. If it keeps happening, let your teacher know.'); return; }
+  if (downloadUrl) {
     const dl = document.getElementById('f-download');
-    dl.href = save.data.signedUrl;
+    dl.href = downloadUrl;
     dl.style.display = '';
   }
 
@@ -153,7 +164,7 @@ function fail(title, detail) {
   } catch (err) {
     console.error('file view failed:', err);
     fail('We could not show this file.', 'Use Download to open it on your device instead.');
-    document.getElementById('f-download').style.display = save.data?.signedUrl ? '' : 'none';
+    document.getElementById('f-download').style.display = downloadUrl ? '' : 'none';
   }
 })();
 
