@@ -103,7 +103,7 @@
   .c4 { background: linear-gradient(135deg, #D2456C, #EE7294); }
   .c5 { background: linear-gradient(135deg, #6C5CE7, #9B8CFF); }
   .pick-bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 22px; flex-wrap: wrap; }
-  .count-pills { display: flex; gap: 8px; }
+  .count-pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .count-pills button { border: 1.5px solid var(--border); background: var(--card); color: var(--text); border-radius: 9999px;
     padding: 8px 15px; cursor: pointer; font: inherit; font-weight: 700; }
   .count-pills button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
@@ -329,24 +329,54 @@ function chooseSection(i) {
   drawReady(o.count);
 }
 
-function drawReady(available) {
-  const sizes = [10, 20, 30].filter((n, i) => i === 0 || n <= available);
+function selection() {
+  return { module_id: pick.unit.id, lesson_ids: pick.lessons, section_ids: pick.sections };
+}
+
+// How many they have not done yet, asked of the server: answered
+// questions are not served again, so that is what a round draws from.
+async function drawReady(available) {
+  stage(`${steps(3)}<div class="skel" style="height:220px"></div>`);
+  let total = available, left = available;
+  try { ({ total, left } = await apiPost('/api/practice', { action: 'left', ...selection() })); } catch (_) {}
+  if (!left && total) { drawAllDone(total); return; }
+
+  // Up to every one that is left, in one round if they like.
+  const sizes = [10, 20, 30, 50, 100].filter(n => n < left);
+  sizes.push(Math.min(left, 300));
   if (!sizes.includes(pick.count)) pick.count = sizes[0];
+  const label = (n) => n === left && sizes.length > 1 ? `All ${n}` : String(n);
   stage(`${steps(3)}
     <div class="card"><div class="card-body" style="text-align:center;padding:36px 24px">
       <div class="pick-h">Ready?</div>
-      <div class="pick-sub">${escHtml(pick.unit.title)} · ${plural(pick.lessons.length || 1, 'lesson')} · ${plural(available, 'question')} to draw from</div>
+      <div class="pick-sub">${escHtml(pick.unit.title)} · ${plural(pick.lessons.length || 1, 'lesson')} ·
+        ${left === total ? plural(total, 'question') + ' to draw from'
+          : `${plural(left, 'new question')} left · you have done ${total - left} of ${total}`}</div>
       <div class="row" style="justify-content:center;margin-bottom:22px">
         <span class="small muted" style="margin-right:6px">How many?</span>
-        <div class="count-pills">${sizes.map(n => `<button class="${n === pick.count ? 'on' : ''}" onclick="pick.count=${n};drawReady(${available})">${n}</button>`).join('')}</div>
+        <div class="count-pills">${sizes.map((n, i) => `<button class="${n === pick.count ? 'on' : ''}" onclick="pick.count=${n};this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${label(n)}</button>`).join('')}</div>
       </div>
       <button class="btn btn-primary btn-lg" onclick="start()">Start practising</button>
       <div style="margin-top:14px"><button class="linkish" onclick="openChooser()">Start over</button></div>
     </div></div>`);
 }
 
+// Every question in this choice answered at least once.
+function drawAllDone(total) {
+  document.getElementById('dots').innerHTML = '';
+  stage(`
+    <div class="card"><div class="card-body" style="text-align:center;padding:40px 24px">
+      <div class="pick-h">You have done all ${plural(total, 'question')} here</div>
+      <div class="pick-sub">Well done! Choose another unit or lesson, or go through these again from the start.</div>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <button class="btn btn-primary btn-sm" onclick="start({ reset: true })">Start them again</button>
+        ${menuData ? '<button class="btn btn-outline btn-sm" onclick="openChooser()">Choose something else</button>' : ''}
+      </div>
+    </div></div>`);
+}
+
 // ── The questions ─────────────────────────────────────────────────
-async function start() {
+async function start({ reset = false } = {}) {
   at = 0; results = []; chosen = []; marked = false;
   stage('<div class="skel" style="height:220px"></div>');
 
@@ -357,6 +387,7 @@ async function start() {
       lesson_ids: pick.lessons,
       section_ids: pick.sections,
       count: pick.count,
+      reset,
     });
   } catch (err) {
     stage(`<div class="card"><div class="card-body">${emptyState('Practice is not available', err.message,
@@ -366,9 +397,10 @@ async function start() {
 
   questions = data.questions || [];
   document.getElementById('head').textContent = data.unit?.title
-    ? data.unit.title + ' · nothing here is marked or recorded'
-    : 'Nothing here is marked or recorded';
+    ? data.unit.title + ' · nothing here is marked'
+    : 'Nothing here is marked';
 
+  if (!questions.length && data.total) { drawAllDone(data.total); return; }
   if (!questions.length) {
     stage(`<div class="card"><div class="card-body">${emptyState('No practice questions here yet',
       'Try another lesson or section.',
@@ -546,7 +578,7 @@ function finish() {
     <div class="card"><div class="card-body" style="text-align:center;padding:40px 24px">
       <div class="result-pct" style="color:var(--${good ? 'success' : 'danger'})">${right}/${questions.length}</div>
       <p style="margin-top:12px;font-weight:600">${good ? 'Nice work!' : 'Keep going — practice makes it stick.'}</p>
-      <p class="small muted" style="margin-top:6px">Practice is never recorded — this is just for you.</p>
+      <p class="small muted" style="margin-top:6px">Practice is never marked — this is just for you. Next time you will get new questions.</p>
       <div class="row" style="justify-content:center;margin-top:22px">
         <button class="btn btn-primary btn-sm" onclick="start()">Practise again</button>
         ${pick.unit && menuData ? '<button class="btn btn-outline btn-sm" onclick="openChooser()">Choose something else</button>' : ''}

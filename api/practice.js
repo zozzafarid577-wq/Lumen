@@ -14,7 +14,9 @@ import { handler, HttpError, authenticate, requireRoles } from './_lib/auth.js';
 // It sends question text and option text with `correct` stripped off, and
 // marks one answer at a time on the server. Nothing it returns is written
 // to test_attempts — practice is not a mark, and a student can do as much
-// of it as they like without it counting for or against them.
+// of it as they like without it counting for or against them. What is
+// kept is which questions they have answered (practice_seen, migration
+// v20), so the next round brings new ones instead of the same again.
 //
 // What a student may practise is exactly what they may already see: a
 // question filed under a unit of a course they are enrolled on, where the
@@ -22,7 +24,8 @@ import { handler, HttpError, authenticate, requireRoles } from './_lib/auth.js';
 // a course they are not on, is not served — not filtered in the browser,
 // but never sent.
 
-const MAX_QUESTIONS = 30;
+// "All of them" is allowed, up to this many in one round.
+const MAX_QUESTIONS = 300;
 
 export default handler(async (req, res) => {
   const { profile } = await authenticate(req);
@@ -36,6 +39,7 @@ export default handler(async (req, res) => {
   if (body.action === 'check') return check(req, res, profile, body);
   if (body.action === 'available') return available(req, res, profile, body);
   if (body.action === 'menu') return menu(req, res, profile, body);
+  if (body.action === 'left') return left(req, res, profile, body);
   return serve(req, res, profile, body);
 });
 
@@ -135,7 +139,8 @@ async function menu(req, res, profile, body) {
 
 // ── Handing out questions ─────────────────────────────────────────
 
-async function serve(req, res, profile, body) {
+// The questions one choice of unit, lessons and sections draws from.
+async function poolFor(profile, body) {
   const unit = await openUnitFor(profile, body.module_id);
 
   // Lessons narrow it further — one, or several picked together — for
@@ -155,10 +160,32 @@ async function serve(req, res, profile, body) {
     { full: true, lessons: real, loose: wantLoose, sections: sectionIds })).filter(r =>
     (!lessonIds.length || (r.lesson_id ? real.includes(r.lesson_id) : wantLoose))
     && (!sectionIds.length || sectionIds.includes(r.section_id)));
-  const rows = shuffle(pool).slice(0, clampCount(body.count));
+  return { unit, pool };
+}
+
+// How many of that choice the student has not answered yet.
+async function left(req, res, profile, body) {
+  const { pool } = await poolFor(profile, body);
+  const seen = await seenKeys(profile);
+  return res.status(200).json({ total: pool.length, left: seen ? pool.filter(r => !seen.has(r.id)).length : pool.length });
+}
+
+async function serve(req, res, profile, body) {
+  const { unit, pool } = await poolFor(profile, body);
+
+  // "Start them again": forget this choice's questions, and only these.
+  if (body.reset && profile.role === 'student') await forget(profile, pool.map(r => r.id));
+
+  // Questions they have answered before are left out. Without migration
+  // v20 nothing is remembered and every round draws from everything.
+  const seen = await seenKeys(profile);
+  const fresh = seen ? pool.filter(r => !seen.has(r.id)) : pool;
+  const rows = shuffle(fresh).slice(0, clampCount(body.count));
 
   return res.status(200).json({
     unit: { id: unit.id, title: unit.title },
+    total: pool.length,
+    left: fresh.length,
     questions: rows.map(r => ({
       id: r.id,
       question_text: r.question_text,
@@ -175,6 +202,36 @@ async function serve(req, res, profile, body) {
   });
 }
 
+// ── What a student has already answered ───────────────────────────
+// Students only: a teacher looking through "View as student" leaves no
+// trace. null means the table is not there yet (migration v20).
+async function seenKeys(profile) {
+  if (profile.role !== 'student') return new Set();
+  const out = new Set();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from('practice_seen').select('question_key')
+      .eq('student_id', profile.id).order('question_key').range(from, from + PAGE - 1);
+    if (error) return null;
+    (data || []).forEach(r => out.add(r.question_key));
+    if (!data || data.length < PAGE) return out;
+  }
+}
+
+async function remember(profile, key) {
+  if (profile.role !== 'student') return;
+  const { error } = await admin.from('practice_seen')
+    .upsert({ student_id: profile.id, teacher_id: profile.teacher_id, question_key: key },
+      { onConflict: 'student_id,question_key', ignoreDuplicates: true });
+  if (error) console.warn('practice_seen not written:', error.message);
+}
+
+async function forget(profile, keys) {
+  for (let i = 0; i < keys.length; i += 200) {
+    await admin.from('practice_seen').delete()
+      .eq('student_id', profile.id).in('question_key', keys.slice(i, i + 200));
+  }
+}
+
 // ── Marking one answer ────────────────────────────────────────────
 
 async function check(req, res, profile, body) {
@@ -188,6 +245,9 @@ async function check(req, res, profile, body) {
   // All of them and nothing else — the same rule the marked tests use, so
   // practice does not teach a student a gentler one.
   const correct = chosen.length === right.length && right.every(i => chosen.includes(i));
+
+  // Answered, right or wrong: not served to them again.
+  await remember(profile, String(body.question_id));
 
   return res.status(200).json({ correct, right, explanation: row.explanation || null });
 }
