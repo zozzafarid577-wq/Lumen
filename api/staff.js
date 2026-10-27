@@ -7,7 +7,7 @@ import { cleanEmail, cleanName, cleanText, generatePassword, findUserByEmail } f
 // Only the teacher themselves (or Lumen staff acting for them) may do any
 // of this: an assistant who could create assistants could grant themselves
 // every permission their teacher withheld.
-const VALID_PERMS = ['students', 'courses', 'questions', 'tests', 'assignments', 'announcements', 'reports'];
+const VALID_PERMS = ['students', 'courses', 'questions', 'tests', 'assignments', 'announcements', 'reports', 'emails'];
 
 function cleanPerms(perms) {
   if (!Array.isArray(perms)) return [];

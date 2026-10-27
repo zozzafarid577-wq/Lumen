@@ -123,9 +123,9 @@ function mergeRecipients(...lists) {
 
 // Where a teacher's emails go: the address list set once under Students →
 // Groups (kept on every group row; every row is read, not just one), or
-// the teacher account when none is set — and always every active
-// assistant on the Team page as well, so whatever the teacher gets, they
-// get too.
+// the teacher account when none is set — and every active assistant
+// ticked for "Emails" on the Team page, so whatever the teacher gets,
+// they get too.
 export async function reportRecipients(teacherId) {
   const { data: g } = await admin.from('groups').select('teacher_name, teacher_email')
     .eq('teacher_id', teacherId).not('teacher_email', 'is', null);
@@ -136,7 +136,8 @@ export async function reportRecipients(teacherId) {
 
 async function assistantRecipients(teacherId) {
   const { data } = await admin.from('profiles').select('full_name, email')
-    .eq('teacher_id', teacherId).eq('role', 'assistant').eq('is_active', true);
+    .eq('teacher_id', teacherId).eq('role', 'assistant').eq('is_active', true)
+    .contains('staff_perms', ['emails']);
   return (data || []).filter(p => p.email).map(p => ({ email: p.email.trim(), name: p.full_name }));
 }
 

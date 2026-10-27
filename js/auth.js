@@ -353,7 +353,7 @@ const ROLE_LABEL = {
 // A teacher has every permission on their own space. An assistant has
 // only the keys in profiles.staff_perms.
 const STAFF_PERMS = [
-  'students', 'courses', 'questions', 'tests', 'assignments', 'announcements', 'reports',
+  'students', 'courses', 'questions', 'tests', 'assignments', 'announcements', 'reports', 'emails',
 ];
 
 // Which permission each management page needs. The dashboard, settings
