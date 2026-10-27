@@ -127,7 +127,7 @@
     <div class="topbar-right">
       <div class="score-dots" id="dots"></div>
       <button type="button" class="btn btn-ghost btn-sm sound-btn" id="sound-btn" onclick="toggleSound()" aria-label="Sound on" title="Sound on or off"></button>
-      <a href="/portal/courses.html" class="btn btn-ghost btn-sm" id="back-link">Back to my course</a>
+      <a href="/portal/courses.html" class="btn btn-ghost btn-sm" id="back-link" style="display:none">Back to my course</a>
     </div>
   </header>
 
@@ -170,7 +170,13 @@ let menuData = null;
   renderShell('student', me, { title: 'Practice' });
 
   const course = params.get('course');
-  if (course) document.getElementById('back-link').href = '/portal/courses.html?course=' + encodeURIComponent(course);
+  // Practice is its own page in the menu now; the way back to a course
+  // is shown only to an old link that came from one.
+  if (course) {
+    const back = document.getElementById('back-link');
+    back.href = '/portal/courses.html?course=' + encodeURIComponent(course);
+    back.style.display = '';
+  }
 
   // An old link straight to one unit still works and skips the chooser.
   if (params.get('unit')) {
