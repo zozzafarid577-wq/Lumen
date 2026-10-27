@@ -121,16 +121,23 @@ function mergeRecipients(...lists) {
   });
 }
 
-// Where a teacher's reports go: the address list set once under Students →
-// Groups. It is kept on every group row; every row is read, not just one,
-// so the teacher and every assistant get each email even if one group
-// fell behind. With none set, the teacher account itself.
+// Where a teacher's emails go: the address list set once under Students →
+// Groups (kept on every group row; every row is read, not just one), or
+// the teacher account when none is set — and always every active
+// assistant on the Team page as well, so whatever the teacher gets, they
+// get too.
 export async function reportRecipients(teacherId) {
   const { data: g } = await admin.from('groups').select('teacher_name, teacher_email')
     .eq('teacher_id', teacherId).not('teacher_email', 'is', null);
-  const all = mergeRecipients(...(g || []).map(emailList));
-  if (all.length) return all;
-  return accountRecipients(teacherId);
+  const listed = mergeRecipients(...(g || []).map(emailList));
+  const teacher = listed.length ? listed : await accountRecipients(teacherId);
+  return mergeRecipients(teacher, await assistantRecipients(teacherId));
+}
+
+async function assistantRecipients(teacherId) {
+  const { data } = await admin.from('profiles').select('full_name, email')
+    .eq('teacher_id', teacherId).eq('role', 'assistant').eq('is_active', true);
+  return (data || []).filter(p => p.email).map(p => ({ email: p.email.trim(), name: p.full_name }));
 }
 
 async function accountRecipients(teacherId) {
