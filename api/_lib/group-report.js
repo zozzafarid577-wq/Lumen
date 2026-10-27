@@ -96,11 +96,11 @@ export async function runGroupReports(now = new Date()) {
   return { groups: due.length, sent };
 }
 
-// The group's own teacher when one is named (migration v18), otherwise
-// the space's teacher account.
+// Everyone on the space's report list, plus any address only this group
+// carries — so a group saved before an assistant was added still reaches
+// them.
 async function recipients(group) {
-  if (group.teacher_email) return emailList(group);
-  return reportRecipients(group.teacher_id);
+  return mergeRecipients(emailList(group), await reportRecipients(group.teacher_id));
 }
 
 // teacher_email holds the teacher's address and then any assistants',
@@ -110,12 +110,26 @@ function emailList(row) {
     .map((email, i) => ({ email, name: i === 0 ? row.teacher_name || undefined : undefined }));
 }
 
-// Where a teacher's reports go: the address set once under Students →
-// Groups (kept on every group row), or else the teacher account itself.
+// One entry per address, first one kept (it carries the name).
+function mergeRecipients(...lists) {
+  const seen = new Set();
+  return lists.flat().filter(r => {
+    const k = r.email.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// Where a teacher's reports go: the address list set once under Students →
+// Groups. It is kept on every group row; every row is read, not just one,
+// so the teacher and every assistant get each email even if one group
+// fell behind. With none set, the teacher account itself.
 export async function reportRecipients(teacherId) {
   const { data: g } = await admin.from('groups').select('teacher_name, teacher_email')
-    .eq('teacher_id', teacherId).not('teacher_email', 'is', null).limit(1);
-  if (g?.[0]?.teacher_email) return emailList(g[0]);
+    .eq('teacher_id', teacherId).not('teacher_email', 'is', null);
+  const all = mergeRecipients(...(g || []).map(emailList));
+  if (all.length) return all;
   return accountRecipients(teacherId);
 }
 

@@ -82,6 +82,28 @@
   .chip .when { font-weight: 500; font-size: .74rem; opacity: .75; }
   .chip .n { font-size: .72rem; opacity: .75; }
 
+  /* ── Course tabs ───────────────────────────────────────────────
+     One course at a time: Senior 1's marks and Senior 3's are never
+     read together, so the whole page follows the tab. */
+  .course-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .course-tab {
+    padding: 10px 16px; font-size: .9rem; font-weight: 700; cursor: pointer;
+    background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -1px;
+    color: var(--muted);
+  }
+  .course-tab:hover { color: var(--primary); }
+  .course-tab.on { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* A test you can open to see every attempt and its paper. */
+  .test-row { cursor: pointer; }
+  .test-row:hover { background: var(--card); }
+  .test-row .row-chev svg { width: 14px; height: 14px; }
+  .test-row.open .row-chev { transform: rotate(180deg); }
+  .tries { margin: 2px 0 8px 12px; border-left: 2px solid var(--border); padding-left: 12px; }
+  .try-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: .78rem; }
+  .try-row .when { flex: 1; color: var(--muted); }
+  .mini-lesson { font-size: .7rem; color: var(--muted); margin: 6px 0 0; font-weight: 600; }
+
   /* ── The printed week ──────────────────────────────────────────
      What goes on paper is the sheet: no sidebar, no chips, no buttons,
      and the group and the dates at the top so it still means something
@@ -114,6 +136,8 @@
   </header>
 
   <main class="content">
+
+    <div class="course-tabs no-print" id="course-tabs"></div>
 
     <div class="stats-grid no-print">
       <div class="stat-card">
@@ -208,6 +232,11 @@
 <script>
 let me = null;
 let summary = [];
+let students = [];            // everyone, with every attempt and lesson
+let courses = [];             // the courses anyone is enrolled on
+let pickedCourse = null;
+let modulesById = new Map();
+let lessonsById = new Map();
 let allTests = [];
 let allLessons = [];
 let enrolmentsBy = new Map();
@@ -247,6 +276,7 @@ function weekLabel(offset = 0) {
 // Which students are in the chosen class. A student on two courses can
 // be in two groups, so this asks whether they are in THIS one.
 function inPickedGroup(s) {
+  if (!(enrolmentsBy.get(s.id) || []).some(e => e.course_id === pickedCourse)) return false;
   if (!pickedGroup) return true;
   return (enrolmentsBy.get(s.id) || []).some(e => e.group_id === pickedGroup);
 }
@@ -277,39 +307,46 @@ async function load() {
   // per tenant, and joining them in the browser costs nothing next to N
   // round trips. Everything the opened rows need comes down here too, so
   // expanding a student is instant and silent.
-  const [students, attempts, completions, tests, lessons, enrolments] = await Promise.all([
+  const [studentRows, attempts, completions, tests, lessons, enrolments, modules] = await Promise.all([
     // parent_email comes down with them: the report button needs to know
     // whether there is anywhere to send it before it is pressed.
     sb.from('profiles').select('id, full_name, email, parent_email')
       .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
     // Every attempt, not just the best: "passed on the third go" is a
     // different fact about a student than "passed".
-    sb.from('test_attempts').select('student_id, test_id, percentage, score, max_score, passed, completed_at')
+    sb.from('test_attempts').select('id, student_id, test_id, percentage, score, max_score, passed, completed_at')
       .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null),
     sb.from('lesson_completions').select('student_id, lesson_id, completed_at').eq('teacher_id', me.teacher_id),
-    sb.from('practice_tests').select('id, title, course_id, passing_score_pct, is_active')
+    sb.from('practice_tests').select('id, title, course_id, module_id, lesson_id, passing_score_pct, is_active, order_index')
       .eq('teacher_id', me.teacher_id),
     sb.from('lessons').select('id, title, order_index, modules(id, title, course_id, order_index)')
       .eq('teacher_id', me.teacher_id),
     // The group comes down with the enrolment: it is what the chips at
     // the top of the page are made of, and what the weekly sheet is for.
     sb.from('enrollments')
-      .select('student_id, course_id, group_id, courses(title), groups(id, name, days, start_time)')
+      .select('student_id, course_id, group_id, courses(title), groups(id, name, days, start_time, course_id)')
       .eq('teacher_id', me.teacher_id),
+    // For the unit a test belongs to when it is not tied to a lesson.
+    sb.from('modules').select('id, title, course_id, order_index').eq('teacher_id', me.teacher_id),
   ]);
 
   allTests = tests.data || [];
   allLessons = (lessons.data || []).filter(l => l.modules);
+  lessonsById = new Map(allLessons.map(l => [l.id, l]));
+  modulesById = new Map((modules.data || []).map(m => [m.id, m]));
   enrolmentsBy = new Map();
   const byId = new Map();
+  const courseById = new Map();
   (enrolments.data || []).forEach(e => {
     if (!enrolmentsBy.has(e.student_id)) enrolmentsBy.set(e.student_id, []);
     enrolmentsBy.get(e.student_id).push(e);
     // Every class somebody is actually in. A group with nobody in it is
     // a chip that filters to an empty page, so the enrolments decide
     // which chips exist rather than the groups table.
-    if (e.groups?.id) byId.set(e.groups.id, e.groups);
+    if (e.groups?.id) byId.set(e.groups.id, { ...e.groups, course_id: e.groups.course_id || e.course_id });
+    if (!courseById.has(e.course_id)) courseById.set(e.course_id, { id: e.course_id, title: e.courses?.title || 'Course' });
   });
+  courses = [...courseById.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
 
   // In the order a week runs, so the chips read like a timetable:
   // Sunday's class first, then Monday's, and a group with no day set
@@ -321,12 +358,12 @@ async function load() {
       || a.name.localeCompare(b.name);
   });
 
-  if (students.error) {
-    document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(students.error.message));
+  if (studentRows.error) {
+    document.getElementById('rows').innerHTML = emptyRow(7, friendlyError(studentRows.error.message));
     return;
   }
 
-  const byStudent = new Map((students.data || []).map(s =>
+  const byStudent = new Map((studentRows.data || []).map(s =>
     [s.id, { ...s, attempts: [], lessons: 0, doneAt: new Map(), lastSeen: null }]));
   (attempts.data || []).forEach(a => {
     const s = byStudent.get(a.student_id);
@@ -337,12 +374,33 @@ async function load() {
   (completions.data || []).forEach(c => {
     const s = byStudent.get(c.student_id);
     if (!s) return;
-    s.lessons++;
     s.doneAt.set(c.lesson_id, c.completed_at);
-    if (!s.lastSeen || c.completed_at > s.lastSeen) s.lastSeen = c.completed_at;
   });
+  students = [...byStudent.values()];
 
-  summary = [...byStudent.values()].map(s => {
+  // The course last looked at, or else the first one.
+  const remembered = (() => { try { return localStorage.getItem('lumen_progress_course'); } catch (_) { return null; } })();
+  const asked = new URLSearchParams(location.search).get('course');
+  pickedCourse = [asked, remembered].find(id => courses.some(c => c.id === id)) || courses[0]?.id || null;
+
+  summarise();
+}
+
+// Everything the page shows, for the course on the tab: only its tests,
+// only its lessons, only the students enrolled on it.
+function summarise() {
+  const testIds = new Set(allTests.filter(t => t.course_id === pickedCourse).map(t => t.id));
+  const lessonIds = new Set(allLessons.filter(l => l.modules.course_id === pickedCourse).map(l => l.id));
+
+  summary = students
+    .filter(s => (enrolmentsBy.get(s.id) || []).some(e => e.course_id === pickedCourse))
+    .map(raw => {
+      const attempts = raw.attempts.filter(a => testIds.has(a.test_id));
+      const doneAt = new Map([...raw.doneAt].filter(([id]) => lessonIds.has(id)));
+      const seen = [...attempts.map(a => a.completed_at), ...doneAt.values()].sort();
+      return { ...raw, attempts, doneAt, lessons: doneAt.size, lastSeen: seen[seen.length - 1] || null };
+    })
+    .map(s => {
     const best = bestAttempts(s.attempts);
     const avg = bestAverage(s.attempts);
     return {
@@ -368,6 +426,20 @@ async function load() {
   render();
 }
 
+function drawCourses() {
+  document.getElementById('course-tabs').innerHTML = courses.map(c =>
+    `<button class="course-tab${c.id === pickedCourse ? ' on' : ''}" onclick="pickCourse('${c.id}')">${escHtml(c.title)}</button>`).join('');
+}
+
+function pickCourse(id) {
+  pickedCourse = id;
+  pickedGroup = null;            // a class belongs to one course
+  open.clear();
+  openTests.clear();
+  try { localStorage.setItem('lumen_progress_course', id); } catch (_) {}
+  summarise();
+}
+
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const sort = document.getElementById('sort').value;
@@ -384,11 +456,12 @@ function render() {
       return sort === 'best' ? bv - av : av - bv;
     });
 
+  drawCourses();
   drawChips();
   drawWeek();
 
   const tbody = document.getElementById('rows');
-  if (!list.length) { tbody.innerHTML = emptyRow(7, summary.length ? 'Nobody matches that search.' : 'No active students yet.'); return; }
+  if (!list.length) { tbody.innerHTML = emptyRow(7, summary.length ? 'Nobody matches that search.' : 'Nobody is enrolled on this course yet.'); return; }
 
   tbody.innerHTML = list.map(s => `
     <tr class="clickable${open.has(s.id) ? ' open' : ''}" onclick="toggleStudent('${s.id}')">
@@ -431,7 +504,8 @@ function drawChips() {
     </button>`;
 
   host.innerHTML = chip(null, 'All students', '', summary.length)
-    + groups.map(g => chip(g.id, g.name, groupWhen(g), count(g.id))).join('');
+    + groups.filter(g => g.course_id === pickedCourse && count(g.id))
+      .map(g => chip(g.id, g.name, groupWhen(g), count(g.id))).join('');
 }
 
 function pickGroup(id) {
@@ -489,8 +563,10 @@ function drawWeek() {
     const avg = marks.length ? Math.round(marks.reduce((x, y) => x + y, 0) / marks.length) : null;
     const titles = sat.map(a => {
       const t = allTests.find(t => t.id === a.test_id);
+      const where = t ? placeLabel(t) : '';
       return `<div class="small" style="margin-bottom:2px">${escHtml(t?.title || 'A test')}
-        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${mark(a)}</strong></div>`;
+        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${mark(a)}</strong>
+        ${where ? `<span class="muted"> · ${escHtml(where)}</span>` : ''}</div>`;
     }).join('');
 
     return `<tr>
@@ -515,7 +591,7 @@ function chevron() {
 }
 
 function detailFor(s) {
-  const courseIds = new Set((enrolmentsBy.get(s.id) || []).map(e => e.course_id));
+  const courseIds = new Set([pickedCourse]);
   const courseName = new Map((enrolmentsBy.get(s.id) || []).map(e => [e.course_id, e.courses?.title || 'Course']));
   if (!courseIds.size) {
     return '<div class="detail-inner"><p class="small muted">Not enrolled on any course.</p></div>';
@@ -559,6 +635,29 @@ async function emailParent(id) {
   } catch (err) { showToast(err.message, 'error'); }
 }
 
+// Tests opened to show every attempt, by student and test.
+const openTests = new Set();
+
+function toggleTest(event, key) {
+  event.stopPropagation();
+  if (openTests.has(key)) openTests.delete(key); else openTests.add(key);
+  render();
+}
+
+// Where a test sits in the course, in the course's own order: its unit,
+// then its lesson (a unit-wide test comes after the unit's lessons).
+function placeOf(t) {
+  const lesson = t.lesson_id ? lessonsById.get(t.lesson_id) : null;
+  const unit = lesson?.modules || (t.module_id ? modulesById.get(t.module_id) : null);
+  return { unit, lesson };
+}
+
+// "Unit 2 · Lesson 3", for one line of text.
+function placeLabel(t) {
+  const { unit, lesson } = placeOf(t);
+  return [unit?.title, lesson?.title].filter(Boolean).join(' · ');
+}
+
 function testDetail(s, courseIds) {
   // Only what the student has actually done. This panel gets screenshotted
   // and sent to parents, so a list of tests not yet sat is noise there —
@@ -571,20 +670,49 @@ function testDetail(s, courseIds) {
   const done = allTests.filter(t => courseIds.has(t.course_id) && byTest.has(t.id));
   if (!done.length) return '<div class="detail-h">Tests</div><p class="small muted">No tests done yet.</p>';
 
-  return `<div class="detail-h">Tests done · ${done.length}</div>` + done.map(t => {
-    const tries = byTest.get(t.id).sort((a, b) => a.completed_at.localeCompare(b.completed_at));
-    const best = tries.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a));
-    // The exact mark, not a band — and every attempt after the first,
-    // because improving from 41 to 78 is the thing worth seeing.
-    const others = tries.length > 1
-      ? ' · tried ' + tries.length + ' times: ' + tries.map(a => mark(a)).join(', ')
-      : '';
-    return `<div class="mini-row">
+  // Unit by unit, lesson by lesson, the way the course reads.
+  const units = new Map();
+  done.forEach(t => {
+    const { unit, lesson } = placeOf(t);
+    const key = unit?.id || 'none';
+    if (!units.has(key)) units.set(key, { unit, lessons: new Map() });
+    const lk = lesson?.id || 'unit';
+    const u = units.get(key);
+    if (!u.lessons.has(lk)) u.lessons.set(lk, { lesson, tests: [] });
+    u.lessons.get(lk).tests.push(t);
+  });
+  const unitOrder = (u) => u.unit ? u.unit.order_index : 1e9;
+  const lessonOrder = (l) => l.lesson ? l.lesson.order_index : 1e9;
+
+  return `<div class="detail-h">Tests done · ${done.length}</div>` + [...units.values()]
+    .sort((a, b) => unitOrder(a) - unitOrder(b))
+    .map(({ unit, lessons }) => `
+      <div class="mini-unit">${escHtml(unit?.title || 'Not in a unit')}</div>
+      ${[...lessons.values()].sort((a, b) => lessonOrder(a) - lessonOrder(b)).map(({ lesson, tests }) => `
+        <div class="mini-lesson">${lesson ? escHtml(lesson.title) : (unit ? 'Whole unit' : '')}</div>
+        ${tests.sort((a, b) => (a.order_index || 0) - (b.order_index || 0) || a.title.localeCompare(b.title))
+          .map(t => testRow(s, t, byTest.get(t.id))).join('')}`).join('')}`).join('');
+}
+
+function testRow(s, t, tries) {
+  tries = tries.slice().sort((a, b) => a.completed_at.localeCompare(b.completed_at));
+  const best = tries.reduce((a, b) => (parseFloat(b.percentage) > parseFloat(a.percentage) ? b : a));
+  const key = s.id + ':' + t.id;
+  const isOpen = openTests.has(key);
+  // The exact mark, not a band — and every attempt, because improving
+  // from 41 to 78 is the thing worth seeing. Each one opens its paper.
+  const list = isOpen ? `<div class="tries">${tries.map((a, i) => `
+      <div class="try-row">
+        <span class="when">Attempt ${i + 1} · ${fmtDateTime(a.completed_at)}</span>
+        <strong style="color:${a.passed ? 'var(--success)' : 'var(--danger)'}">${mark(a)}</strong>
+        <a class="btn btn-outline btn-xs" href="/teacher/results.html?attempt=${a.id}" onclick="event.stopPropagation()">See the paper</a>
+      </div>`).join('')}</div>` : '';
+  return `<div class="mini-row test-row${isOpen ? ' open' : ''}" onclick="toggleTest(event, '${key}')">
       <div class="mini-name"><div>${escHtml(t.title)}</div>
-        <div class="mini-sub">${fmtDate(best.completed_at)} · pass mark ${passMarks(t.passing_score_pct, best.max_score)}${others}</div></div>
+        <div class="mini-sub">${fmtDate(best.completed_at)} · pass mark ${passMarks(t.passing_score_pct, best.max_score)} · ${tries.length === 1 ? '1 attempt' : tries.length + ' attempts'}</div></div>
       <span class="badge ${best.passed ? 'b-green' : 'b-red'}">${mark(best)}</span>
-    </div>`;
-  }).join('');
+      <span class="row-chev">${chevron()}</span>
+    </div>${list}`;
 }
 
 function lessonDetail(s, courseIds, courseName) {

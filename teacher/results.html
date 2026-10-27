@@ -291,6 +291,10 @@ const LETTERS = 'ABCDEFGHIJ';
   ['q', 'test-filter', 'course-filter', 'outcome-filter'].forEach(id =>
     document.getElementById(id).addEventListener('input', render));
 
+  // Arriving from one attempt on the Progress page: open its paper.
+  const paper = new URLSearchParams(location.search).get('attempt');
+  if (paper && attempts.some(a => a.id === paper)) openPaper(paper);
+
   // Arriving from a student's row on another page: show theirs first.
   const wanted = new URLSearchParams(location.search).get('student');
   if (wanted) {
