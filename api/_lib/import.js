@@ -16,7 +16,8 @@ import { R2_FILE } from './files.js';
 // course files are accepted — this is not a general "fetch any URL" tool.
 
 const FILE_HOSTS = [/\.r2\.cloudflarestorage\.com$/i, /\.supabase\.co$/i];
-const MAX_FILE_MB = 60;
+// Big enough for a whole revision guide; the bytes are held in memory once.
+const MAX_FILE_MB = 200;
 
 function teacherOf(profile, body) {
   requireRoles(profile, ['teacher', 'assistant', 'owner']);
