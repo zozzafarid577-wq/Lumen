@@ -164,7 +164,7 @@ export async function buildReport(group, from, until = new Date()) {
   let attempts = [];
   if (students.length) {
     const { data } = await admin.from('test_attempts')
-      .select('student_id, test_id, score, max_score, percentage, passed, completed_at, practice_tests(title, course_id, is_offline, test_sections(name))')
+      .select('student_id, test_id, score, max_score, percentage, passed, completed_at, practice_tests(title, course_id, is_offline, test_sections(name), lessons(title))')
       .in('student_id', students.map(s => s.id))
       .gte('completed_at', from.toISOString()).lte('completed_at', until.toISOString())
       .order('completed_at');
@@ -177,14 +177,14 @@ export async function buildReport(group, from, until = new Date()) {
   const best = new Map();                                  // `${student}|${test}` -> attempt
   for (const a of attempts) {
     if (!tests.some(t => t.id === a.test_id)) {
-      const t = a.practice_tests;
-      const section = t.test_sections?.name;
-      tests.push({ id: a.test_id, title: t.title + (section ? ` (${section})` : '') + (t.is_offline ? ' — in class' : '') });
+      tests.push({ id: a.test_id, title: testLabel(a.practice_tests) });
     }
     const k = `${a.student_id}|${a.test_id}`;
     const cur = best.get(k);
     if (!cur || Number(a.percentage) > Number(cur.percentage)) best.set(k, a);
   }
+
+  const homework = await homeworkFor(group, students, from, until);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Lumen';
@@ -225,13 +225,75 @@ export async function buildReport(group, from, until = new Date()) {
   }
   all.getRow(1).font = { bold: true };
 
+  // Homework: every student, every test set to the group, done or not.
+  if (homework.length) {
+    const hw = wb.addWorksheet('Homework', { views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }] });
+    hw.columns = [
+      { header: 'Student', width: 28 },
+      ...homework.map(h => ({ header: h.title, width: Math.min(40, Math.max(16, h.title.length + 2)) })),
+    ];
+    for (const s of students) {
+      const row = hw.addRow([s.name, ...homework.map(h => { const a = h.done.get(s.id); return a ? `Done ${mark(a)}` : 'Not done'; })]);
+      homework.forEach((h, i) => { row.getCell(i + 2).font = { color: { argb: h.done.get(s.id) ? 'FF1F7A4D' : 'FFB42318' } }; });
+    }
+    hw.getRow(1).font = { bold: true };
+    hw.getRow(1).alignment = { wrapText: true, vertical: 'middle' };
+  }
+
   const buf = await wb.xlsx.writeBuffer();
   const safe = `${group.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'group';
   return {
     students: students.length, tests: tests.length, attempts: attempts.length, nobody, perStudent,
+    homework: homework.map(h => ({ title: h.title, due_at: h.due_at,
+      students: students.map(s => { const a = h.done.get(s.id); return { name: s.name, done: !!a, mark: a ? mark(a) : null, passed: !!a?.passed }; }) })),
     fileName: `${safe}-marks-${cairoDay(until).iso}.xlsx`,
     base64: Buffer.from(buf).toString('base64'),
   };
+}
+
+// A test's name as the teacher reads it: its title, the lesson when the
+// title doesn't already say it, the section, and whether it was on paper.
+export function testLabel(t = {}) {
+  const lesson = t.lessons?.title;
+  const section = t.test_sections?.name;
+  let label = t.title || 'Test';
+  if (lesson && !label.toLowerCase().includes(lesson.toLowerCase())) label += ` — ${lesson}`;
+  if (section) label += ` (${section})`;
+  if (t.is_offline) label += ' — in class';
+  return label;
+}
+
+// The homework this session checks: tests set to this group (or to the
+// whole course) that fell due since the group last met, up to the day
+// after the report, plus any set since then with no deadline. For each,
+// who has done it — at any time after it was set, not only this week.
+async function homeworkFor(group, students, from, until) {
+  if (!students.length) return [];
+  const { data: set } = await admin.from('test_assignments')
+    .select('test_id, group_id, due_at, created_at, practice_tests(title, course_id, is_offline, test_sections(name), lessons(title))')
+    .eq('course_id', group.course_id);
+  const upTo = new Date(until.getTime() + 2 * DAY_MS);
+  const due = (set || []).filter(a => (!a.group_id || a.group_id === group.id) && (a.due_at
+    ? new Date(a.due_at) >= from && new Date(a.due_at) <= upTo
+    : new Date(a.created_at) >= from && new Date(a.created_at) <= until));
+  const byTest = new Map();
+  for (const a of due) if (!byTest.has(a.test_id) || a.group_id) byTest.set(a.test_id, a);   // the group's own row wins
+  if (!byTest.size) return [];
+  const { data: tries } = await admin.from('test_attempts')
+    .select('student_id, test_id, score, max_score, percentage, passed, completed_at')
+    .in('test_id', [...byTest.keys()]).in('student_id', students.map(s => s.id))
+    .lte('completed_at', until.toISOString());
+  return [...byTest.values()]
+    .sort((a, b) => new Date(a.due_at || a.created_at) - new Date(b.due_at || b.created_at))
+    .map(a => {
+      const done = new Map();
+      for (const t of tries || []) {
+        if (t.test_id !== a.test_id || new Date(t.completed_at) < new Date(a.created_at)) continue;
+        const cur = done.get(t.student_id);
+        if (!cur || Number(t.percentage) > Number(cur.percentage)) done.set(t.student_id, t);
+      }
+      return { title: testLabel(a.practice_tests), due_at: a.due_at, done };
+    });
 }
 
 const SITE = () => {
@@ -252,15 +314,27 @@ export function reportEmail({ group, when, from, report }) {
         <td valign="top" style="padding:10px 8px 10px 0;border-bottom:1px solid ${LINE};font-size:14px;font-weight:600;color:${INK};width:38%">${esc(p.name)}
           <div style="font-size:12px;font-weight:400;color:${MUTED};margin-top:2px">${p.done} test${p.done === 1 ? '' : 's'}</div></td>
         <td valign="top" style="padding:9px 0;border-bottom:1px solid ${LINE};line-height:2">
-          ${p.marks.slice(0, 6).map(m => `<span title="${esc(m.title)}">${pill(m.mark, m.passed ? 'good' : 'bad')}</span>`).join(' ')}
-          ${p.marks.length > 6 ? `<span style="font-size:12px;color:${MUTED}">+${p.marks.length - 6} more</span>` : ''}
+          ${p.marks.map(m => `<div style="font-size:13px;line-height:1.5;color:${INK};padding:2px 0">${pill(m.mark, m.passed ? 'good' : 'bad')} <span style="color:${MUTED}">${esc(m.title)}</span></div>`).join('')}
         </td>
       </tr>`).join('')}
     </table>
-    <p style="margin:8px 0 0;font-size:12px;color:${MUTED}">Each mark is the student's best on that test. Green passed, red did not — the test names are in the sheet.</p>`
+    <p style="margin:8px 0 0;font-size:12px;color:${MUTED}">Each mark is the student's best on that test. Green passed, red did not.</p>`
     : `<p style="margin:12px 0 0;font-size:14px;color:${MUTED}">Nobody in this group has done a test since ${esc(since)}.</p>`;
 
-  const sections = [{ title: 'Marks so far', sub: `since ${since}`, html: table }];
+  const sections = [];
+  for (const h of report.homework || []) {
+    const doneN = h.students.filter(x => x.done).length;
+    const due = h.due_at ? new Date(h.due_at).toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) : '';
+    sections.push({
+      title: `Homework: ${h.title}`, sub: `${doneN} of ${h.students.length} did it${due ? ` · due ${due}` : ''}`,
+      html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${h.students.map(x => `
+      <tr>
+        <td style="padding:7px 8px 7px 0;border-bottom:1px solid ${LINE};font-size:14px;color:${INK}">${esc(x.name)}</td>
+        <td align="right" style="padding:7px 0;border-bottom:1px solid ${LINE}">${x.done ? pill(`Done · ${x.mark}`, x.passed ? 'good' : 'bad') : pill('Not done', 'bad')}</td>
+      </tr>`).join('')}</table>`,
+    });
+  }
+  sections.push({ title: 'Marks so far', sub: `since ${since}`, html: table });
   if (report.nobody.length) {
     sections.push({
       title: 'Nothing done yet', sub: `${report.nobody.length} student${report.nobody.length === 1 ? '' : 's'}`,
@@ -274,13 +348,14 @@ export function reportEmail({ group, when, from, report }) {
     intro: `This group meets <strong>${esc(when)}</strong>. Here is what its students have done since ${esc(since)}.`,
     tiles: [
       [String(report.students), 'Students'],
+      ...((report.homework || []).length ? [[String(report.homework.reduce((n, h) => n + h.students.filter(x => !x.done).length, 0)), 'Homework missed', 'bad']] : []),
       [String(did), 'Did a test'],
       [String(report.nobody.length), 'Did nothing', report.nobody.length ? 'bad' : ''],
       [String(report.tests), 'Tests'],
     ],
     sections,
     button: { label: 'Open Progress in Lumen', url: SITE() + '/teacher/progress' },
-    footer: 'The full sheet is attached — one row per student, one column per test.<br>Sent by Lumen the morning before each group session.',
+    footer: 'The full sheet is attached — one row per student, one column per test, and a Homework tab.<br>Sent by Lumen the morning before each group session.',
   });
 }
 

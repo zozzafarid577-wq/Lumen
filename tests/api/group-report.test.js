@@ -4,7 +4,7 @@ vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
 import ExcelJS from 'exceljs';
 import { resetSupabaseMock, configureSupabaseMock, getSupabaseCalls } from '../helpers/supabase-mock.js';
-import { buildReport, cairoDay, daysSinceLastSession, runGroupReports } from '../../api/_lib/group-report.js';
+import { buildReport, cairoDay, daysSinceLastSession, runGroupReports, reportEmail, testLabel } from '../../api/_lib/group-report.js';
 
 beforeEach(() => resetSupabaseMock());
 
@@ -26,9 +26,10 @@ describe('when a group last met', () => {
   });
 });
 
-function world({ attempts }) {
+function world({ attempts, assignments = [] }) {
   configureSupabaseMock({
     results: {
+      'test_assignments.select': { data: assignments, error: null },
       'enrollments.select': { data: [
         { student_id: 's-1', profiles: { full_name: 'Amira', is_active: true } },
         { student_id: 's-2', profiles: { full_name: 'Belal', is_active: true } },
@@ -57,6 +58,42 @@ describe('the marks sheet', () => {
     expect(rows[0]).toEqual(['Student', 'Unit 1 - Lesson 1 (Vocabulary)', 'Paper quiz — in class', 'Tests done']);
     expect(rows[1]).toEqual(['Amira', '18/20', '7/10', 2]);
     expect(rows[2]).toEqual(['Belal', '—', '—', 0]);
+  });
+});
+
+describe('homework', () => {
+  const HW = { title: 'Unit 4 - Lesson 1', course_id: 'c-1', test_sections: { name: 'Grammar' }, lessons: { title: 'Lesson 1' } };
+  it('lists every student as done or not done, with the mark, and names the lesson', async () => {
+    world({
+      assignments: [
+        { test_id: 't-5', group_id: 'g-1', due_at: '2026-10-06T21:59:00Z', created_at: '2026-10-04T08:00:00Z', practice_tests: HW },
+        // Set to another group: not this group's homework.
+        { test_id: 't-6', group_id: 'g-2', due_at: '2026-10-06T21:59:00Z', created_at: '2026-10-04T08:00:00Z', practice_tests: { title: 'Other' } },
+      ],
+      attempts: [
+        { student_id: 's-1', test_id: 't-5', score: 9, max_score: 10, percentage: 90, passed: true, completed_at: '2026-10-05T10:00:00Z', practice_tests: { ...HW } },
+      ],
+    });
+    const r = await buildReport(GROUP, new Date('2026-10-04T00:00:00Z'), new Date('2026-10-07T00:00:00Z'));
+    expect(r.homework).toHaveLength(1);
+    expect(r.homework[0].title).toBe('Unit 4 - Lesson 1 (Grammar)');
+    expect(r.homework[0].students).toEqual([
+      { name: 'Amira', done: true, mark: '9/10', passed: true },
+      { name: 'Belal', done: false, mark: null, passed: false },
+    ]);
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(r.base64, 'base64'));
+    const rows = wb.getWorksheet('Homework').getSheetValues().filter(Boolean).map(v => v.slice(1));
+    expect(rows).toEqual([['Student', 'Unit 4 - Lesson 1 (Grammar)'], ['Amira', 'Done 9/10'], ['Belal', 'Not done']]);
+
+    const html = reportEmail({ group: GROUP, when: 'Wednesday at 16:00', from: new Date('2026-10-04T00:00:00Z'), report: r });
+    expect(html).toContain('Not done');
+    expect(html).toContain('Unit 4 - Lesson 1 (Grammar)');   // the mark is named, not just a number
+  });
+
+  it('adds the lesson to a test title that does not say it', () => {
+    expect(testLabel({ title: 'Quiz 3', lessons: { title: 'Lesson 3 & 4' }, test_sections: { name: 'Vocabulary' } })).toBe('Quiz 3 — Lesson 3 & 4 (Vocabulary)');
   });
 });
 
