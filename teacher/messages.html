@@ -187,18 +187,41 @@ function noTableYet(error) {
   const want = new URLSearchParams(location.search).get('student');
   if (want && students.has(want)) openThread(want);
 
-  window.addEventListener('lumen:message', (e) => {
-    const m = e.detail;
-    if (!m) return;
-    const s = summary.get(m.student_id) || { last: null, unread: 0 };
-    s.last = m;
-    if (!m.from_staff && m.student_id !== current) s.unread++;
-    summary.set(m.student_id, s);
-    if (m.student_id === current && !thread.some(x => x.id === m.id)) { thread.push(m); drawThread(); markRead(); }
-    drawList();
-  });
-  setInterval(() => { if (!document.hidden) { loadSummary().then(drawList); if (current) loadThread(true); } }, 30000);
+  window.addEventListener('lumen:message', (e) => { if (e.detail) addMessage(e.detail); });
+  // New messages arrive over the live connection. As a fallback, every two
+  // minutes (and on coming back to the tab) only the messages newer than
+  // the newest one here are fetched, never the whole history again.
+  setInterval(() => { if (!document.hidden) catchUp(); }, 120000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) catchUp(); });
 })();
+
+// Each message is counted once, whether it came live or by catching up.
+const seenIds = new Set();
+let newestAt = null;
+const openedAt = new Date(Date.now() - 5 * 60000).toISOString();   // a little early, in case this device's clock runs fast
+
+function note(m) {
+  seenIds.add(m.id);
+  if (!newestAt || m.created_at > newestAt) newestAt = m.created_at;
+}
+
+function addMessage(m) {
+  if (seenIds.has(m.id)) return;
+  note(m);
+  const s = summary.get(m.student_id) || { last: null, unread: 0 };
+  s.last = m;
+  if (!m.from_staff && m.student_id !== current) s.unread++;
+  summary.set(m.student_id, s);
+  if (m.student_id === current && !thread.some(x => x.id === m.id)) { thread.push(m); drawThread(); markRead(); }
+  drawList();
+}
+
+async function catchUp() {
+  const { data } = await sb.from('messages')
+    .select('id, student_id, sender_id, body, from_staff, created_at, read_at')
+    .eq('teacher_id', me.teacher_id).gt('created_at', newestAt || openedAt).order('created_at').limit(200);
+  (data || []).forEach(addMessage);
+}
 
 async function loadSummary() {
   const { data, error } = await sb.from('messages')
@@ -212,6 +235,7 @@ async function loadSummary() {
   }
   summary = new Map();
   data.forEach(m => {
+    note(m);
     const s = summary.get(m.student_id) || { last: m, unread: 0 };
     if (!m.from_staff && !m.read_at && m.student_id !== current) s.unread++;
     summary.set(m.student_id, s);
@@ -283,6 +307,7 @@ async function loadThread(quiet) {
   if (error) { if (!quiet) document.getElementById('log').innerHTML = `<div class="chat-empty">${escHtml(friendlyError(error.message))}</div>`; return; }
   const before = thread.length;
   thread = data.reverse();
+  thread.forEach(note);
   if (!quiet || thread.length !== before) drawThread();
   markRead();
 }

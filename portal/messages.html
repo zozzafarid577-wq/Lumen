@@ -146,15 +146,30 @@ function noTableYet(error) {
   }
   await load();
 
-  window.addEventListener('lumen:message', (e) => {
-    const m = e.detail;
-    if (!m || m.student_id !== me.id || msgs.some(x => x.id === m.id)) return;
-    msgs.push(m);
-    draw();
-    markRead();
-  });
-  setInterval(() => { if (!document.hidden) load(true); }, 20000);
+  window.addEventListener('lumen:message', (e) => { if (e.detail) add([e.detail]); });
+  // Messages arrive over the live connection. As a fallback, every two
+  // minutes (and on coming back to the tab) only newer messages are fetched.
+  setInterval(() => { if (!document.hidden) catchUp(); }, 120000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) catchUp(); });
 })();
+
+const openedAt = new Date(Date.now() - 5 * 60000).toISOString();   // a little early, in case this device's clock runs fast
+
+function add(list) {
+  const fresh = list.filter(m => m.student_id === me.id && !msgs.some(x => x.id === m.id));
+  if (!fresh.length) return;
+  msgs.push(...fresh);
+  draw();
+  markRead();
+}
+
+async function catchUp() {
+  const newest = msgs.length ? msgs[msgs.length - 1].created_at : openedAt;
+  const { data } = await sb.from('messages')
+    .select('id, student_id, body, from_staff, created_at, read_at')
+    .eq('student_id', me.id).gt('created_at', newest).order('created_at').limit(100);
+  add(data || []);
+}
 
 async function load(quiet) {
   const { data, error } = await sb.from('messages')

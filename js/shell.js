@@ -376,7 +376,9 @@ function mountBell(which, profile) {
   document.addEventListener('click', () => { if (BELL.open) toggleBell(false); });
 
   refreshBell();
-  BELL.timer = setInterval(() => { if (!document.hidden) refreshBell(); }, 60000);
+  // Messages ring the bell straight away over the live connection, and it
+  // refreshes on coming back to the tab, so the timer only catches the rest.
+  BELL.timer = setInterval(() => { if (!document.hidden) refreshBell(); }, 5 * 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBell(); });
   listenForMessages();
   ensurePush(false);
@@ -439,19 +441,27 @@ async function studentFeed(me) {
   const since = new Date(now - 14 * DAY_MS).toISOString();
   const nowIso = new Date(now).toISOString();
   const in3 = new Date(now + 3 * DAY_MS).toISOString();
-  let [ann, tests, lessons, due, hw, msgs, tried, handed] = await Promise.all([
+  let [ann, tests, lessons, due, hw, msgs, tried, handed, freshUnits] = await Promise.all([
     q(sb.from('announcements').select('id, title, body, priority, created_at').eq('is_active', true)
       .gte('created_at', since).order('created_at', { ascending: false }).limit(15)),
-    q(sb.from('practice_tests').select('*')
+    q(sb.from('practice_tests').select('id, title, is_offline, open_at, close_at, created_at')
       .order('created_at', { ascending: false }).limit(60)),
-    q(sb.from('lessons').select('id, title, created_at, modules(id, title, released_at, open_at)').limit(800)),
+    // Only lessons that could be news: added lately, or in a unit released
+    // or opened lately — not every lesson in the course on every refresh.
+    q(sb.from('lessons').select('id, created_at, modules(id, title, released_at, open_at)').gte('created_at', since).limit(300)),
     q(sb.from('test_assignments').select('test_id, due_at, practice_tests(title)').gte('due_at', nowIso).lte('due_at', in3)),
     q(sb.from('assignments').select('id, title, due_at').eq('is_active', true).gte('due_at', nowIso).lte('due_at', in3)),
     q(sb.from('messages').select('id, body, created_at').eq('from_staff', true).is('read_at', null)
       .order('created_at', { ascending: false }).limit(20)),
     q(sb.from('test_attempts').select('test_id').eq('student_id', me.id)),
     q(sb.from('assignment_submissions').select('assignment_id').eq('student_id', me.id)),
+    q(sb.from('modules').select('id, title, released_at, open_at, lessons(id, created_at)')
+      .or(`released_at.gte.${since},and(open_at.gte.${since},open_at.lte.${nowIso})`).limit(60)),
   ]);
+  const seenLesson = new Set(lessons.map(l => l.id));
+  freshUnits.forEach(({ lessons: ls, ...m }) => (ls || []).forEach(l => {
+    if (!seenLesson.has(l.id)) { seenLesson.add(l.id); lessons.push({ ...l, modules: m }); }
+  }));
   const done = new Set(tried.map(r => r.test_id));
   const handedIn = new Set(handed.map(r => r.assignment_id));
   const items = [];
