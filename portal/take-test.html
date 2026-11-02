@@ -515,7 +515,7 @@ function showResult(row, outcome) {
     ${notice}
     <div class="card mb24 printable">
       <div class="result-hero">
-        <div class="result-pct" style="color:${row.passed ? 'var(--success)' : 'var(--danger)'}">${marks(row.score, row.max_score)}</div>
+        <div class="result-pct" style="color:${pending ? 'var(--muted)' : row.passed ? 'var(--success)' : 'var(--danger)'}">${pending && !questions.some(q => !isFrq(q)) ? 'Handed in' : marks(row.score, row.max_score)}</div>
         <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;margin:12px 0 6px">
           ${pending ? 'Waiting for your written answers to be marked' : row.passed ? 'Passed' : 'Not passed this time'}
         </div>
