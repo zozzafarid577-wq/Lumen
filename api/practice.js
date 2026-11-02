@@ -289,7 +289,9 @@ async function loadPool(teacherId, moduleIds, { full = false, lessons = [], loos
     const data = await everyRow(() => admin.from('test_questions')
       .select((full ? 'id, question_text, options, explanation, ' : 'id, question_text, options, ') + 'test_id')
       .in('test_id', [...testById.keys()]));
-    fromTests = data.map(q => {
+    // Free-response questions have no options to pick from, so they are
+    // not practice material (they are marked on the test itself).
+    fromTests = data.filter(q => (q.options || []).length).map(q => {
       const t = testById.get(q.test_id);
       return { ...q, id: 't:' + q.id, module_id: t.module_id, lesson_id: t.lesson_id, section_id: t.section_id };
     });

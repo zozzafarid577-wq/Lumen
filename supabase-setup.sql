@@ -1497,3 +1497,37 @@ CREATE POLICY "tenant_branding_write" ON storage.objects
   WITH CHECK (bucket_id = 'branding'
          AND (storage.foldername(name))[1] = public.jwt_teacher_id()::TEXT
          AND public.jwt_role() = 'teacher');
+
+-- ────────────────────────────────────────
+-- v20 — practice does not repeat itself (also supabase-migration-v20.sql)
+-- ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.practice_seen (
+  student_id   UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  teacher_id   UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  question_key TEXT NOT NULL,
+  seen_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (student_id, question_key)
+);
+ALTER TABLE public.practice_seen ENABLE ROW LEVEL SECURITY;
+
+-- ────────────────────────────────────────
+-- v21 — free-response questions, marked per point (also supabase-migration-v21.sql)
+-- ────────────────────────────────────────
+ALTER TABLE public.test_questions ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'mcq';
+ALTER TABLE public.test_questions ADD COLUMN IF NOT EXISTS frq JSONB;
+DO $$ BEGIN
+  ALTER TABLE public.test_questions ADD CONSTRAINT test_questions_kind_check CHECK (kind IN ('mcq', 'frq'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS public.frq_rubrics (
+  question_id UUID PRIMARY KEY REFERENCES public.test_questions(id) ON DELETE CASCADE,
+  teacher_id  UUID NOT NULL REFERENCES public.teachers(id) ON DELETE CASCADE,
+  general     TEXT,
+  points      JSONB NOT NULL
+);
+ALTER TABLE public.frq_rubrics ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "frq_rubrics_staff_all" ON public.frq_rubrics;
+CREATE POLICY "frq_rubrics_staff_all" ON public.frq_rubrics
+  FOR ALL USING (public.is_staff_of(teacher_id)) WITH CHECK (public.is_staff_of(teacher_id));
+
+ALTER TABLE public.test_attempts ADD COLUMN IF NOT EXISTS grading JSONB;

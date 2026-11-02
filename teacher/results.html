@@ -88,6 +88,19 @@
   .opt.correct .opt-tag { color: var(--success); }
   .opt.chosen-wrong .opt-tag { color: var(--danger); }
 
+  /* Free-response points: the answer, the marking, and the teacher's say. */
+  .frq-pt { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .frq-pt.earned { border-color: var(--success); }
+  .frq-pt.missed { border-color: var(--danger); }
+  .frq-pt .pt-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .frq-pt .pt-label { font-weight: 800; font-size: .78rem; }
+  .frq-pt.earned .pt-verdict { color: var(--success); }
+  .frq-pt.missed .pt-verdict { color: var(--danger); }
+  .frq-pt .pt-verdict { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .frq-pt .pt-their { white-space: pre-line; font-size: .85rem; line-height: 1.55; background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+  .frq-pt details { font-size: .78rem; color: var(--text-2); }
+  .frq-pt details div { white-space: pre-line; margin-top: 4px; line-height: 1.5; }
+  @media print { .frq-pt button { display: none; } }
   .paper-why {
     margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
     font-size: .82rem; color: var(--text-2); line-height: 1.55;
@@ -310,7 +323,7 @@ const LETTERS = 'ABCDEFGHIJ';
 async function load() {
   const [rows, testRows, courses] = await Promise.all([
     sb.from('test_attempts')
-      .select('id, student_id, test_id, answers, score, max_score, percentage, passed, time_taken_sec, completed_at, profiles(full_name, email)')
+      .select('*, profiles(full_name, email)')
       .eq('teacher_id', me.teacher_id)
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false }),
@@ -345,10 +358,17 @@ async function load() {
 async function questionsFor(testId) {
   if (questionsByTest.has(testId)) return questionsByTest.get(testId);
   const { data } = await sb.from('test_questions')
-    .select('id, question_text, options, explanation, image_url, order_index, points')
+    .select('*')
     .eq('teacher_id', me.teacher_id).eq('test_id', testId)
     .order('order_index');
   const list = data || [];
+  // The scoring guideline of each free-response question, for the paper.
+  const frqIds = list.filter(isFrq).map(q => q.id);
+  if (frqIds.length) {
+    const { data: rubrics } = await sb.from('frq_rubrics').select('question_id, general, points').in('question_id', frqIds);
+    const byId = new Map((rubrics || []).map(r => [r.question_id, r]));
+    list.forEach(q => { if (isFrq(q)) q.rubric = byId.get(q.id) || null; });
+  }
   questionsByTest.set(testId, list);
   return list;
 }
@@ -424,7 +444,7 @@ async function drawMostMissed(list) {
   const questions = await questionsFor(testId);
   if (!questions.length) { card.style.display = 'none'; return; }
 
-  const rows = questions.map((q, i) => {
+  const rows = questions.filter(q => !isFrq(q)).map((q, i) => {
     let wrong = 0;
     list.forEach(a => { if (!isRight(q, (a.answers || {})[q.id])) wrong++; });
     return { q, i, wrong, pct: Math.round((wrong / list.length) * 100) };
@@ -468,7 +488,14 @@ function givenIndexes(given) {
   return Number.isInteger(given) ? [given] : [];
 }
 
+// A free-response question is marked per point (api/_lib/frq.js); it is
+// "right" on the paper only when every point was earned.
+function isFrq(q) { return q.kind === 'frq'; }
+function frqMarks(a, q) { return new Map((a?.grading?.questions?.[q.id]?.points || []).map(p => [p.label, p])); }
+function frqEarned(a, q) { return (q.frq?.points || []).filter(p => frqMarks(a, q).get(p.label)?.earned).length; }
+
 function isRight(q, given) {
+  if (isFrq(q)) return !!openAttempt && frqEarned(openAttempt, q) === (q.frq?.points || []).length;
   const want = rightIndexes(q);
   const got = givenIndexes(given);
   if (!got.length || want.length !== got.length) return false;
@@ -534,13 +561,20 @@ async function openPaper(attemptId, { print = false } = {}) {
   // written with the questions, since it says which ones are printed).
   document.getElementById('pr-title').textContent = `${a.student_name} — ${a.test?.title || 'Test'}`;
 
-  const wrong = questions.filter(q => !isRight(q, answers[q.id])).length;
-  const blank = questions.filter(q => !givenIndexes(answers[q.id]).length).length;
+  const wrong = questions.filter(q => !isFrq(q) && !isRight(q, answers[q.id])).length;
+  const blank = questions.filter(q => !isFrq(q) && !givenIndexes(answers[q.id]).length).length;
+  const frqs = questions.filter(isFrq);
+  const frqLine = !frqs.length ? ''
+    : a.grading?.status === 'graded'
+      ? `Written answers: ${frqs.reduce((t, q) => t + frqEarned(a, q), 0)} of ${frqs.reduce((t, q) => t + (q.frq?.points || []).length, 0)} points`
+      : `<strong style="color:var(--danger)">Written answers not marked yet</strong>${a.grading?.error ? ' — ' + escHtml(a.grading.error) : ''}`;
 
   document.getElementById('p-badges').innerHTML = [
     `<span class="badge ${a.passed ? 'b-green' : 'b-red'}">${a.passed ? 'Passed' : 'Did not pass'}</span>`,
     a.test?.passing_score_pct != null ? `<span class="small muted">Pass mark ${passMarks(a.test.passing_score_pct, a.max_score)}</span>` : '',
-    `<span class="small muted">${questions.length - wrong} right · ${wrong} wrong${blank ? ` · ${blank} left blank` : ''}</span>`,
+    questions.length > frqs.length ? `<span class="small muted">${questions.length - frqs.length - wrong} right · ${wrong} wrong${blank ? ` · ${blank} left blank` : ''}</span>` : '',
+    frqLine ? `<span class="small">${frqLine}</span>` : '',
+    frqs.length ? `<button class="btn btn-outline btn-xs" id="regrade-btn" onclick="regrade()">${a.grading?.status === 'graded' ? 'Mark written answers again' : 'Mark written answers now'}</button>` : '',
     `<span class="small muted">Took ${fmtDuration(a.time_taken_sec)}</span>`,
     `<span class="small muted">Finished ${fmtDateTime(a.completed_at)}</span>`,
   ].filter(Boolean).join('');
@@ -557,6 +591,7 @@ async function openPaper(attemptId, { print = false } = {}) {
 }
 
 function drawQuestion(q, i, given) {
+  if (isFrq(q)) return drawFrq(q, i, given || {});
   const got = givenIndexes(given);
   const right = isRight(q, given);
   const blank = !got.length;
@@ -595,6 +630,67 @@ function drawQuestion(q, i, given) {
       ${options}
       ${q.explanation ? `<div class="paper-why"><strong>Why:</strong> ${escHtml(q.explanation)}</div>` : ''}
     </div>`;
+}
+
+// One free-response question: each point with the student's answer, the
+// marking and its reason, the guideline it was marked against, and the
+// teacher's button to give or take the point.
+function drawFrq(q, i, given) {
+  const a = openAttempt;
+  const marks = frqMarks(a, q);
+  const rules = new Map((q.rubric?.points || []).map(p => [p.label, p.rubric]));
+  const pts = q.frq?.points || [];
+  const got = frqEarned(a, q);
+  return `
+    <div class="paper-q ${got === pts.length ? 'right' : 'wrong'}">
+      <div class="paper-head">
+        <span class="paper-n">${i + 1}</span>
+        <span class="paper-text">${escHtml(trim(q.question_text, 400))}</span>
+        <span class="paper-mark ${got === pts.length ? 'right' : 'wrong'}">${got}/${pts.length}</span>
+      </div>
+      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:10px;margin-bottom:12px">` : ''}
+      ${pts.map(p => {
+        const m = marks.get(p.label);
+        const state = m ? (m.earned ? 'earned' : 'missed') : '';
+        return `<div class="frq-pt ${state}">
+          <div class="pt-head">
+            <span class="pt-label">${escHtml(p.label)}</span>
+            <span class="pt-verdict">${!m ? 'Not marked' : m.earned ? 'Point earned' : 'No point'}${m?.by === 'teacher' ? ' · changed by ' + escHtml(m.changed_by || 'teacher') : m ? ' · marked by Claude' : ''}</span>
+            <span style="margin-left:auto"></span>
+            <button class="btn btn-ghost btn-xs" onclick="setPoint('${q.id}', '${escHtml(p.label)}', ${!(m?.earned)})">${m?.earned ? 'Take the point away' : 'Give the point'}</button>
+          </div>
+          <div class="small" style="white-space:pre-line;margin-top:4px">${escHtml(p.prompt)}</div>
+          <div class="pt-their">${given[p.group || p.label] ? escHtml(given[p.group || p.label]) : '<span class="muted">Left blank</span>'}</div>
+          ${m?.reason ? `<div class="small">${escHtml(m.reason)}</div>` : ''}
+          ${rules.get(p.label) ? `<details><summary>Scoring guideline</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function setPoint(questionId, label, earned) {
+  const a = openAttempt;
+  try {
+    const out = await apiPost('/api/support', { flow: 'frq-override', attempt_id: a.id, question_id: questionId, label, earned });
+    Object.assign(a, out);
+    showToast(earned ? `Point ${label} given.` : `Point ${label} taken away.`, 'success');
+    openPaper(a.id);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function regrade() {
+  const a = openAttempt;
+  const btn = document.getElementById('regrade-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Marking… up to a minute'; }
+  try {
+    const out = await apiPost('/api/support', { flow: 'frq-grade', attempt_id: a.id, force: true });
+    Object.assign(a, out);
+    showToast('Written answers marked. Points you changed yourself were kept.', 'success');
+    openPaper(a.id);
+  } catch (err) {
+    showToast(err.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Mark written answers now'; }
+  }
 }
 
 function closePaper() {

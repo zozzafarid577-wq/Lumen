@@ -60,7 +60,8 @@ export async function hardestQuestions(teacherId, from, until) {
   }
 
   const byTest = new Map();
-  questions.forEach(q => { if (!byTest.has(q.test_id)) byTest.set(q.test_id, []); byTest.get(q.test_id).push(q); });
+  // Free-response questions are marked per point, not right or wrong.
+  questions.filter(q => (q.options || []).length).forEach(q => { if (!byTest.has(q.test_id)) byTest.set(q.test_id, []); byTest.get(q.test_id).push(q); });
 
   const stats = new Map();     // question id -> { q, sat, wrong, picks: Map(index -> count) }
   for (const a of sat) {

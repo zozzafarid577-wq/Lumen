@@ -70,7 +70,10 @@ export default handler(async (req, res) => {
   const { error: delErr } = await admin.from('test_questions').delete().eq('test_id', testId);
   if (delErr) throw new HttpError(500, 'Could not update the questions on that test.');
 
-  const { error: insErr } = await admin.from('test_questions').insert(
+  // kind and frq are only written when the test has a free-response
+  // question, so a plain multiple-choice save never depends on them.
+  const hasFrq = questions.some(q => q.kind === 'frq');
+  const { data: saved, error: insErr } = await admin.from('test_questions').insert(
     questions.map((q, i) => ({
       teacher_id: teacherId,
       test_id: testId,
@@ -80,9 +83,21 @@ export default handler(async (req, res) => {
       image_url: q.image_url,
       order_index: i,
       points: q.points,
+      ...(hasFrq ? { kind: q.kind, frq: q.frq } : {}),
     }))
-  );
+  ).select('id, order_index');
   if (insErr) throw new HttpError(500, 'The test was saved but its questions were not. Please try again.');
+
+  // The scoring guideline for each free-response question, kept where
+  // students cannot read it (see supabase-migration-v21.sql).
+  if (hasFrq) {
+    const idAt = new Map((saved || []).map(r => [r.order_index, r.id]));
+    const rubrics = questions.map((q, i) => q.kind === 'frq'
+      ? { question_id: idAt.get(i), teacher_id: teacherId, general: q.rubric.general, points: q.rubric.points }
+      : null).filter(Boolean);
+    const { error: rubErr } = await admin.from('frq_rubrics').insert(rubrics);
+    if (rubErr) throw new HttpError(500, 'The test was saved but its scoring guidelines were not. Please try again.');
+  }
 
   // A brand-new test buzzes its students' phones. An edit does not: a
   // typo fixed on Thursday is not news.
@@ -125,6 +140,7 @@ function normaliseQuestions(list) {
     const n = i + 1;
     const text = String(raw?.question_text || '').trim();
     if (!text) throw new HttpError(400, `Question ${n} has no text.`);
+    if (raw?.kind === 'frq') return normaliseFrq(raw, n, text);
 
     const options = Array.isArray(raw?.options) ? raw.options : [];
     if (options.length < 2) throw new HttpError(400, `Question ${n} needs at least two options.`);
@@ -140,6 +156,7 @@ function normaliseQuestions(list) {
     }
 
     return {
+      kind: 'mcq',
       // Room for a reading passage above the question it belongs to.
       question_text: text.slice(0, 4000),
       options: cleaned,
@@ -148,6 +165,43 @@ function normaliseQuestions(list) {
       points: positiveIntOrNull(raw?.points, 'points') ?? 1,
     };
   });
+}
+
+// A free-response question: the student writes an answer for each
+// point, and each point is worth one mark against its own rubric. The
+// points the student sees and the rubric are matched by label.
+function normaliseFrq(raw, n, text) {
+  const shown = Array.isArray(raw?.frq?.points) ? raw.frq.points : [];
+  const rubric = Array.isArray(raw?.rubric?.points) ? raw.rubric.points : [];
+  if (!shown.length) throw new HttpError(400, `Question ${n} has no parts to answer.`);
+  if (shown.length > 20) throw new HttpError(400, `Question ${n} has too many parts.`);
+  const points = shown.map((p, j) => {
+    const label = String(p?.label || '').trim().slice(0, 20);
+    const prompt = String(p?.prompt || '').trim().slice(0, 2000);
+    if (!label || !prompt) throw new HttpError(400, `Question ${n}, part ${j + 1} is missing its label or task.`);
+    // A part the guideline scores 0–2 is two points marked from one answer:
+    // both points carry the part's name as their group.
+    const group = String(p?.group || '').trim().slice(0, 20);
+    return group ? { label, prompt, group } : { label, prompt };
+  });
+  if (new Set(points.map(p => p.label)).size !== points.length) throw new HttpError(400, `Question ${n} uses a part label twice.`);
+  const byLabel = new Map(rubric.map(r => [String(r?.label || '').trim(), String(r?.rubric || '').trim()]));
+  const rubricPoints = points.map(p => {
+    const r = byLabel.get(p.label);
+    if (!r) throw new HttpError(400, `Question ${n}, part ${p.label} has no scoring guideline.`);
+    return { label: p.label, rubric: r.slice(0, 6000) };
+  });
+  return {
+    kind: 'frq',
+    // Sources and articles run long on the newer exams.
+    question_text: text.slice(0, 20000),
+    options: [],
+    explanation: cleanText(raw?.explanation, { max: 2000 }),
+    image_url: cleanText(raw?.image_url, { max: 500 }),
+    points: points.length,
+    frq: { points },
+    rubric: { general: cleanText(raw?.rubric?.general, { max: 6000 }), points: rubricPoints },
+  };
 }
 
 function parseWhen(value, which) {

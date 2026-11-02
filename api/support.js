@@ -48,6 +48,9 @@ export default handler(async (req, res) => {
   if (body.flow === 'import-course') return res.status(200).json(await (await import('./_lib/import.js')).importCourse(profile, body));
   if (body.flow === 'import-file') return res.status(200).json(await (await import('./_lib/import.js')).importFile(profile, body));
   if (body.flow === 'import-picture') return res.status(200).json(await (await import('./_lib/import.js')).importPicture(profile, body));
+  // Free-response questions: marking by Claude, and the teacher's changes.
+  if (body.flow === 'frq-grade') return res.status(200).json(await (await import('./_lib/frq.js')).gradeAttempt(profile, body));
+  if (body.flow === 'frq-override') return res.status(200).json(await (await import('./_lib/frq.js')).overridePoint(profile, body));
   if (body.flow === 'course-copy') return res.status(200).json(await (await import('./_lib/course-copy.js')).copyCourse(profile, body));
   // The group report, now, to the teacher — from the Groups list.
   if (body.flow === 'group-report-send') {

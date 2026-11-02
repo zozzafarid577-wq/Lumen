@@ -404,6 +404,12 @@ async function openBuilder(id, seed = null) {
     const { data } = await sb.from('test_questions')
       .select('question_text, options, explanation, image_url, points, order_index')
       .eq('test_id', t.id).order('order_index');
+    // A free-response question has no options and carries a scoring
+    // guideline this editor cannot show, so saving here would lose it.
+    if ((data || []).some(q => !(q.options || []).length)) {
+      showToast('This test has free-response questions, which cannot be edited here yet. Ask Lumen to change it.', 'error');
+      return;
+    }
     chosen = (data || []).map(q => ({ ...q, id: 'existing-' + q.order_index }));
   } else if (seed?.ids?.length) {
     chosen = await questionsFromBank(seed.ids);

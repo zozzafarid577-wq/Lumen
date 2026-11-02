@@ -70,6 +70,21 @@
   .q-opt.wrong   { border-color: var(--danger);  background: #FCEDEF; color: var(--danger); font-weight: 600; }
   .q-explain { font-size: .82rem; color: var(--text-2); background: var(--bg); border-radius: 10px; padding: 11px 14px; margin-top: 10px; line-height: 1.55; }
   .result-hero { text-align: center; padding: 40px 24px; }
+  /* Free-response questions: one box per point, marked per point after. */
+  .frq-part { margin-top: 14px; }
+  .frq-part label { display: block; font-size: .86rem; font-weight: 600; line-height: 1.5; margin-bottom: 6px; white-space: pre-line; }
+  .frq-part .frq-label { display: inline-block; min-width: 26px; padding: 1px 7px; margin-right: 6px; border-radius: 6px; background: var(--primary-soft); color: var(--primary); font-size: .74rem; font-weight: 800; text-align: center; }
+  .frq-part textarea { width: 100%; min-height: 96px; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 11px; font: inherit; font-size: .88rem; line-height: 1.55; resize: vertical; background: var(--card); color: inherit; }
+  .frq-part textarea:focus { outline: none; border-color: var(--primary); }
+  .frq-point { border: 1px solid var(--border); border-radius: 11px; padding: 12px 14px; margin-top: 10px; }
+  .frq-point.earned { border-color: var(--success); background: #E7F4EF22; }
+  .frq-point.missed { border-color: var(--danger); background: #FCEDEF33; }
+  .frq-point .verdict { font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .frq-point.earned .verdict { color: var(--success); }
+  .frq-point.missed .verdict { color: var(--danger); }
+  .frq-point .their { font-size: .84rem; line-height: 1.55; white-space: pre-line; background: var(--bg); border-radius: 8px; padding: 8px 11px; margin: 8px 0; }
+  .frq-point details { font-size: .8rem; color: var(--text-2); margin-top: 6px; }
+  .frq-point details div { white-space: pre-line; line-height: 1.5; margin-top: 6px; }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
 </style>
 </head>
@@ -108,6 +123,7 @@ let startedAt = null;
 let deadline = null;     // epoch ms, or null when there is no time limit
 let ticker = null;
 let submitted = false;
+let lastRow = null;       // the handed-in paper, with its marking once the server has marked it
 
 (async () => {
   me = await requireAuth('student');
@@ -129,7 +145,7 @@ let submitted = false;
   // an empty list here means something is wrong with the test itself
   // rather than with this student.
   const { data: qs, error: qErr } = await sb.from('test_questions')
-    .select('id, question_text, options, explanation, image_url, points, order_index')
+    .select('*')
     .eq('test_id', id).order('order_index');
   if (qErr) { fail('We could not load the questions.', friendlyError(qErr.message)); return; }
   if (!qs?.length) { fail('This test has no questions yet.', 'Let your teacher know.'); return; }
@@ -201,6 +217,10 @@ function clearDraft() {
 
 function restoreTicks() {
   for (const [qid, v] of Object.entries(answers)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      document.querySelectorAll(`textarea[data-q="${qid}"]`).forEach(t => { t.value = v[t.dataset.l] || ''; });
+      continue;
+    }
     const chosen = Array.isArray(v) ? v : [v];
     document.querySelectorAll(`.q-opt[data-q="${qid}"]`).forEach(label => {
       const on = chosen.includes(Number(label.dataset.i));
@@ -248,6 +268,23 @@ function rightAnswers(q) {
 }
 function isMulti(q) { return rightAnswers(q).length > 1; }
 
+// A free-response question: written answers, one per point, marked by
+// the server against the official scoring guideline (api/_lib/frq.js).
+function isFrq(q) { return q.kind === 'frq'; }
+function frqPoints(q) { return q.frq?.points || []; }
+const answerKey = (p) => p.group || p.label;
+// The boxes the student writes in: one per point, except a part scored
+// 0–2, which is one box worth two points.
+function frqBoxes(q) {
+  const boxes = new Map();
+  for (const p of frqPoints(q)) {
+    const k = answerKey(p);
+    if (!boxes.has(k)) boxes.set(k, { key: k, prompt: p.prompt, worth: 0 });
+    boxes.get(k).worth++;
+  }
+  return [...boxes.values()];
+}
+
 // A student who put one answer to a two-answer question has answered it,
 // so `answers` holds an array for those and a plain number for the rest.
 // Attempts done before today are all plain numbers and still read back.
@@ -272,8 +309,24 @@ function qImage(q) {
   return q.image_url ? `<img class="q-img" src="${escHtml(q.image_url)}" alt="Figure for this question" loading="lazy">` : '';
 }
 
+function frqBlock(q, i) {
+  const given = answers[q.id] || {};
+  return `
+    <div class="q-block" id="q-${q.id}">
+      <div class="q-num">Question ${i + 1} of ${questions.length} · free response · ${frqPoints(q).length} points</div>
+      <div class="q-text" style="font-weight:500">${escHtml(q.question_text)}</div>
+      ${qImage(q)}
+      ${frqBoxes(q).map(b => `
+        <div class="frq-part">
+          <label for="a-${q.id}-${escHtml(b.key)}"><span class="frq-label">${escHtml(b.key)}</span>${escHtml(b.prompt)}${b.worth > 1 ? ` <span class="muted">(${b.worth} points)</span>` : ''}</label>
+          <textarea id="a-${q.id}-${escHtml(b.key)}" data-q="${q.id}" data-l="${escHtml(b.key)}" placeholder="Write your answer in full sentences.">${escHtml(given[b.key] || '')}</textarea>
+        </div>`).join('')}
+    </div>`;
+}
+
 function renderQuestions() {
   document.getElementById('wrap').innerHTML = questions.map((q, i) => {
+    if (isFrq(q)) return frqBlock(q, i);
     const multi = isMulti(q);
     return `
     <div class="q-block" id="q-${q.id}">
@@ -297,6 +350,17 @@ function renderQuestions() {
   // sits inside the label, so a click has already toggled a checkbox by
   // the time a click handler runs, and toggling it again in code would
   // undo the student's tick.
+  document.querySelectorAll('textarea[data-q]').forEach(box => {
+    box.addEventListener('input', () => {
+      const qid = box.dataset.q;
+      const now = { ...(answers[qid] || {}) };
+      if (box.value.trim()) now[box.dataset.l] = box.value; else delete now[box.dataset.l];
+      if (Object.keys(now).length) answers[qid] = now; else delete answers[qid];
+      updateCount();
+      saveDraft();
+    });
+  });
+
   document.querySelectorAll('.q-opt input').forEach(input => {
     input.addEventListener('change', () => {
       const qid = input.closest('.q-opt').dataset.q;
@@ -342,13 +406,15 @@ async function submitTest(auto = false) {
   document.getElementById('clock').style.display = 'none';
 
   // Marked here so the student sees their result at once; the same
-  // numbers are stored, and the teacher sees exactly these.
+  // numbers are stored, and the teacher sees exactly these. Written
+  // answers count nothing until the server has marked them, just below.
   let score = 0, maxScore = 0;
   questions.forEach(q => {
     const points = q.points || 1;
     maxScore += points;
-    if (gotRight(q)) score += points;
+    if (!isFrq(q) && gotRight(q)) score += points;
   });
+  const hasFrq = questions.some(isFrq);
   const percentage = maxScore ? Math.round((score / maxScore) * 10000) / 100 : 0;
   const passed = percentage >= test.passing_score_pct;
 
@@ -364,11 +430,17 @@ async function submitTest(auto = false) {
     time_taken_sec: Math.round((Date.now() - startedAt) / 1000),
     started_at: new Date(startedAt).toISOString(),
     completed_at: new Date().toISOString(),
+    ...(hasFrq ? { grading: { status: 'pending' } } : {}),
   };
 
   // Student view: the teacher sees the result screen a student would, and
   // nothing goes to the database or to a parent.
   if (me.preview) {
+    if (hasFrq) {
+      showMarking();
+      try { Object.assign(row, await apiPost('/api/support', { flow: 'frq-grade', test_id: test.id, answers })); }
+      catch (err) { row.gradeError = err.message; }
+    }
     showResult(row, { saved: true });
     showToast('Student view — this result was not saved.', 'info');
     return;
@@ -378,6 +450,14 @@ async function submitTest(auto = false) {
   // Saved, or kept on the device to be sent again: either way the draft
   // has done its job.
   clearDraft();
+  // Written answers are marked now, against the scoring guideline. If
+  // that fails the paper is still handed in; the teacher marks it from
+  // the results page.
+  if (hasFrq && outcome.saved && outcome.id) {
+    showMarking();
+    try { Object.assign(row, await apiPost('/api/support', { flow: 'frq-grade', attempt_id: outcome.id })); }
+    catch (err) { row.gradeError = err.message; }
+  }
   showResult(row, outcome);
 
   // Only once the mark is actually in the database. Telling a parent a
@@ -403,17 +483,30 @@ async function save(row) {
   try {
     const session = await ensureFreshSession();
     if (!session) throw new Error('no session');
-    const { error } = await sb.from('test_attempts').insert(row);
+    const { data, error } = await sb.from('test_attempts').insert(row).select('id').single();
     if (error) throw error;
-    return { saved: true };
+    return { saved: true, id: data?.id };
   } catch (_) {
     const kept = savePendingAttempt(row);
     return { saved: false, kept };
   }
 }
 
+function showMarking() {
+  document.getElementById('wrap').innerHTML = `<div class="card"><div class="card-body" style="text-align:center;padding:48px 24px">
+    <div class="skel" style="height:10px;max-width:240px;margin:0 auto 18px"></div>
+    <div style="font-family:Manrope,sans-serif;font-weight:800;font-size:1.05rem">Marking your written answers…</div>
+    <p class="small muted" style="margin-top:8px">Each part is checked against the official AP scoring guidelines. This takes up to a minute — please keep this page open.</p>
+  </div></div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function showResult(row, outcome) {
-  const notice = outcome.saved ? ''
+  lastRow = row;
+  const pending = row.grading?.status !== 'graded' && questions.some(isFrq);
+  const notice = row.gradeError || (pending && outcome.saved)
+    ? `<div class="alert alert-warning mb24"><div>Your written answers are handed in but have not been marked yet${row.gradeError ? ` (${escHtml(row.gradeError)})` : ''}. The mark below counts only the multiple-choice questions; your teacher will mark the rest.</div></div>`
+    : outcome.saved ? ''
     : outcome.kept
       ? `<div class="alert alert-warning mb24"><div>Your connection dropped, so this result has not reached your teacher yet. It is safe on this device and will be sent automatically next time you open Lumen — <strong>on this same device and browser</strong>.</div></div>`
       : `<div class="alert alert-error mb24"><div>We could not save this result and this browser would not let us keep a copy. Please screenshot this page and send it to your teacher.</div></div>`;
@@ -424,7 +517,7 @@ function showResult(row, outcome) {
       <div class="result-hero">
         <div class="result-pct" style="color:${row.passed ? 'var(--success)' : 'var(--danger)'}">${marks(row.score, row.max_score)}</div>
         <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;margin:12px 0 6px">
-          ${row.passed ? 'Passed' : 'Not passed this time'}
+          ${pending ? 'Waiting for your written answers to be marked' : row.passed ? 'Passed' : 'Not passed this time'}
         </div>
         <p class="small muted">${row.score} out of ${row.max_score} marks · pass mark ${passMarks(test.passing_score_pct, row.max_score)} · ${Math.round(row.time_taken_sec / 60)} min</p>
         <div class="row" style="justify-content:center;margin-top:20px">
@@ -446,10 +539,43 @@ function showResult(row, outcome) {
 // they still need the answer. Each keeps the number it had in the test,
 // so "question 31" means the same thing here as it did to the teacher.
 function reviewSection() {
-  const missed = questions.map((q, i) => ({ q, i })).filter(({ q }) => !gotRight(q));
+  return frqReview() + mcqReview();
+}
+
+// Every free-response question, point by point: what they wrote, earned
+// or not and why, and the guideline the point was marked against.
+function frqReview() {
+  const frqs = questions.map((q, i) => ({ q, i })).filter(({ q }) => isFrq(q));
+  if (!frqs.length || lastRow?.grading?.status !== 'graded') return '';
+  return `
+    <div class="section-head"><div><h2>Your written answers</h2><div class="sub">Marked point by point against the official AP scoring guidelines</div></div></div>
+    ${frqs.map(({ q, i }) => {
+      const marked = new Map((lastRow.grading.questions?.[q.id]?.points || []).map(p => [p.label, p]));
+      const rules = new Map((lastRow.guidelines?.[q.id]?.points || []).map(p => [p.label, p.rubric]));
+      const got = frqPoints(q).filter(p => marked.get(p.label)?.earned).length;
+      return `<div class="q-block">
+        <div class="q-num">Question ${i + 1} · ${got} of ${frqPoints(q).length} points</div>
+        ${frqPoints(q).map(p => {
+          const m = marked.get(p.label) || {};
+          const theirs = (answers[q.id] || {})[answerKey(p)];
+          return `<div class="frq-point ${m.earned ? 'earned' : 'missed'}">
+            <div class="verdict">${escHtml(p.label)} · ${m.earned ? 'Point earned' : 'No point'}</div>
+            <div class="small" style="margin-top:4px;white-space:pre-line">${escHtml(p.prompt)}</div>
+            <div class="their">${theirs ? escHtml(theirs) : '<span class="muted">Left blank</span>'}</div>
+            ${m.reason ? `<div class="small">${escHtml(m.reason)}</div>` : ''}
+            ${rules.get(p.label) ? `<details><summary>What the scoring guideline asked for</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('')}`;
+}
+
+function mcqReview() {
+  if (!questions.some(q => !isFrq(q))) return '';
+  const missed = questions.map((q, i) => ({ q, i })).filter(({ q }) => !isFrq(q) && !gotRight(q));
   if (!missed.length) {
     return `<div class="card"><div class="card-body">${emptyState('Nothing to go over',
-      `You got all ${questions.length} question${questions.length === 1 ? '' : 's'} right.`)}</div></div>`;
+      `You got all the multiple-choice questions right.`)}</div></div>`;
   }
   return `
     <div class="section-head"><div><h2>What you got wrong</h2><div class="sub">${missed.length} of ${questions.length} question${questions.length === 1 ? '' : 's'} — what you put, and what was right</div></div></div>
