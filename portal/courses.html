@@ -201,6 +201,25 @@
   .lr-done .lr-ic { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
   .lr-done .lr-title { color: var(--text-2); }
 
+  /* ── Practice & tests ─────────────────────────────────────────
+     Every paper in the unit, in one block of its own colour, so it
+     never reads as another lesson row. */
+  .practice-block {
+    margin: 14px; padding: 16px; border-radius: 14px; color: #fff;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #c026d3 100%);
+    box-shadow: 0 8px 24px rgb(124 58 237 / .22);
+  }
+  .pb-head { padding: 2px 4px 12px; }
+  .pb-title { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: .95rem; }
+  .pb-sub { font-size: .73rem; opacity: .85; margin-top: 2px; }
+  .pb-list { background: rgb(255 255 255 / .12); border-radius: 10px; overflow: hidden; }
+  .practice-block .list-row { border-bottom-color: rgb(255 255 255 / .16); }
+  .practice-block .list-row:hover { background: rgb(255 255 255 / .1); }
+  .practice-block .lr-sub { color: rgb(255 255 255 / .8); }
+  .practice-block .lr-ic.ic-test { background: rgb(255 255 255 / .2); color: #fff; }
+  .practice-block .btn-primary { background: #fff; color: #5b21b6; border-color: #fff; }
+  .practice-block .btn-outline { background: transparent; color: #fff; border-color: rgb(255 255 255 / .6); }
+
   .unit-meta { flex: 1; min-width: 0; }
   .practise-btn { display: inline-flex; align-items: center; gap: 6px; }
   .practise-btn svg { width: 13px; height: 13px; }
@@ -269,13 +288,13 @@ let courses = [];
 let doneIds = new Set();
 let bestByTest = new Map();   // test_id -> the student's best attempt
 let dueByTest = new Map();   // test_id -> the deadline set to this student
-// Which units the student has opened. Ticking a lesson off redraws the
-// whole page, and a unit that shut itself because they marked something
-// done inside it would be maddening.
-const expanded = new Set();
+// Units the student has shut. Open units start expanded, so the page
+// shows its lessons without a click; ticking a lesson off redraws the
+// whole page, and a unit the student closed should stay closed.
+const collapsed = new Set();
 
 function rememberUnit(id, open) {
-  if (open) expanded.add(id); else expanded.delete(id);
+  if (open) collapsed.delete(id); else collapsed.add(id);
 }
 
 (async () => {
@@ -584,7 +603,7 @@ function drawUnits(host, visible, byUnit, byLesson) {
     // shut for free. Every unit starts closed: a term's worth of units
     // all open at once is a page nobody can find anything in.
     return `<details class="unit${open ? ' is-open' : ' lr-locked'}" style="animation-delay:${delay}ms"
-        ${expanded.has(u.id) ? 'open' : ''} ontoggle="rememberUnit('${u.id}', this.open)">
+        ${open && !collapsed.has(u.id) ? 'open' : ''} ontoggle="rememberUnit('${u.id}', this.open)">
       <summary class="unit-summary">
         <div class="unit-head">
           <div class="unit-num${open ? '' : ' locked'}">${open ? String(i + 1).padStart(2, '0') : icon(ICONS.lock)}</div>
@@ -601,16 +620,16 @@ function drawUnits(host, visible, byUnit, byLesson) {
       </summary>
       ${open
         ? (lessons.length || unitTests.length
-            // Each lesson, then what hangs off it: the handouts to read
-            // and the papers set on it, without leaving the page.
+            // Each lesson with its handouts, then every practice paper and
+            // test for the unit together in their own block below.
             ? lessons.map(l =>
                 lessonRow(l)
                 + (l.lesson_materials || []).map(materialRow).join('')
-                + (byLesson.get(l.id) || []).map(t => testRow(t, true)).join('')
               ).join('')
-              + (unitTests.length
-                  ? `<div class="unit-tests">On the whole unit</div>${unitTests.map(t => testRow(t, false)).join('')}`
-                  : '')
+              + practiceBlock([
+                  ...lessons.flatMap(l => byLesson.get(l.id) || []),
+                  ...unitTests,
+                ])
             : '<div class="locked-card">No lessons in this unit yet.</div>')
         : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
     </details>`;
@@ -628,6 +647,17 @@ function materialRow(m) {
       <div class="lr-sub">${escHtml(kind)}</div>
     </div>
     <a href="${escHtml(materialHref(m))}"${isLessonFile(m.file_url) ? '' : ' target="_blank" rel="noopener"'} class="btn btn-outline btn-xs">Open</a>
+  </div>`;
+}
+
+function practiceBlock(tests) {
+  if (!tests.length) return '';
+  return `<div class="practice-block">
+    <div class="pb-head">
+      <div class="pb-title">Practice &amp; tests</div>
+      <div class="pb-sub">${tests.length} to try in this unit</div>
+    </div>
+    <div class="pb-list">${tests.map(t => testRow(t, false)).join('')}</div>
   </div>`;
 }
 
