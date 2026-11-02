@@ -77,7 +77,7 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   font-size: 1.05rem; color: var(--text); overflow: hidden; white-space: nowrap;
 }
 /* Two forms of the brand share this slot. `.b-full` is the supplied
-   logo artwork plus the space name; `.b-mark` is the "u" on its own,
+   logo artwork plus the space name; `.b-mark` is the pencil n on its own,
    for the collapsed rail where the full logo will not fit. Exactly one
    of them is displayed — see the rail rules further down. */
 .sidebar-brand .b-mark {
@@ -87,7 +87,7 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 }
 .sidebar-brand .b-mark svg { width: 27px; height: 27px; }
 .sidebar-brand .b-full { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.logo-side { height: 21px; width: auto; display: block; }
+.logo-side { height: 25px; width: auto; display: block; }
 .brand-sub {
   font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

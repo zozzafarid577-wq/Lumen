@@ -46,21 +46,22 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── LOGO ────────────────────────────────────────────────────────
    The supplied artwork, not a typeset imitation of it. Two files:
-   the black-ink original for light surfaces, and a white-ink version
-   of the same file (the purple "u" untouched) for the dark footer and
-   the auth panel. Sized by height so both keep their proportions. */
+   the dark-ink original for light surfaces, and a white-ink version
+   of the same file (the pencil n untouched) for the dark footer and
+   the auth panel. Sized by height so both keep their proportions; the
+   heights allow for the pencil tip hanging below the line. */
 .logo-img { display: block; width: auto; max-width: 100%; }
-.logo-nav { height: 30px; }
-.logo-footer { height: 34px; }
-.logo-auth { height: 38px; }
-.logo-auth-card { height: 32px; }
+.logo-nav { height: 36px; }
+.logo-footer { height: 40px; }
+.logo-auth { height: 46px; }
+.logo-auth-card { height: 38px; }
 
 .tagline-img { display: block; width: auto; max-width: 100%; height: 22px; margin-bottom: 22px; }
 .tagline-auth { height: 26px; margin-bottom: 15px; }
 
 @media (max-width: 720px) {
   .tagline-img { height: 18px; }
-  .logo-nav { height: 26px; }
+  .logo-nav { height: 31px; }
 }
 
 /* ── NAV ─────────────────────────────────────────────────────── */

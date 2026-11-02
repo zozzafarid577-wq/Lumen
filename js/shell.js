@@ -269,7 +269,7 @@ function sidebarHtml(which, profile) {
     .filter(i => !(profile.preview && ['/portal/settings.html', '/portal/messages.html'].includes(i.href)));
 
   // The supplied logo wherever there is room for it. The rail collapses
-  // to 74px on desktop, where there is not — so the "u" alone stands in
+  // to 74px on desktop, where there is not — so the pencil n alone stands in
   // there, the same mark as the browser tab.
   const subtitle = which === 'admin'
     ? '<span class="brand-sub">Console</span>'
@@ -283,10 +283,9 @@ function sidebarHtml(which, profile) {
 
   return `
     <a class="sidebar-brand" href="${which === 'admin' ? '/admin/' : which === 'teacher' ? '/teacher/' : '/portal/courses.html'}" aria-label="Lumen">
-      <span class="b-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none">
-        <path d="M17 7v24a15 15 0 0 0 30 0V7" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
-        <rect x="12" y="53" width="40" height="8" rx="4" fill="currentColor"/>
-      </svg></span>
+      <span class="b-mark" aria-hidden="true"><svg viewBox="10 -536 548 702"><g transform="scale(1 -1)">
+        <clipPath id="lumen-pn"><rect x="-50" y="-200" width="390" height="580"/><rect x="215" y="40" width="500" height="1200"/></clipPath><path d="M120 -8Q75 -8 56.0 5.5Q37 19 33.5 40.0Q30 61 30 83V412Q30 434 34.0 454.0Q38 474 57.0 486.5Q76 499 121 499Q162 499 180.5 488.5Q199 478 204.0 463.0Q209 448 208.5 435.5Q208 423 210 420L202 414Q201 429 213.5 444.0Q226 459 246.5 471.5Q267 484 290.5 491.5Q314 499 335 499Q385 499 423.0 480.0Q461 461 486.5 426.5Q512 392 525.0 346.0Q538 300 538 246V82Q538 60 534.0 39.0Q530 18 511.5 5.0Q493 -8 447 -8Q401 -8 382.0 5.5Q363 19 359.0 40.0Q355 61 355 83V246Q355 269 346.5 285.0Q338 301 322.5 309.5Q307 318 284 318Q262 318 245.5 309.0Q229 300 220.0 284.0Q211 268 211 246V82Q211 60 207.0 39.0Q203 18 184.5 5.0Q166 -8 120 -8Z" clip-path="url(#lumen-pn)" fill="currentColor"/><rect x="30" y="330" width="181" height="50" fill="currentColor"/><rect x="355" y="40" width="183" height="80" fill="currentColor"/><rect x="26" y="380" width="189" height="40" fill="#E3D9FF"/><path d="M26 400H215" stroke="#7B3FE4" stroke-opacity=".35" stroke-width="9"/><g fill="#FFD23F"><path d="M30 420H211V458A62 62 0 0 1 149 520H92A62 62 0 0 1 30 458Z"/></g><path d="M355 41H538L446.5 -150Z" fill="#F6D6A8"/><path d="M413 -80H480L446.5 -150Z" fill="#4B4560"/>
+      </g></svg></span>
       <span class="b-full">
         <img src="/assets/lumen-logo.png" alt="Lumen" class="logo-side on-light">
         <img src="/assets/lumen-logo-light.png" alt="" class="logo-side on-dark">
