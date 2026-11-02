@@ -505,7 +505,7 @@ function showResult(row, outcome) {
   lastRow = row;
   const pending = row.grading?.status !== 'graded' && questions.some(isFrq);
   const notice = row.gradeError || (pending && outcome.saved)
-    ? `<div class="alert alert-warning mb24"><div>Your written answers are handed in but have not been marked yet${row.gradeError ? ` (${escHtml(row.gradeError)})` : ''}. The mark below counts only the multiple-choice questions; your teacher will mark the rest.</div></div>`
+    ? `<div class="alert alert-info mb24"><div>Your written answers are handed in. <strong>Your teacher will mark them</strong> against the official scoring guidelines, and your mark will update on your scores page. Until then the mark below counts only the multiple-choice questions.${row.grading?.status === 'awaiting_teacher' ? ' Check your answers against the guidelines below while you wait.' : ''}</div></div>`
     : outcome.saved ? ''
     : outcome.kept
       ? `<div class="alert alert-warning mb24"><div>Your connection dropped, so this result has not reached your teacher yet. It is safe on this device and will be sent automatically next time you open Lumen — <strong>on this same device and browser</strong>.</div></div>`
@@ -546,24 +546,26 @@ function reviewSection() {
 // or not and why, and the guideline the point was marked against.
 function frqReview() {
   const frqs = questions.map((q, i) => ({ q, i })).filter(({ q }) => isFrq(q));
-  if (!frqs.length || lastRow?.grading?.status !== 'graded') return '';
+  const status = lastRow?.grading?.status;
+  if (!frqs.length || !['graded', 'awaiting_teacher'].includes(status)) return '';
+  const marked = status === 'graded';
   return `
-    <div class="section-head"><div><h2>Your written answers</h2><div class="sub">Marked point by point against the official AP scoring guidelines</div></div></div>
+    <div class="section-head"><div><h2>Your written answers</h2><div class="sub">${marked ? 'Marked point by point against the official AP scoring guidelines' : 'Next to the official AP scoring guideline for each point — your teacher will mark them'}</div></div></div>
     ${frqs.map(({ q, i }) => {
-      const marked = new Map((lastRow.grading.questions?.[q.id]?.points || []).map(p => [p.label, p]));
+      const points = new Map((lastRow.grading.questions?.[q.id]?.points || []).map(p => [p.label, p]));
       const rules = new Map((lastRow.guidelines?.[q.id]?.points || []).map(p => [p.label, p.rubric]));
-      const got = frqPoints(q).filter(p => marked.get(p.label)?.earned).length;
+      const got = frqPoints(q).filter(p => points.get(p.label)?.earned).length;
       return `<div class="q-block">
-        <div class="q-num">Question ${i + 1} · ${got} of ${frqPoints(q).length} points</div>
+        <div class="q-num">Question ${i + 1}${marked ? ` · ${got} of ${frqPoints(q).length} points` : ` · ${frqPoints(q).length} points`}</div>
         ${frqPoints(q).map(p => {
-          const m = marked.get(p.label) || {};
+          const m = points.get(p.label) || {};
           const theirs = (answers[q.id] || {})[answerKey(p)];
-          return `<div class="frq-point ${m.earned ? 'earned' : 'missed'}">
-            <div class="verdict">${escHtml(p.label)} · ${m.earned ? 'Point earned' : 'No point'}</div>
+          return `<div class="frq-point ${marked ? (m.earned ? 'earned' : 'missed') : ''}">
+            <div class="verdict">${escHtml(p.label)}${marked ? ` · ${m.earned ? 'Point earned' : 'No point'}` : ''}</div>
             <div class="small" style="margin-top:4px;white-space:pre-line">${escHtml(p.prompt)}</div>
             <div class="their">${theirs ? escHtml(theirs) : '<span class="muted">Left blank</span>'}</div>
             ${m.reason ? `<div class="small">${escHtml(m.reason)}</div>` : ''}
-            ${rules.get(p.label) ? `<details><summary>What the scoring guideline asked for</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
+            ${rules.get(p.label) ? `<details${marked ? '' : ' open'}><summary>What the scoring guideline asks for</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
           </div>`;
         }).join('')}
       </div>`;

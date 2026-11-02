@@ -14,6 +14,11 @@ import { HttpError, requireRoles, requirePerm, logActivity } from './auth.js';
 // by the same rule the test page uses, so the mark that is stored is the
 // server's and not whatever the browser sent.
 //
+// Without an ANTHROPIC_API_KEY nothing is marked automatically: the paper
+// waits for the teacher (status 'awaiting_teacher'), who gives or takes
+// each point from the results page, and the student sees the scoring
+// guideline beside their answers straight away to check themselves.
+//
 // Flows (api/support.js):
 //   frq-grade     { attempt_id }            the student who sat it, or staff
 //                 { attempt_id, force }      staff: mark again (keeps the teacher's own changes)
@@ -23,6 +28,8 @@ import { HttpError, requireRoles, requirePerm, logActivity } from './auth.js';
 const MODEL = 'claude-opus-5-5';
 
 let client = null;
+const aiOn = () => !!process.env.ANTHROPIC_API_KEY;
+
 function claude() {
   if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(503, 'Written answers cannot be marked yet: the marking service is not set up.');
   // One retry, and a timeout inside the function's 60 seconds.
@@ -176,7 +183,7 @@ export async function gradeAttempt(profile, body) {
     const { test, questions, rubrics } = await paperFor(String(body.test_id || ''));
     if (test.teacher_id !== profile.teacher_id) throw new HttpError(403, 'That test belongs to another teacher.');
     const answers = body.answers && typeof body.answers === 'object' ? body.answers : {};
-    const grading = await markAll(questions, rubrics, answers, {});
+    const grading = aiOn() ? await markAll(questions, rubrics, answers, {}) : { status: 'awaiting_teacher', questions: {} };
     return { ...totals(questions, answers, grading, test.passing_score_pct), grading, guidelines: guidelinesFor(questions, rubrics) };
   }
 
@@ -191,6 +198,16 @@ export async function gradeAttempt(profile, body) {
   // A student asking again gets the marking they already have; only staff can mark again.
   if (done && !(staff && body.force)) {
     return { ...totals(questions, a.answers, a.grading, test.passing_score_pct), grading: a.grading, guidelines: guidelinesFor(questions, rubrics) };
+  }
+
+  // No marking service: the paper goes to the teacher. Points the
+  // teacher has already given or taken stay as they are.
+  if (!aiOn()) {
+    if (staff && body.force) throw new HttpError(503, 'Automatic marking is not switched on. Give or take each point yourself below.');
+    const grading = { ...(a.grading || {}), status: a.grading?.status === 'graded' ? 'graded' : 'awaiting_teacher', questions: a.grading?.questions || {} };
+    const t = totals(questions, a.answers, grading, test.passing_score_pct);
+    await admin.from('test_attempts').update({ ...t, grading }).eq('id', a.id);
+    return { ...t, grading, guidelines: guidelinesFor(questions, rubrics) };
   }
 
   let grading;
@@ -233,13 +250,17 @@ export async function overridePoint(profile, body) {
   const label = String(body.label || '');
   if (!(q.frq?.points || []).some(p => p.label === label)) throw new HttpError(404, 'That part is not on this question.');
 
-  const grading = { status: a.grading?.status || 'graded', ...(a.grading || {}), questions: { ...(a.grading?.questions || {}) } };
-  const pts = [...(grading.questions[q.id]?.points || q.frq.points.map(p => ({ label: p.label, earned: false, reason: '', by: 'ai' })))];
+  const grading = { ...(a.grading || {}), questions: { ...(a.grading?.questions || {}) } };
+  const pts = [...(grading.questions[q.id]?.points || [])];
   const i = pts.findIndex(p => p.label === label);
   const before = i >= 0 ? pts[i] : { label, reason: '' };
   const point = { ...before, label, earned: body.earned === true, by: 'teacher', changed_by: profile.full_name || 'Teacher', changed_at: new Date().toISOString() };
   if (i >= 0) pts[i] = point; else pts.push(point);
   grading.questions[q.id] = { points: pts };
+  // Marked once every point of every written question has a mark.
+  const frqs = questions.filter(x => x.kind === 'frq');
+  const allMarked = frqs.every(x => (x.frq?.points || []).every(p => (grading.questions[x.id]?.points || []).some(m => m.label === p.label)));
+  grading.status = allMarked ? 'graded' : (grading.status === 'graded' ? 'graded' : 'awaiting_teacher');
 
   const t = totals(questions, a.answers, grading, test.passing_score_pct);
   const { error } = await admin.from('test_attempts').update({ ...t, grading }).eq('id', a.id);

@@ -410,7 +410,8 @@ function render() {
         </td>
         <td class="small">${escHtml(a.test?.title || 'A deleted test')}
           ${a.test?.courses?.title ? `<div class="small muted">${escHtml(a.test.courses.title)}</div>` : ''}</td>
-        <td class="num"><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${mark(a)}</span></td>
+        <td class="num"><span class="badge ${a.passed ? 'b-green' : 'b-red'}">${mark(a)}</span>
+          ${a.grading && a.grading.status !== 'graded' ? '<div><span class="badge b-yellow" style="margin-top:4px">Needs marking</span></div>' : ''}</td>
         <td class="num small">${a.passed ? 'Passed' : 'Not passed'}</td>
         <td class="num small muted">${fmtDuration(a.time_taken_sec)}</td>
         <td class="small muted">${fmtDateTime(a.completed_at)}</td>
@@ -567,14 +568,14 @@ async function openPaper(attemptId, { print = false } = {}) {
   const frqLine = !frqs.length ? ''
     : a.grading?.status === 'graded'
       ? `Written answers: ${frqs.reduce((t, q) => t + frqEarned(a, q), 0)} of ${frqs.reduce((t, q) => t + (q.frq?.points || []).length, 0)} points`
-      : `<strong style="color:var(--danger)">Written answers not marked yet</strong>${a.grading?.error ? ' — ' + escHtml(a.grading.error) : ''}`;
+      : `<strong style="color:var(--danger)">Written answers to mark</strong> — read each answer against its scoring guideline and press Point earned or No point.`;
 
   document.getElementById('p-badges').innerHTML = [
     `<span class="badge ${a.passed ? 'b-green' : 'b-red'}">${a.passed ? 'Passed' : 'Did not pass'}</span>`,
     a.test?.passing_score_pct != null ? `<span class="small muted">Pass mark ${passMarks(a.test.passing_score_pct, a.max_score)}</span>` : '',
     questions.length > frqs.length ? `<span class="small muted">${questions.length - frqs.length - wrong} right · ${wrong} wrong${blank ? ` · ${blank} left blank` : ''}</span>` : '',
     frqLine ? `<span class="small">${frqLine}</span>` : '',
-    frqs.length ? `<button class="btn btn-outline btn-xs" id="regrade-btn" onclick="regrade()">${a.grading?.status === 'graded' ? 'Mark written answers again' : 'Mark written answers now'}</button>` : '',
+    frqs.length && a.grading?.model ? `<button class="btn btn-outline btn-xs" id="regrade-btn" onclick="regrade()">Mark written answers again</button>` : '',
     `<span class="small muted">Took ${fmtDuration(a.time_taken_sec)}</span>`,
     `<span class="small muted">Finished ${fmtDateTime(a.completed_at)}</span>`,
   ].filter(Boolean).join('');
@@ -655,14 +656,16 @@ function drawFrq(q, i, given) {
         return `<div class="frq-pt ${state}">
           <div class="pt-head">
             <span class="pt-label">${escHtml(p.label)}</span>
-            <span class="pt-verdict">${!m ? 'Not marked' : m.earned ? 'Point earned' : 'No point'}${m?.by === 'teacher' ? ' · changed by ' + escHtml(m.changed_by || 'teacher') : m ? ' · marked by Claude' : ''}</span>
+            <span class="pt-verdict">${!m ? 'To mark' : m.earned ? 'Point earned' : 'No point'}${m?.by === 'teacher' ? ' · ' + escHtml(m.changed_by || 'teacher') : m ? ' · marked by Claude' : ''}</span>
             <span style="margin-left:auto"></span>
-            <button class="btn btn-ghost btn-xs" onclick="setPoint('${q.id}', '${escHtml(p.label)}', ${!(m?.earned)})">${m?.earned ? 'Take the point away' : 'Give the point'}</button>
+            ${m ? `<button class="btn btn-ghost btn-xs" onclick="setPoint('${q.id}', '${escHtml(p.label)}', ${!m.earned})">${m.earned ? 'Take the point away' : 'Give the point'}</button>`
+              : `<button class="btn btn-primary btn-xs" onclick="setPoint('${q.id}', '${escHtml(p.label)}', true)">Point earned</button>
+                 <button class="btn btn-outline btn-xs" onclick="setPoint('${q.id}', '${escHtml(p.label)}', false)">No point</button>`}
           </div>
           <div class="small" style="white-space:pre-line;margin-top:4px">${escHtml(p.prompt)}</div>
           <div class="pt-their">${given[p.group || p.label] ? escHtml(given[p.group || p.label]) : '<span class="muted">Left blank</span>'}</div>
           ${m?.reason ? `<div class="small">${escHtml(m.reason)}</div>` : ''}
-          ${rules.get(p.label) ? `<details><summary>Scoring guideline</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
+          ${rules.get(p.label) ? `<details${m ? '' : ' open'}><summary>Scoring guideline</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
         </div>`;
       }).join('')}
     </div>`;
