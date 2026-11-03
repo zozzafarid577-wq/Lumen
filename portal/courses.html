@@ -675,8 +675,7 @@ function testRow(t, under) {
   return `<div class="list-row${under ? ' under' : ''}">
     <div class="lr-ic ic-test">${icon(ICONS.paper)}</div>
     <div style="flex:1;min-width:0">
-      <div class="lr-title">${escHtml(t.title)}
-        ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
+      <div class="lr-title">${escHtml(t.title)}</div>
       <div class="lr-sub">${escHtml(bits)}</div>
     </div>
     ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${mark(best)}</span>`
