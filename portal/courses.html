@@ -202,20 +202,37 @@
   .lr-done .lr-title { color: var(--text-2); }
 
   /* ── Practice & tests ─────────────────────────────────────────
-     Every paper in the unit, in one block of its own colour, so it
-     never reads as another lesson row. */
-  .practice-block {
-    margin: 14px; padding: 10px; border-radius: 14px; color: #fff;
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #c026d3 100%);
-    box-shadow: 0 8px 24px rgb(124 58 237 / .22);
+     Every paper in the unit as a card in a grid on a grey shelf, so it
+     never reads as another lesson row: title, the rules, where the
+     student stands, and one full-width button. */
+  .practice-block { padding: 18px 20px; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .pb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .test-card {
+    display: flex; flex-direction: column; gap: 10px; padding: 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-xs); transition: box-shadow .18s, border-color .18s;
   }
-  .pb-list { background: rgb(255 255 255 / .12); border-radius: 10px; overflow: hidden; }
-  .practice-block .list-row { border-bottom-color: rgb(255 255 255 / .16); }
-  .practice-block .list-row:hover { background: rgb(255 255 255 / .1); }
-  .practice-block .lr-sub { color: rgb(255 255 255 / .8); }
-  .practice-block .lr-ic.ic-test { background: rgb(255 255 255 / .2); color: #fff; }
-  .practice-block .btn-primary { background: #fff; color: #5b21b6; border-color: #fff; }
-  .practice-block .btn-outline { background: transparent; color: #fff; border-color: rgb(255 255 255 / .6); }
+  .test-card:hover { box-shadow: var(--shadow-sm); border-color: var(--primary-line); }
+  .tc-title { font-weight: 700; font-size: .88rem; line-height: 1.35; }
+  .tc-meta { font-size: .74rem; color: var(--muted); margin-top: -6px; }
+  .tc-status {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 10px; border-radius: 8px; background: var(--bg);
+    font-size: .78rem; font-weight: 600; color: var(--muted);
+  }
+  .tc-status svg { width: 14px; height: 14px; }
+  .tc-status.ok  { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
+  .tc-status.bad { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+  .tc-btn {
+    display: block; text-align: center; padding: 9px 12px; border-radius: 999px;
+    background: var(--primary); color: #fff; font-weight: 700; font-size: .84rem; text-decoration: none;
+    transition: background .15s;
+  }
+  .tc-btn:hover { background: var(--primary-hover); color: #fff; }
+  .tc-btn.again { background: var(--primary-soft); color: var(--primary); }
+  .tc-btn.again:hover { background: var(--primary-line); color: var(--primary); }
+  .tc-btn.wait { background: transparent; border: 1px dashed var(--border); color: var(--muted); font-weight: 600; }
+  @media (max-width: 700px) { .practice-block { padding: 14px; } }
 
   .unit-meta { flex: 1; min-width: 0; }
   .practise-btn { display: inline-flex; align-items: center; gap: 6px; }
@@ -650,7 +667,36 @@ function materialRow(m) {
 function practiceBlock(tests) {
   if (!tests.length) return '';
   return `<div class="practice-block">
-    <div class="pb-list">${tests.map(t => testRow(t, false)).join('')}</div>
+    <div class="pb-grid">${tests.map(testCard).join('')}</div>
+  </div>`;
+}
+
+function testCard(t) {
+  const best = bestByTest.get(t.id);
+  const w = testWindow(t, new Date());
+  const due = dueByTest.get(t.id);
+  const late = due && new Date(due) < new Date();
+  const meta = [
+    t.time_limit_min ? t.time_limit_min + ' min' : null,
+    `pass at ${t.passing_score_pct}%`,
+    due ? `${late ? 'was due' : 'due'} ${fmtDateTime(due)}` : null,
+  ].filter(Boolean).join(' · ');
+
+  const status = best
+    ? `<div class="tc-status ${best.passed ? 'ok' : 'bad'}">${best.passed ? 'Passed' : 'Not passed'} · best ${mark(best)}</div>`
+    : late
+      ? '<div class="tc-status bad">Late · not started</div>'
+      : `<div class="tc-status">${icon(ICONS.paper)}Not started</div>`;
+
+  const action = w.open
+    ? `<a href="/portal/take-test.html?id=${t.id}" class="tc-btn${best ? ' again' : ''}">${best ? 'Try again' : 'Start'}</a>`
+    : `<div class="tc-btn wait">${escHtml(w.label)}</div>`;
+
+  return `<div class="test-card">
+    <div class="tc-title">${escHtml(t.title)}</div>
+    <div class="tc-meta">${escHtml(meta)}</div>
+    ${status}
+    ${action}
   </div>`;
 }
 
