@@ -314,8 +314,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 // before a word of it is read.
 //
 // Written the way email has to be written rather than the way the site
-// is: tables for structure, styles inline, no web fonts and no images to
-// be blocked. The brand band uses background-color first and a gradient
+// is: tables for structure, styles inline, no web fonts. The one image is
+// the wordmark, and its alt text is styled as the word "lumen" in white,
+// so a client that blocks images still shows the name. The brand band uses background-color first and a gradient
 // second, so a client that ignores the gradient still gets purple rather
 // than a white gap where the header should be.
 //
@@ -411,7 +412,7 @@ function layout({ heading, intro, rows = [], highlight, bullets = [], note, logi
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid ${LINE};border-radius:20px;overflow:hidden;font-family:${FONT}">
 
         <tr><td bgcolor="${BRAND}" style="background-color:${BRAND};background-image:linear-gradient(120deg,#7E3C7C 0%,${BRAND} 55%,#C070BD 100%);padding:26px 34px">
-          <div style="font-size:26px;font-weight:500;letter-spacing:-1px;color:#ffffff">L<span style="font-weight:700;border-bottom:3px solid #EBB8E9">u</span>men</div>
+          <img src="https://lumenlearn.site/assets/lumen-logo-light.png" width="97" height="32" alt="lumen" style="display:block;border:0;height:32px;width:97px;font-size:28px;font-weight:700;color:#ffffff">
           <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#F0D3EF;margin-top:6px">Educate with Excellence</div>
         </td></tr>
 
@@ -691,7 +692,7 @@ export function teacherReport({ eyebrow, heading, intro, tiles = [], sections = 
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:${W}px;background:#ffffff;border:1px solid ${LINE};border-radius:20px;overflow:hidden;font-family:${FONT}">
         <tr><td bgcolor="${BRAND}" style="background-color:${BRAND};background-image:linear-gradient(120deg,#7E3C7C 0%,${BRAND} 55%,#C070BD 100%);padding:24px 30px">
-          <div style="font-size:24px;font-weight:500;letter-spacing:-1px;color:#ffffff">L<span style="font-weight:700;border-bottom:3px solid #EBB8E9">u</span>men</div>
+          <img src="https://lumenlearn.site/assets/lumen-logo-light.png" width="91" height="30" alt="lumen" style="display:block;border:0;height:30px;width:91px;font-size:26px;font-weight:700;color:#ffffff">
           <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#F0D3EF;margin-top:6px">${esc(eyebrow)}</div>
         </td></tr>
         <tr><td style="padding:28px 30px 30px">
