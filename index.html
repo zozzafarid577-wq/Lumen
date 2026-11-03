@@ -13,8 +13,8 @@
 
   gtag('config', 'G-EXZJJ6E73E');
 </script>
-<title>Lumen — Educate with Excellence</title>
-<meta name="description" content="Lumen is a learning platform: your courses, recordings and materials in one place, with tests that mark themselves and progress you can follow. Sign in with the details your teacher gave you.">
+<title>Lumen — the platform teachers run their academy on</title>
+<meta name="description" content="Lumen is the platform teachers run their academy on: your own branded platform for hundreds of students, with timed mock tests, a question bank, flashcards, protected content and a marks report every morning.">
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
@@ -38,6 +38,9 @@
 <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
 <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
 <link rel="stylesheet" href="/css/site.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/css/home.css">
 <script>
 // Somebody who is already signed in has no use for the front door: a
 // student who types lumenlearn.site should land on their courses, not on
@@ -66,20 +69,21 @@
 })();
 </script>
 </head>
-<body>
+<body class="home">
 
 <!-- ── NAV ────────────────────────────────────────────────────── -->
 <header class="nav">
   <div class="wrap nav-inner">
     <a href="/" class="nav-brand" aria-label="Lumen home"><img src="/assets/lumen-logo.png" alt="Lumen" class="logo-img logo-nav"></a>
     <nav class="nav-links" id="nav-links">
-      <a href="/#inside">What's inside</a>
-      <a href="/#how">How it works</a>
-      <a href="/features.html">The platform</a>
+      <a href="/#features">Features</a>
+      <a href="/#protection">Protection</a>
+      <a href="/#faq">FAQ</a>
       <a href="/contact.html">Contact</a>
     </nav>
     <div class="nav-cta">
-      <a href="/login.html" class="btn btn-primary btn-sm">Sign in</a>
+      <a href="/login.html" class="btn btn-outline btn-sm">Sign in</a>
+      <a href="/contact.html" class="btn btn-sun btn-sm">Book a call</a>
       <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
@@ -88,153 +92,182 @@
 </header>
 
 <!-- ── HERO ───────────────────────────────────────────────────── -->
-<!-- Whoever arrives here is, far more often than not, on their way in
-     rather than on their way to buying something. The page is written
-     for them: what is inside, and the way to reach it. -->
-<section class="hero">
-  <div class="wrap hero-inner">
+<!-- The front door sells the platform to teachers. It never names a
+     subject, a course or a teacher: what each teacher teaches on Lumen is
+     theirs, and the phone screens are drawn, not screenshots. Students
+     still arrive here, so the way in for them stays one line away. -->
+<section class="h-hero">
+  <i class="blob b1" aria-hidden="true"></i><i class="blob b2" aria-hidden="true"></i>
+  <div class="wrap h-hero-inner">
     <div>
-      <img src="/assets/lumen-tagline.png" alt="Educate with Excellence" class="tagline-img">
-      <h1>Your lessons, tests and results — <em>all in one place</em>.</h1>
-      <p class="hero-lead">
-        Lumen is the learning platform your course lives on. Watch the recordings,
-        open the materials, sit your tests and see exactly how you are doing —
-        on a laptop or on your phone.
-      </p>
-      <div class="hero-actions">
-        <a href="/login.html" class="btn btn-primary btn-lg">Sign in</a>
-        <a href="/#inside" class="btn btn-outline btn-lg">See what's inside</a>
+      <span class="tag">For teachers</span>
+      <h1>Run your whole academy <em>on Lumen</em></h1>
+      <p class="h-lead">Your own branded platform for 300 to 500 students: timed mock tests, a question bank, flashcards, protected content and a marks report in your inbox every morning.</p>
+      <div class="h-actions">
+        <a href="/contact.html" class="btn btn-sun btn-lg">Book a call</a>
+        <a href="/#features" class="btn btn-ghost-white btn-lg">See the features</a>
       </div>
-      <p class="hero-note">
-        Signing in for the first time? Use the email and password you were given.
-      </p>
-      <div class="hero-trust">
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Recordings and materials</span>
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Tests marked instantly</span>
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Progress you can follow</span>
-      </div>
+      <p class="h-student">Student? <a href="/login.html">Sign in with the details your teacher gave you →</a></p>
     </div>
-
-    <!-- A sketch of the dashboard, drawn in markup rather than shipped as
-         a screenshot so it stays sharp and stays current. -->
-    <div class="hero-art" aria-hidden="true">
-      <div class="art-bar"><i></i><i></i><i></i></div>
-      <div class="art-row">
-        <div class="art-tile"><div class="n">4</div><div class="l">Courses</div></div>
-        <div class="art-tile"><div class="n">12</div><div class="l">Lessons</div></div>
-        <div class="art-tile"><div class="n">81%</div><div class="l">Average</div></div>
-      </div>
-      <div class="art-list">
-        <div class="art-line"><div class="art-av">01</div><div class="art-nm">Unit 3 — recording</div><div class="art-sc">New</div></div>
-        <div class="art-line"><div class="art-av">02</div><div class="art-nm">Chapter notes (PDF)</div><div class="art-sc">Open</div></div>
-        <div class="art-line"><div class="art-av">03</div><div class="art-nm">Weekly test</div><div class="art-sc">94%</div></div>
-        <div class="art-line"><div class="art-av">04</div><div class="art-nm">Homework 7</div><div class="art-sc">Due</div></div>
-      </div>
+    <div class="h-phone-wrap" aria-hidden="true">
+      <div class="phone tilt-r"><div class="ui">
+        <div class="u-top">Dashboard</div>
+        <div class="u-tiles"><div><b>482</b><span>Students</span></div><div><b>3,120</b><span>Tests done</span></div><div><b>78%</b><span>Average</span></div></div>
+        <div class="u-h">Groups</div>
+        <div class="u-row"><div class="u-av">01</div><div class="u-grow"><b>Sat 4 pm</b><small>124 students</small><div class="u-prog"><i style="width:82%"></i></div></div><span class="pill ok">82%</span></div>
+        <div class="u-row"><div class="u-av">02</div><div class="u-grow"><b>Sun 6 pm</b><small>118 students</small><div class="u-prog"><i style="width:74%"></i></div></div><span class="pill ok">74%</span></div>
+        <div class="u-row"><div class="u-av">03</div><div class="u-grow"><b>Mon 4 pm</b><small>131 students</small><div class="u-prog"><i style="width:91%"></i></div></div><span class="pill ok">91%</span></div>
+        <div class="u-row"><div class="u-av">04</div><div class="u-grow"><b>Tue 7 pm</b><small>109 students</small><div class="u-prog"><i style="width:67%"></i></div></div><span class="pill ok">67%</span></div>
+      </div></div>
     </div>
   </div>
 </section>
 
-<!-- ── WHAT'S INSIDE ──────────────────────────────────────────── -->
-<section class="section section-alt" id="inside">
+<!-- ── WHO IT IS FOR ──────────────────────────────────────────── -->
+<section class="h-section">
   <div class="wrap">
-    <div class="sec-head">
-      <div class="sec-kicker">What's inside</div>
-      <h2>Everything for your studying, in one place</h2>
-      <p>Your lessons, your tests and your marks — together, and nothing you have to set up yourself.</p>
-    </div>
-
-    <div class="grid-3">
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
-        <h3>Recordings</h3>
-        <p>Every session recorded and kept, unit by unit, so a lesson you missed — or one you want again before a test — is always there.</p>
+    <div class="h-head"><span class="tag">Who it's for</span><h2>Made for teachers who <em>outgrew WhatsApp</em></h2></div>
+    <div class="h-who">
+      <article>
+        <div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg></div>
+        <h3>Just starting out</h3>
+        <p>Launch with a platform that looks like you built it: your name, your logo and your colours on every page. We set it up with you, so you can start teaching straight away.</p>
       </article>
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-        <h3>Materials</h3>
-        <p>Notes, sheets and PDFs attached to the lesson they belong to, instead of scattered through a chat you have to scroll back through.</p>
-      </article>
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <h3>Tests, marked instantly</h3>
-        <p>Sit a test with the time on screen and get your score the moment you hand it in, with a review of everything you got wrong.</p>
-      </article>
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
-        <h3>Homework &amp; feedback</h3>
-        <p>See what is due and when, hand your work in from the same page, and read the comments that come back on it.</p>
-      </article>
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-        <h3>Your progress</h3>
-        <p>Every mark you have had and how far through each course you are — so you know where you stand before the next test, not after it.</p>
-      </article>
-      <article class="feature">
-        <div class="feature-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg></div>
-        <h3>On your phone</h3>
-        <p>The whole thing works on a phone, in light or dark, and a test you were sitting when the connection dropped is not lost.</p>
+      <article>
+        <div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2a5 5 0 0 1 5.5 5.8"/></svg></div>
+        <h3>Running 300 to 500 students</h3>
+        <p>Groups, homework, tests and marks for hundreds of students on one dashboard, with no spreadsheets and no stack of papers to mark at the weekend.</p>
       </article>
     </div>
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ───────────────────────────────────────────── -->
-<section class="section" id="how">
+<!-- ── FEATURES ───────────────────────────────────────────────── -->
+<section class="h-section h-alt" id="features">
   <div class="wrap">
-    <div class="sec-head">
-      <div class="sec-kicker">How it works</div>
-      <h2>Four steps, and you are in</h2>
-      <p>Nothing to install and nothing to pay for. Your account is made for you.</p>
+    <div class="h-head"><span class="tag">Features</span><h2>Everything your class needs, <em>in one place</em></h2></div>
+
+    <div class="h-feat">
+      <div>
+        <span class="kicker">Mock tests</span>
+        <h3>Timed mocks, <em>like exam day</em></h3>
+        <ul class="ticks"><li>Set the real exam clock on every paper: ACT, SAT, EST or your own</li><li>Multiple choice marked the moment they hand in</li><li>FRQs marked point by point against your scoring guide</li><li>Sit it again for a better mark</li></ul>
+      </div>
+      <div class="phone" aria-hidden="true"><div class="ui">
+        <div class="u-top">Full mock test</div><div class="u-timer"><b>34:59</b><span>left</span></div>
+        <small class="u-muted">Question 12 of 40</small><div class="u-prog big"><i style="width:30%"></i></div>
+        <div class="u-card"><i class="bar" style="width:92%"></i><i class="bar" style="width:78%"></i><i class="bar" style="width:85%"></i></div>
+        <div class="u-opt"><b>A</b><i class="bar" style="width:72%"></i></div><div class="u-opt on"><b>B</b><i class="bar" style="width:64%"></i></div><div class="u-opt"><b>C</b><i class="bar" style="width:72%"></i></div><div class="u-opt"><b>D</b><i class="bar" style="width:72%"></i></div>
+        <div class="u-btn">Hand in</div>
+      </div></div>
     </div>
-    <div class="steps">
-      <div class="step">
-        <h3>Get your details</h3>
-        <p>An email and a password, handed to you directly or sent to you.</p>
+
+    <div class="h-feat rev">
+      <div>
+        <span class="kicker">Question bank</span>
+        <h3>Practice that <em>never repeats</em></h3>
+        <ul class="ticks"><li>Students pick the units and lessons</li><li>They choose how many questions</li><li>Fresh questions every time, never the same one twice</li><li>Every answer explained the moment it is checked</li></ul>
       </div>
-      <div class="step">
-        <h3>Sign in</h3>
-        <p>One page for everyone. You choose your own password straight away.</p>
+      <div class="phone" aria-hidden="true"><div class="ui">
+        <div class="u-top">Practice</div><div class="u-h">Choose units</div>
+        <div class="u-chips"><span class="on">Unit 1</span><span class="on">Unit 2</span><span class="on">Unit 3</span><span>Unit 4</span><span>Unit 5</span><span>Unit 6</span></div>
+        <div class="u-h">How many questions?</div><div class="u-chips"><span>10</span><span class="on">20</span><span>30</span><span>40</span></div>
+        <div class="u-btn">Start practice</div><div class="u-note">✓ Fresh questions every time</div>
+        <div class="u-card"><i class="bar" style="width:92%"></i><i class="bar" style="width:78%"></i></div><div class="u-opt right"><b>✓</b><i class="bar" style="width:60%"></i></div>
+      </div></div>
+    </div>
+
+    <div class="h-feat">
+      <div>
+        <span class="kicker">Evaluations</span>
+        <h3>Every mark, <em>in your inbox</em></h3>
+        <ul class="ticks"><li>The morning before each class, a report for that group</li><li>Who did the homework, and who hasn't started</li><li>Every student's marks since the last class</li><li>Excel and PDF attached, ready to print</li></ul>
       </div>
-      <div class="step">
-        <h3>Open your course</h3>
-        <p>Recordings, materials and homework, opening as each session comes.</p>
-      </div>
-      <div class="step">
-        <h3>Sit your tests</h3>
-        <p>Marked as you finish, with your score and your progress kept for you.</p>
-      </div>
+      <div class="phone" aria-hidden="true"><div class="ui">
+        <div class="u-mailhead"><img src="/assets/lumen-logo-light.png" alt=""><small>Group marks report</small></div>
+        <div class="u-tiles"><div><b>124</b><span>Students</span></div><div><b class="r">9</b><span>Missed</span></div><div><b>115</b><span>Did a test</span></div></div>
+        <div class="u-row slim"><div class="u-grow"><i class="bar" style="width:55%"></i></div><span class="pill ok">Done · 18/20</span></div>
+        <div class="u-row slim"><div class="u-grow"><i class="bar" style="width:55%"></i></div><span class="pill ok">Done · 15/20</span></div>
+        <div class="u-row slim"><div class="u-grow"><i class="bar" style="width:55%"></i></div><span class="pill bad">Not done</span></div>
+        <div class="u-row slim"><div class="u-grow"><i class="bar" style="width:55%"></i></div><span class="pill ok">Done · 19/20</span></div>
+        <div class="u-row slim"><div class="u-grow"><i class="bar" style="width:55%"></i></div><span class="pill ok">Done · 17/20</span></div>
+        <div class="u-files"><span>Excel</span><span>PDF</span></div>
+      </div></div>
+    </div>
+
+    <div class="h-grid">
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 3h11a2 2 0 0 1 2 2v12"/></svg></div><h3>Flashcards</h3><p>Make a deck once. Students flip, mark what they know and come back to the rest.</p></article>
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg></div><h3>Your brand</h3><p>Your name, your logo and your colours. Students sign in to your platform, not ours.</p></article>
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><h3>Lessons and recordings</h3><p>Recordings and PDFs kept unit by unit, opening as each session comes.</p></article>
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div><h3>Homework</h3><p>Set it as a test with a due date. It marks itself and lands in your report.</p></article>
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><h3>Chat and announcements</h3><p>Message a student or the whole group, without giving out your number.</p></article>
+      <article><div class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></div><h3>An app on their phone</h3><p>Works in any browser, with an Android app and a notification for every new lesson and test.</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- ── PROTECTION ─────────────────────────────────────────────── -->
+<!-- Only what the platform does today: the watermark on tests, the copy
+     warning and its log, and private links that expire. -->
+<section class="h-section h-night" id="protection">
+  <i class="blob b3" aria-hidden="true"></i>
+  <div class="wrap h-feat">
+    <div>
+      <span class="tag">Protection</span>
+      <h2>Your content <em>stays yours</em></h2>
+      <p class="h-lead">You spent years building your material. Lumen makes it hard to pass around, and easy to see who tried.</p>
+      <ul class="ticks light"><li>Every test is watermarked with the student's own name and email, so a leaked screenshot leads back to them</li><li>A copy attempt warns the student and is reported to you</li><li>PDFs and files open through private links that expire, not a link anyone can forward</li><li>Students sign in to your platform only, with accounts you create</li></ul>
+    </div>
+    <div class="phone" aria-hidden="true"><div class="ui">
+      <div class="u-warn">⚠ This material belongs to your teacher. Copying or sharing it may end your access.</div>
+      <div class="u-top">Test</div><small class="u-muted">Question 5 of 20</small>
+      <div class="u-card"><i class="bar" style="width:92%"></i><i class="bar" style="width:78%"></i><i class="bar" style="width:85%"></i></div>
+      <div class="u-opt"><b>A</b><i class="bar" style="width:70%"></i></div><div class="u-opt"><b>B</b><i class="bar" style="width:70%"></i></div><div class="u-opt"><b>C</b><i class="bar" style="width:70%"></i></div><div class="u-opt"><b>D</b><i class="bar" style="width:70%"></i></div>
+      <div class="u-wm"><span>Student name · student@email.com</span><span>Student name · student@email.com</span><span>Student name · student@email.com</span><span>Student name · student@email.com</span><span>Student name · student@email.com</span><span>Student name · student@email.com</span></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ── HOW IT STARTS ──────────────────────────────────────────── -->
+<section class="h-section">
+  <div class="wrap">
+    <div class="h-head"><span class="tag">How it starts</span><h2>From a call to your first class <em>in days</em></h2></div>
+    <div class="h-steps">
+      <div><b>1</b><h3>Book a call</h3><p>Tell us about your class and how many students you have.</p></div>
+      <div><b>2</b><h3>We build your platform</h3><p>Your name, logo and colours, with your courses laid out.</p></div>
+      <div><b>3</b><h3>Add your students</h3><p>Accounts made for them, signed in on their phones.</p></div>
+      <div><b>4</b><h3>Teach</h3><p>Tests mark themselves and the reports come to you.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ────────────────────────────────────────────────────── -->
+<section class="h-section h-alt" id="faq">
+  <div class="wrap h-faq-wrap">
+    <div class="h-head left"><span class="tag">FAQ</span><h2>Teachers ask, <em>we answer</em></h2><p>Anything else? <a href="/contact.html">Book a call</a> or message us on <a href="https://wa.me/201130052584" target="_blank" rel="noopener">WhatsApp</a>.</p></div>
+    <div class="h-faq">
+      <details open><summary>How many students can I have?</summary><p>Plans are sized by the number of students. Most Lumen teachers run 300 to 500 on one platform, and you can move up a plan whenever your class grows.</p></details>
+      <details><summary>Do I need to be good with technology?</summary><p>No. We set up your platform with you, lay out your courses and stay on hand. If you can use WhatsApp, you can run Lumen.</p></details>
+      <details><summary>Can students share my material?</summary><p>Every test carries the student's own name and email as a watermark, copy attempts are reported to you, and files open through private links that expire.</p></details>
+      <details><summary>Is the platform in my name or yours?</summary><p>Yours. Your name, your logo and your colours appear on every page your students see.</p></details>
+      <details><summary>Who marks the tests?</summary><p>Lumen does, the moment a student hands in, and shows them why the right answer is right. Free-response answers are marked point by point against your scoring guide.</p></details>
+      <details><summary>Can I run timed mock tests for ACT, SAT or EST?</summary><p>Yes. Give each paper the real exam's time limit and students sit it under exam conditions, then sit it again for a better mark.</p></details>
+      <details><summary>Does it work on phones?</summary><p>Yes, in any browser, and there is an Android app with a notification for every new lesson, test and message.</p></details>
+      <details><summary>How do I know who is falling behind?</summary><p>The morning before each class, Lumen emails you that group's report: who did the homework, every mark and who hasn't started, with Excel and PDF attached.</p></details>
+      <details><summary>What does it cost?</summary><p>It depends on how many students you have. Book a call and we will go through your class and give you a price.</p></details>
     </div>
   </div>
 </section>
 
 <!-- ── CTA ────────────────────────────────────────────────────── -->
-<section class="section section-alt">
+<section class="h-section">
   <div class="wrap">
-    <div class="cta-band">
-      <h2>Everything for the term, in one place</h2>
-      <p>Your recordings, your materials, your tests and your marks — waiting behind one sign-in.</p>
-      <div class="cta-actions">
-        <a href="/login.html" class="btn btn-white btn-lg">Sign in</a>
-        <a href="/#inside" class="btn btn-outline btn-lg" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.5)">See what's inside</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── FOR TEACHERS ───────────────────────────────────────────── -->
-<!-- The one line on the public site aimed at a teacher. What it costs and
-     what the packages are belong to the call, not to a page a student can
-     read. -->
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="panel" style="text-align:center">
-      <h3 style="margin-bottom:10px">Teaching a class?</h3>
-      <p style="font-size:.95rem;color:var(--ink-2);max-width:56ch;margin:0 auto 22px">
-        Lumen can run your course online for you — your students, your content,
-        your tests and your reports, set up and looked after. Book a call and we
-        will walk you through it.
-      </p>
-      <a href="/contact.html" class="btn btn-primary">Book a call</a>
+    <div class="h-cta">
+      <i class="blob b4" aria-hidden="true"></i>
+      <img src="/assets/app/icon-512.png" alt="" class="h-cta-icon">
+      <h2>Start your <em>own platform</em></h2>
+      <p>Your name, your logo, your students. Book a call and we will walk you through it.</p>
+      <div class="h-actions center"><a href="/contact.html" class="btn btn-sun btn-lg">Book a call</a><a href="https://wa.me/201130052584" target="_blank" rel="noopener" class="btn btn-ghost-white btn-lg">WhatsApp us</a></div>
     </div>
   </div>
 </section>
@@ -245,14 +278,15 @@
     <div class="footer-top">
       <div>
         <img src="/assets/lumen-logo-light.png" alt="Lumen" class="logo-img logo-footer">
-        <p class="footer-blurb">A learning platform — lessons, recordings, materials, tests and progress, all in one place.</p>
+        <p class="footer-blurb">The platform teachers run their academy on: mock tests, a question bank, flashcards, protected content and reports, under your own name.</p>
       </div>
       <div>
         <h4>Platform</h4>
         <ul>
-          <li><a href="/#inside">What's inside</a></li>
-          <li><a href="/#how">How it works</a></li>
-          <li><a href="/features.html">The platform</a></li>
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#protection">Protection</a></li>
+          <li><a href="/#faq">FAQ</a></li>
+          <li><a href="/features.html">The platform in detail</a></li>
         </ul>
       </div>
       <div>
@@ -265,7 +299,7 @@
       <div>
         <h4>Support</h4>
         <ul>
-          <li><a href="/contact.html">Contact us</a></li>
+          <li><a href="/contact.html">Book a call</a></li>
           <li><a href="mailto:lumenacademy21@gmail.com">lumenacademy21@gmail.com</a></li>
           <li><a href="https://wa.me/201130052584" target="_blank" rel="noopener">WhatsApp +20 113 005 2584</a></li>
           <li><a href="tel:+201130052584">Call +20 113 005 2584</a></li>

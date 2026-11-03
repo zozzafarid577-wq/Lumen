@@ -4,7 +4,7 @@
    admin console. The marketing site has its own sheet (site.css)
    but takes its palette and type from the same tokens.
    ═══════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
   --side: 244px;
@@ -64,7 +64,7 @@ img { display: block; max-width: 100%; }
 button, input, select, textarea { font-family: inherit; }
 h1, h2, h3, h4, h5, h6,
 .page-title, .card-title, .stat-n, .welcome-name, .modal-title {
-  font-family: 'Manrope', system-ui, sans-serif; letter-spacing: -.02em;
+  font-family: 'Fredoka', 'Manrope', system-ui, sans-serif; letter-spacing: -.01em;
 }
 svg { stroke-linecap: round; stroke-linejoin: round; }
 
@@ -122,7 +122,7 @@ html[data-theme="dark"] .on-dark { display: block; }
 .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .nav-item.active::before {
   content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--primary);
+  width: 4px; height: 20px; border-radius: 0 4px 4px 0; background: var(--sun);
 }
 .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: .8; }
 .nav-item.active svg, .nav-item:hover svg { opacity: 1; }
@@ -185,24 +185,22 @@ html[data-theme="dark"] .on-dark { display: block; }
 
 /* ── HERO / WELCOME ──────────────────────────────────────────── */
 .welcome-banner {
-  background: linear-gradient(130deg, #241C22 0%, var(--brand-dark) 55%, var(--primary) 100%);
+  background: var(--primary);
   border-radius: 8px; padding: 30px 34px; margin-bottom: 24px;
   display: flex; align-items: center; justify-content: space-between; gap: 18px;
   position: relative; overflow: hidden; box-shadow: var(--shadow-brand);
 }
+/* The soft blob from the social posts, in the corner of the space's own colour. */
 .welcome-banner::before {
-  content: ''; position: absolute; top: -70px; right: -50px;
-  width: 240px; height: 240px; border-radius: 50%;
-  background: rgba(255,255,255,.06); pointer-events: none;
+  content: ''; position: absolute; top: -90px; right: -70px;
+  width: 280px; height: 280px; transform: rotate(20deg); pointer-events: none; opacity: .1;
+  background: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cpath d='M100 10c14 0 18 30 30 34s38-12 46 0-14 34-10 48 34 22 28 36-36 6-46 16-6 42-20 46-24-26-38-28-34 20-44 10 4-36-2-48-38-14-36-28 32-14 36-28-12-38 0-46 32 8 44 2 0-42 12-42z' fill='%23FFFFFF'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.welcome-banner::after {
-  content: ''; position: absolute; bottom: -50px; right: 130px;
-  width: 150px; height: 150px; border-radius: 50%;
-  background: rgba(255,255,255,.04); pointer-events: none;
-}
+.welcome-banner::after { content: none; }
 .welcome-text { position: relative; z-index: 1; }
-.welcome-sub { font-size: .68rem; font-weight: 700; color: rgba(255,255,255,.62); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
-.welcome-name { font-size: 1.65rem; font-weight: 800; color: #fff; line-height: 1.12; }
+/* The yellow label from the posts. */
+.welcome-sub { display: inline-block; font: 700 .66rem/1 'Fredoka', sans-serif; color: #1B1240; background: var(--sun); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; padding: 6px 10px 7px; border-radius: 6px; transform: rotate(-2deg); }
+.welcome-name { font-size: 1.75rem; font-weight: 700; color: #fff; line-height: 1.12; }
 .welcome-note { font-size: .84rem; color: rgba(255,255,255,.7); margin-top: 8px; max-width: 46ch; line-height: 1.5; }
 .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; position: relative; z-index: 1; }
 
@@ -225,10 +223,10 @@ html[data-theme="dark"] .on-dark { display: block; }
 .stat-icon {
   width: 40px; height: 40px; border-radius: 6px; margin-bottom: 15px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--primary-soft); color: var(--primary);
+  background: var(--sun-soft); color: var(--text);
 }
 .stat-icon svg { width: 20px; height: 20px; }
-.stat-n { font-size: 1.95rem; font-weight: 800; letter-spacing: -.045em; line-height: 1; margin-bottom: 6px; }
+.stat-n { font-size: 1.95rem; font-weight: 700; letter-spacing: -.01em; line-height: 1; margin-bottom: 6px; }
 .stat-l { font-size: .67rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .stat-hint { font-size: .7rem; color: var(--muted); margin-top: 7px; }
 
@@ -353,7 +351,7 @@ html[data-theme="dark"] .on-dark { display: block; }
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   font-size: .8rem; font-weight: 600; padding: 7px 15px;
   border-radius: 9999px; border: 1.5px solid transparent;
-  cursor: pointer; transition: all .2s; font-family: 'Manrope', inherit;
+  cursor: pointer; transition: all .2s; font-family: 'Fredoka', 'Manrope', inherit;
   line-height: 1; letter-spacing: .005em; white-space: nowrap;
 }
 .btn:disabled { opacity: .55; cursor: not-allowed; transform: none !important; }
@@ -535,7 +533,7 @@ html[data-theme="dark"] .section-badge { background: var(--primary); color: #fff
    fold — the full banner lives on the course page itself. */
 .hello-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
 .hello-sub { font-size: .66rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 5px; }
-.hello-name { font-family: 'Manrope', sans-serif; font-size: 1.4rem; font-weight: 800; letter-spacing: -.025em; }
+.hello-name { font-family: 'Fredoka', 'Manrope', sans-serif; font-size: 1.4rem; font-weight: 800; letter-spacing: -.025em; }
 .hello-note { max-width: 46ch; }
 
 /* A card that is a glance rather than a destination. */
@@ -581,7 +579,7 @@ html[data-theme="dark"] .section-badge { background: var(--primary); color: #fff
 }
 .lumi-panel.open { opacity: 1; transform: none; pointer-events: auto; }
 .lumi-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 18px; background: var(--bg); border-bottom: 1px solid var(--border); }
-.lumi-name { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: .9rem; }
+.lumi-name { font-family: 'Fredoka', 'Manrope', sans-serif; font-weight: 800; font-size: .9rem; }
 .lumi-sub { font-size: .73rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
 .lumi-body { padding: 16px 18px; }
 .lumi-foot { padding: 0 18px 16px; display: flex; justify-content: flex-end; }
@@ -686,13 +684,13 @@ html[data-theme="dark"] .q-opt.wrong   { background: rgba(242,112,138,.14); colo
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); margin-bottom: 8px; }
 .crumbs a { color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
 .crumbs .sep { opacity: .6; }
-.page-hero h1 { font-family: 'Manrope', sans-serif; font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; color: var(--text); }
+.page-hero h1 { font-family: 'Fredoka', 'Manrope', sans-serif; font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; color: var(--text); }
 .page-hero h1 .soft { color: var(--muted); font-weight: 700; }
 .page-hero p { color: var(--text-2); font-size: .88rem; margin-top: 8px; max-width: 70ch; }
 .study-group { padding: 20px 0; border-top: 1px solid var(--border); }
 .study-group:first-of-type { border-top: 0; padding-top: 6px; }
 .group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
-.group-head h2 { font-family: 'Manrope', sans-serif; font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; margin-right: 4px; }
+.group-head h2 { font-family: 'Fredoka', 'Manrope', sans-serif; font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; margin-right: 4px; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 6px; font-size: .74rem; font-weight: 600;
         background: var(--primary-soft); color: var(--primary); }
 .chip svg { width: 13px; height: 13px; }
@@ -742,7 +740,7 @@ html[data-theme="dark"] .chip.sun { color: var(--sun); }
 .fc-hint { margin: 0 14px 14px; padding: 11px; border-radius: 8px; background: var(--brand-dark); color: #fff; text-align: center; font-size: .82rem; }
 .fc-hint kbd { font: 700 .66rem Inter, sans-serif; background: rgba(255,255,255,.18); border-radius: 4px; padding: 2px 6px; margin-left: 4px; }
 .fc-actions { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 16px 0 6px; }
-.fc-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; font: 700 .86rem Manrope, sans-serif;
+.fc-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; font: 600 .86rem Fredoka, Manrope, sans-serif;
           border: 1.5px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
 .fc-btn.learn { border-color: #FDBA74; background: #FFF4EA; color: #C2410C; }
 .fc-btn.know  { border-color: #86D9B4; background: #EAF8F1; color: var(--success); }
@@ -757,6 +755,6 @@ html[data-theme="dark"] .fc-btn.know  { background: rgba(20,122,87,.18); }
 .fc-item > div + div { border-left: 1px solid var(--border); color: var(--text-2); }
 .fc-item.known { border-left: 3px solid var(--success); } .fc-item.learning { border-left: 3px solid #F97316; }
 .fc-done { text-align: center; padding: 34px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm); }
-.fc-done h2 { font-family: Manrope, sans-serif; font-size: 1.3rem; margin-bottom: 6px; }
+.fc-done h2 { font-family: Fredoka, Manrope, sans-serif; font-size: 1.3rem; margin-bottom: 6px; }
 .fc-wrap:fullscreen { background: var(--bg); padding: 30px; max-width: none; overflow: auto; }
 @media (max-width: 600px) { .fc-card { aspect-ratio: 4 / 5; } .fc-item { grid-template-columns: 1fr; } .fc-item > div + div { border-left: 0; border-top: 1px solid var(--border); } }
