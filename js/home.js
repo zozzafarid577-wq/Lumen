@@ -136,6 +136,26 @@
     });
   }
 
+  // ── How it starts: the track fills as the section scrolls ──────
+  // Each dot, and the step under it, lights up as the fill reaches it.
+  function track() {
+    const t = document.querySelector('.h-track'), steps = $$('.h-step');
+    if (!t || still) return;
+    const dots = $$('span', t);
+    const set = () => {
+      const r = t.closest('section').getBoundingClientRect();
+      const p = Math.max(0, Math.min(1, (innerHeight * .8 - r.top) / (r.height * .8)));
+      t.style.setProperty('--p', p.toFixed(3));
+      dots.forEach((d, i) => {
+        const on = p >= i / 3 - .001;
+        d.classList.toggle('lit', on);
+        if (steps[i]) steps[i].classList.toggle('lit', on);
+      });
+    };
+    set();
+    addEventListener('scroll', set, { passive: true });
+  }
+
   // ── The nav takes a shadow once the page moves under it ────────
   function navShadow() {
     const nav = document.querySelector('.nav');
@@ -145,5 +165,5 @@
     addEventListener('scroll', set, { passive: true });
   }
 
-  document.addEventListener('DOMContentLoaded', () => { reveal(); phones(); tilt(); nudge(); navShadow(); });
+  document.addEventListener('DOMContentLoaded', () => { reveal(); phones(); tilt(); nudge(); track(); navShadow(); });
 })();

@@ -83,8 +83,8 @@ html:has(body.home), .home { overflow-x: clip; }
 .h-grid p { font-size: .95rem; }
 
 .h-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.h-steps div { background: var(--primary); color: var(--lilac); border-radius: 24px; padding: 30px; }
-.h-steps b { display: flex; width: 46px; height: 46px; border-radius: 50%; background: var(--sun); color: var(--night); font: 700 1.3rem 'Fredoka', sans-serif; align-items: center; justify-content: center; margin-bottom: 18px; }
+.h-steps > .h-step { background: var(--primary); color: var(--lilac); border-radius: 24px; padding: 22px 22px 28px; position: relative; overflow: hidden; }
+.h-steps > .h-step > b { display: flex; width: 46px; height: 46px; border-radius: 50%; background: var(--sun); color: var(--night); font: 700 1.3rem 'Fredoka', sans-serif; align-items: center; justify-content: center; margin-bottom: 18px; }
 .h-steps h3 { color: #fff; font-size: 1.3rem; margin-bottom: 6px; }
 .h-steps p { font-size: .93rem; }
 
@@ -197,7 +197,7 @@ html:has(body.home), .home { overflow-x: clip; }
 @keyframes h-drift { to { background-position: 30% 40%, 70% 10%, 0 0; } }
 .h-night { background: radial-gradient(80% 70% at 90% 30%, rgba(123,63,228,.45) 0%, transparent 60%), linear-gradient(160deg, #1B1240 0%, #241757 100%); }
 .h-cta { background: radial-gradient(70% 120% at 0% 0%, rgba(255,210,63,.22) 0%, transparent 55%), linear-gradient(135deg, #8A52F0 0%, #6633D6 100%); }
-.h-steps div { background: linear-gradient(160deg, #8A52F0 0%, #6633D6 100%); }
+.h-steps > .h-step { background: linear-gradient(160deg, #8A52F0 0%, #6633D6 100%); }
 .h-ic { background: linear-gradient(135deg, #FFE27A 0%, #FFC21A 100%); }
 
 /* The nav lifts off the page once it scrolls. */
@@ -279,3 +279,84 @@ html:has(body.home), .home { overflow-x: clip; }
   .h-wa { right: 14px; bottom: 14px; width: 52px; height: 52px; }
   .h-nudge { right: 14px; bottom: 78px; }
 }
+
+/* ═══ HOW IT STARTS: a looping scene on each step ═══ */
+.h-track { position: relative; height: 6px; border-radius: 3px; background: var(--blush-2); margin: 0 12.5% 34px; }
+.h-track-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); border-radius: 3px; background: linear-gradient(90deg, var(--sun), #FFB800); transition: width .15s linear; }
+.h-track span { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; border: 4px solid var(--blush-2); transition: border-color .3s, transform .3s; }
+.h-track span:nth-of-type(1) { left: 0; } .h-track span:nth-of-type(2) { left: 33.33%; } .h-track span:nth-of-type(3) { left: 66.66%; } .h-track span:nth-of-type(4) { left: 100%; }
+.h-track span.lit { border-color: var(--sun); transform: scale(1.25); box-shadow: 0 0 0 6px rgba(255,210,63,.25); }
+.h-step.lit > b { animation: st-pulse 1.6s ease-out 1; }
+@keyframes st-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,210,63,.7); } 100% { box-shadow: 0 0 0 18px rgba(255,210,63,0); } }
+
+.st-art { position: relative; height: 150px; border-radius: 16px; background: rgba(255,255,255,.1); margin-bottom: 20px; overflow: hidden; font: 600 12px/1.2 'Fredoka', sans-serif; color: var(--night); }
+.motion .h-step:not(.in) .st-art * { animation-play-state: paused !important; }
+
+/* 1 · the call: a day is picked, a time slides in, it's booked */
+.st-call .cal { position: absolute; left: 14px; top: 14px; width: 130px; background: #fff; border-radius: 12px; padding: 9px; box-shadow: 0 8px 20px -8px rgba(20,8,60,.4); }
+.st-call .cal-h { font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+.st-call .cal-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.st-call .cal-g i { height: 11px; border-radius: 3px; background: #EEE9FB; }
+.st-call .cal-g i.pick { animation: st-pick 5s ease-in-out infinite; }
+@keyframes st-pick { 0%, 12% { background: #EEE9FB; transform: none; } 20%, 100% { background: var(--primary); transform: scale(1.35); } }
+.st-call .slot { position: absolute; right: 14px; top: 26px; background: #fff; border: 2px solid var(--primary); color: var(--primary); border-radius: 99px; padding: 6px 10px; white-space: nowrap; animation: st-slot 5s cubic-bezier(.2,.8,.2,1) infinite; }
+@keyframes st-slot { 0%, 28% { opacity: 0; transform: translateX(30px); } 38%, 100% { opacity: 1; transform: none; } }
+.st-call .stamp { position: absolute; right: 18px; top: 70px; background: #2BB673; color: #fff; border-radius: 8px; padding: 6px 10px; font-weight: 700; transform: rotate(-8deg); animation: st-stamp 5s cubic-bezier(.3,1.6,.5,1) infinite; }
+@keyframes st-stamp { 0%, 48% { opacity: 0; transform: rotate(-8deg) scale(2.2); } 56%, 92% { opacity: 1; transform: rotate(-8deg) scale(1); } 100% { opacity: 0; } }
+.st-call .ring { position: absolute; left: 50%; bottom: 10px; width: 34px; height: 34px; margin-left: -17px; border-radius: 50%; background: var(--sun); color: var(--night); display: flex; align-items: center; justify-content: center; animation: st-ring 5s ease-in-out infinite; }
+.st-call .ring svg { width: 17px; height: 17px; }
+@keyframes st-ring { 0%, 4%, 12%, 100% { transform: rotate(0); } 6%, 10% { transform: rotate(-16deg); } 8% { transform: rotate(16deg); } }
+
+/* 2 · the build: the window fills with your logo, colours and courses */
+.st-build .win { position: absolute; left: 14px; right: 14px; top: 14px; bottom: 30px; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 20px -8px rgba(20,8,60,.4); }
+.st-build .win-bar { height: 14px; background: #EEE9FB; display: flex; gap: 4px; align-items: center; padding: 0 7px; }
+.st-build .win-bar i { width: 5px; height: 5px; border-radius: 50%; background: #CFC3F2; }
+.st-build .win-top { display: flex; align-items: center; gap: 7px; padding: 7px 9px; animation: st-theme 6s steps(1) infinite; color: #fff; }
+@keyframes st-theme { 0% { background: #7B3FE4; } 33% { background: #1F6FB2; } 66% { background: #138A63; } }
+.st-build .logo-box { flex: none; width: 34px; height: 22px; border-radius: 6px; border: 1.5px dashed rgba(255,255,255,.8); font-size: 6.5px; display: flex; align-items: center; justify-content: center; text-align: center; animation: st-logo 6s ease infinite; }
+@keyframes st-logo { 0%, 10% { background: transparent; color: #fff; } 18%, 100% { background: var(--sun); border-color: var(--sun); color: var(--night); } }
+.st-build .name { font-size: 11px; font-weight: 700; animation: st-type 6s steps(12) infinite; overflow: hidden; white-space: nowrap; }
+@keyframes st-type { 0% { max-width: 0; } 25%, 100% { max-width: 90px; } }
+.st-build .win-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 9px; }
+.st-build .win-body i { height: 18px; border-radius: 5px; background: #EEE9FB; animation: st-block 6s cubic-bezier(.3,1.5,.5,1) infinite; }
+.st-build .win-body i:nth-child(2) { animation-delay: .25s; } .st-build .win-body i:nth-child(3) { animation-delay: .5s; } .st-build .win-body i:nth-child(4) { animation-delay: .75s; }
+@keyframes st-block { 0%, 30% { opacity: 0; transform: scale(.4); } 40%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.st-build .swatches { position: absolute; bottom: 9px; left: 0; right: 0; display: flex; gap: 7px; justify-content: center; }
+.st-build .swatches i { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; background: #7B3FE4; }
+.st-build .swatches i:nth-child(2) { background: #1F6FB2; } .st-build .swatches i:nth-child(3) { background: #138A63; }
+.st-build .swatches i { animation: st-sw 6s steps(1) infinite; }
+.st-build .swatches i:nth-child(2) { animation-name: st-sw2; } .st-build .swatches i:nth-child(3) { animation-name: st-sw3; }
+@keyframes st-sw { 0% { transform: scale(1.35); } 33% { transform: none; } }
+@keyframes st-sw2 { 0% { transform: none; } 33% { transform: scale(1.35); } 66% { transform: none; } }
+@keyframes st-sw3 { 0% { transform: none; } 66% { transform: scale(1.35); } }
+
+/* 3 · the students: faces pop in and the count runs up */
+@property --n { syntax: '<integer>'; inherits: false; initial-value: 0; }
+.st-people .count { position: absolute; left: 14px; right: 14px; top: 14px; background: #fff; border-radius: 10px; padding: 8px 10px; font-size: 13px; color: var(--ink-2); box-shadow: 0 8px 20px -8px rgba(20,8,60,.4); }
+.st-people .num { font-size: 20px; font-weight: 700; color: var(--primary); counter-reset: n var(--n); animation: st-count 6s cubic-bezier(.2,.7,.2,1) infinite; }
+.st-people .num::after { content: counter(n); }
+@keyframes st-count { 0% { --n: 0; } 70%, 100% { --n: 482; } }
+.st-people .faces { position: absolute; left: 14px; right: 14px; top: 64px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; justify-items: center; }
+.st-people .faces i { width: 30px; height: 30px; border-radius: 50%; background: var(--sun); border: 3px solid #fff; animation: st-face 6s cubic-bezier(.3,1.6,.5,1) infinite; }
+.st-people .faces i:nth-child(3n+2) { background: #B796F5; } .st-people .faces i:nth-child(3n) { background: #FF9FB2; }
+.st-people .faces i:nth-child(1) { animation-delay: 0s } .st-people .faces i:nth-child(2) { animation-delay: .3s } .st-people .faces i:nth-child(3) { animation-delay: .6s }
+.st-people .faces i:nth-child(4) { animation-delay: .9s } .st-people .faces i:nth-child(5) { animation-delay: 1.2s } .st-people .faces i:nth-child(6) { animation-delay: 1.5s }
+.st-people .faces i:nth-child(7) { animation-delay: 1.8s } .st-people .faces i:nth-child(8) { animation-delay: 2.1s } .st-people .faces i:nth-child(9) { animation-delay: 2.4s } .st-people .faces i:nth-child(10) { animation-delay: 2.7s }
+@keyframes st-face { 0%, 2% { opacity: 0; transform: scale(0); } 8%, 85% { opacity: 1; transform: none; } 95%, 100% { opacity: 0; transform: scale(.6); } }
+.st-people .plus { position: absolute; right: 18px; top: 18px; background: #2BB673; color: #fff; border-radius: 99px; padding: 3px 8px; font-weight: 700; animation: st-plus 1.2s ease-out infinite; }
+@keyframes st-plus { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-16px); } }
+
+/* 4 · teaching: the answers tick themselves, the mark lands, the report goes */
+.st-teach .sheet { position: absolute; left: 14px; top: 14px; width: 58%; bottom: 14px; background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 8px 20px -8px rgba(20,8,60,.4); }
+.st-teach .q { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+.st-teach .q i { flex: 1; height: 9px; border-radius: 5px; background: #EEE9FB; }
+.st-teach .q em { font-style: normal; flex: none; width: 16px; height: 16px; border-radius: 50%; background: #2BB673; color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; animation: st-tick 5s cubic-bezier(.3,1.6,.5,1) infinite; }
+.st-teach .q:nth-child(2) em { animation-delay: .4s; } .st-teach .q:nth-child(3) em { animation-delay: .8s; }
+@keyframes st-tick { 0%, 10% { opacity: 0; transform: scale(0); } 18%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.st-teach .score { display: inline-block; background: var(--sun); border-radius: 8px; padding: 4px 9px; font-size: 15px; font-weight: 700; animation: st-score 5s cubic-bezier(.3,1.6,.5,1) infinite; }
+@keyframes st-score { 0%, 34% { opacity: 0; transform: scale(.3) rotate(-10deg); } 42%, 90% { opacity: 1; transform: rotate(-4deg); } 100% { opacity: 0; } }
+.st-teach .mail { position: absolute; right: 12px; top: 50%; width: 34%; margin-top: -30px; background: #fff; border-radius: 10px; padding: 8px 6px; text-align: center; color: var(--primary); font-size: 10.5px; box-shadow: 0 8px 20px -8px rgba(20,8,60,.4); animation: st-mail 5s cubic-bezier(.2,.8,.2,1) infinite; }
+.st-teach .mail svg { width: 24px; height: 24px; display: block; margin: 0 auto 3px; }
+@keyframes st-mail { 0%, 50% { opacity: 0; transform: translateX(-40px) scale(.8); } 60%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate(30px, -30px) scale(.7); } }
+
+@media (max-width: 900px) { .h-track { display: none; } }
