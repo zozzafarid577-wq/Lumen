@@ -617,16 +617,16 @@ function drawUnits(host, visible, byUnit, byLesson) {
       </summary>
       ${open
         ? (lessons.length || unitTests.length
-            // Each lesson with its handouts, then every practice paper and
-            // test for the unit together in their own block below.
-            ? lessons.map(l =>
-                lessonRow(l)
-                + (l.lesson_materials || []).map(materialRow).join('')
-              ).join('')
-              + practiceBlock([
+            // Every practice paper and test for the unit in their own block
+            // at the top, then each lesson with its handouts.
+            ? practiceBlock([
                   ...lessons.flatMap(l => byLesson.get(l.id) || []),
                   ...unitTests,
                 ])
+              + lessons.map(l =>
+                lessonRow(l)
+                + (l.lesson_materials || []).map(materialRow).join('')
+              ).join('')
             : '<div class="locked-card">No lessons in this unit yet.</div>')
         : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
     </details>`;
