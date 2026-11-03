@@ -205,13 +205,10 @@
      Every paper in the unit, in one block of its own colour, so it
      never reads as another lesson row. */
   .practice-block {
-    margin: 14px; padding: 16px; border-radius: 14px; color: #fff;
+    margin: 14px; padding: 10px; border-radius: 14px; color: #fff;
     background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #c026d3 100%);
     box-shadow: 0 8px 24px rgb(124 58 237 / .22);
   }
-  .pb-head { padding: 2px 4px 12px; }
-  .pb-title { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: .95rem; }
-  .pb-sub { font-size: .73rem; opacity: .85; margin-top: 2px; }
   .pb-list { background: rgb(255 255 255 / .12); border-radius: 10px; overflow: hidden; }
   .practice-block .list-row { border-bottom-color: rgb(255 255 255 / .16); }
   .practice-block .list-row:hover { background: rgb(255 255 255 / .1); }
@@ -653,10 +650,6 @@ function materialRow(m) {
 function practiceBlock(tests) {
   if (!tests.length) return '';
   return `<div class="practice-block">
-    <div class="pb-head">
-      <div class="pb-title">Practice &amp; tests</div>
-      <div class="pb-sub">${tests.length} to try in this unit</div>
-    </div>
     <div class="pb-list">${tests.map(t => testRow(t, false)).join('')}</div>
   </div>`;
 }
