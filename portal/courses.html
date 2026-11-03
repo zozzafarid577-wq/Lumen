@@ -477,9 +477,6 @@ function heroWords(first, course) {
 
 function drawCourseCard(c, units, openTests) {
   const open = units.filter(u => moduleOpen(u));
-  const all = open.flatMap(u => u.lessons || []);
-  const done = all.filter(l => doneIds.has(l.id)).length;
-  const percent = all.length ? Math.round((done / all.length) * 100) : 0;
   const first = (me.full_name || '').split(' ')[0];
 
   // "English course" rather than a bare course title: a student should be
@@ -492,7 +489,6 @@ function drawCourseCard(c, units, openTests) {
     // page on a Saturday night mostly wants to know when they are next in.
     c.group ? chip(ICONS.clock, groupLabel(c.group)) : '',
     chip(ICONS.book, `${open.length} unit${open.length === 1 ? '' : 's'} open`),
-    all.length ? chip(ICONS.tick, `${done} of ${all.length} lesson${all.length === 1 ? '' : 's'} done`) : '',
     openTests ? chip(ICONS.paper, `${openTests} test${openTests === 1 ? '' : 's'} to do`) : '',
     c.exam_date ? chip(ICONS.calendar, 'Exam ' + fmtDate(c.exam_date)) : '',
   ].filter(Boolean).join('');
@@ -504,11 +500,6 @@ function drawCourseCard(c, units, openTests) {
         <div class="hero-kicker">${escHtml(subject)}</div>
         ${heroWords(first, c.title)}
         <div class="hero-chips">${chips}</div>
-        ${all.length ? `
-          <div class="hero-prog">
-            <div class="hero-bar"><div class="hero-fill" style="width:${percent}%"></div></div>
-            <div class="hero-prog-label">${percent}% of this course behind you</div>
-          </div>` : ''}
       </div>
     </div>`;
 
@@ -600,12 +591,14 @@ function drawUnits(host, visible, byUnit, byLesson) {
     const open = moduleOpen(u);
     const lessons = (u.lessons || []).sort((a, b) => a.order_index - b.order_index);
     const unitTests = byUnit.get(u.id) || [];
-    const doneHere = lessons.filter(l => doneIds.has(l.id)).length;
-    const percent = lessons.length ? Math.round((doneHere / lessons.length) * 100) : 0;
+    // Only what a student opens: the PDFs and the recordings. A lesson
+    // with neither has nothing to click, so it is not shown.
+    const mats = lessons.flatMap(l => l.lesson_materials || []);
+    const videos = lessons.filter(l => l.video_url);
 
-    const counts = [`${lessons.length} lesson${lessons.length === 1 ? '' : 's'}`];
-    const matCount = lessons.reduce((n, l) => n + (l.lesson_materials || []).length, 0);
-    if (matCount) counts.push(`${matCount} handout${matCount === 1 ? '' : 's'}`);
+    const counts = [];
+    if (mats.length) counts.push(`${mats.length} PDF${mats.length === 1 ? '' : 's'}`);
+    if (videos.length) counts.push(`${videos.length} video${videos.length === 1 ? '' : 's'}`);
     const testCount = unitTests.length + lessons.reduce((n, l) => n + (byLesson.get(l.id) || []).length, 0);
     if (testCount) counts.push(`${testCount} test${testCount === 1 ? '' : 's'}`);
 
@@ -625,26 +618,22 @@ function drawUnits(host, visible, byUnit, byLesson) {
             <div class="unit-title">${escHtml(u.title)}</div>
             <div class="small muted">${open ? counts.join(' · ') : 'Not open yet'}${u.description ? ' · ' + escHtml(u.description) : ''}</div>
           </div>
-          ${open
-            ? `<span class="badge ${doneHere === lessons.length && lessons.length ? 'b-green' : 'b-gray'}">${doneHere}/${lessons.length} done</span>`
-            : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
+          ${open ? '' : `<span class="badge b-yellow">Opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'soon')}</span>`}
           <span class="unit-chev">${icon(ICONS.chev)}</span>
         </div>
-        ${open && lessons.length ? `<div class="unit-bar"><span style="width:${percent}%"></span></div>` : ''}
       </summary>
       ${open
-        ? (lessons.length || unitTests.length
-            // Every practice paper and test for the unit in their own block
-            // at the top, then each lesson with its handouts.
+        ? (testCount || mats.length || videos.length
+            // The practice tests first, then the PDFs and recordings.
             ? practiceBlock([
                   ...lessons.flatMap(l => byLesson.get(l.id) || []),
                   ...unitTests,
                 ])
               + lessons.map(l =>
-                lessonRow(l)
+                (l.video_url ? videoRow(l) : '')
                 + (l.lesson_materials || []).map(materialRow).join('')
               ).join('')
-            : '<div class="locked-card">No lessons in this unit yet.</div>')
+            : '<div class="locked-card">Nothing in this unit yet.</div>')
         : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
     </details>`;
   }).join('');
@@ -654,7 +643,7 @@ const MAT_LABEL = { pdf: 'PDF', link: 'Link', sheet: 'Worksheet', recording: 'Re
 
 function materialRow(m) {
   const kind = isLessonFile(m.file_url) ? lessonFileLabel(m.file_url) : (MAT_LABEL[m.kind] || 'File');
-  return `<div class="list-row under">
+  return `<div class="list-row">
     <div class="lr-ic ic-doc">${icon(ICONS.file)}</div>
     <div style="flex:1;min-width:0">
       <div class="lr-title">${escHtml(m.title)}</div>
@@ -727,6 +716,17 @@ function testRow(t, under) {
     ${best ? `<span class="badge ${best.passed ? 'b-green' : 'b-red'}">${mark(best)}</span>`
       : late ? '<span class="badge b-red">Late</span>' : ''}
     ${action}
+  </div>`;
+}
+
+function videoRow(l) {
+  return `<div class="list-row">
+    <div class="lr-ic">${icon(ICONS.play)}</div>
+    <div style="flex:1;min-width:0">
+      <div class="lr-title">${escHtml(l.title)}</div>
+      <div class="lr-sub">Video${l.duration_min ? ' · ' + l.duration_min + ' min' : ''}</div>
+    </div>
+    <a href="${escHtml(l.video_url)}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">Watch</a>
   </div>`;
 }
 
