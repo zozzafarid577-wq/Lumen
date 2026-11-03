@@ -23,6 +23,9 @@ const ICON = {
   award:     '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
   building:  '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="14" y1="8" x2="17" y2="8"/><line x1="14" y1="12" x2="17" y2="12"/>',
   tag:       '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  mock:      '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>',
+  frq:       '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  cards:     '<rect x="2" y="6" width="15" height="14" rx="2"/><path d="M7 2h13a2 2 0 0 1 2 2v11"/>',
   practice:  '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   chat:      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   inbox:     '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
@@ -42,6 +45,7 @@ const NAVS = {
     { href: '/teacher/courses.html',        icon: 'courses',   label: 'Courses & lessons' },
     { href: '/teacher/question-bank.html',  icon: 'bank',      label: 'Question bank' },
     { href: '/teacher/tests.html',          icon: 'tests',     label: 'Tests' },
+    { href: '/teacher/flashcards.html',     icon: 'cards',     label: 'Flashcards' },
     { href: '/teacher/assignments.html',    icon: 'tasks',     label: 'Assignments' },
     { href: '/teacher/announcements.html',  icon: 'bell',      label: 'Announcements' },
     { href: '/portal/courses.html?preview=1', icon: 'students', label: 'View as student' },
@@ -54,15 +58,22 @@ const NAVS = {
   // handouts on each lesson and the papers set on them are all on that
   // page — which is why there is no Lessons tab, no Tests tab, and no
   // dashboard in front of it. Those pages all send you here.
+  // Mock tests, FRQs and Flashcards (`when`) show only once the
+  // student's courses have some: an empty tab is a promise not kept.
   student: [
-    { section: 'Learn' },
+    { section: 'Course' },
     { href: '/portal/courses.html',         icon: 'courses',   label: 'My courses' },
     { href: '/portal/practice.html',        icon: 'practice',  label: 'Practice' },
-    { href: '/portal/messages.html',        icon: 'chat',      label: 'Messages' },
+    { section: 'Exam practice' },
+    { href: '/portal/mocks.html',           icon: 'mock',      label: 'Mock tests', when: 'mock' },
+    { href: '/portal/frqs.html',            icon: 'frq',       label: 'FRQs',       when: 'frq' },
+    { section: 'Revision' },
+    { href: '/portal/flashcards.html',      icon: 'cards',     label: 'Flashcards', when: 'cards' },
     { section: 'Work' },
     { href: '/portal/assignments.html',     icon: 'tasks',     label: 'Assignments' },
     { href: '/portal/scores.html',          icon: 'award',     label: 'My scores' },
     { section: 'More' },
+    { href: '/portal/messages.html',        icon: 'chat',      label: 'Messages' },
     { href: '/portal/announcements.html',   icon: 'bell',      label: 'Announcements' },
     { href: '/portal/settings.html',        icon: 'cog',       label: 'Settings' },
   ],
@@ -92,6 +103,7 @@ function renderShell(which, profile, { title } = {}) {
   // The teacher's own colours and name, for their staff and students.
   if (which !== 'admin') applyBrand(profile.teacher);
   markActiveNav();
+  if (which === 'student') refreshStudyTabs(which, profile);
 
   // Lumi rides along on every student page, not just the dashboard: a
   // page that will not load is exactly the page they are stuck on.
@@ -262,11 +274,33 @@ async function sendHelp() {
     '<button class="btn btn-ghost btn-sm" type="button" onclick="toggleHelp(false)">Close</button>';
 }
 
+// Which of the optional study tabs this student's courses fill, kept for
+// the session so the menu is drawn right first time on the next page.
+function studyHas() {
+  try { return JSON.parse(sessionStorage.getItem('lumen_has') || '[]'); } catch (_) { return []; }
+}
+async function refreshStudyTabs(which, profile) {
+  const count = (q) => q.then(r => (!r.error && r.count > 0)).catch(() => false);
+  const [mock, frq, cards] = await Promise.all([
+    count(sb.from('practice_tests').select('id', { count: 'exact', head: true }).eq('kind', 'mock').eq('is_active', true)),
+    count(sb.from('practice_tests').select('id', { count: 'exact', head: true }).eq('kind', 'frq').eq('is_active', true)),
+    count(sb.from('flashcard_decks').select('id', { count: 'exact', head: true }).eq('is_active', true)),
+  ]);
+  const has = [mock && 'mock', frq && 'frq', cards && 'cards'].filter(Boolean);
+  if (has.join() === studyHas().join()) return;
+  try { sessionStorage.setItem('lumen_has', JSON.stringify(has)); } catch (_) {}
+  const aside = document.getElementById('sidebar');
+  if (aside) { aside.innerHTML = sidebarHtml(which, profile); paintIdentity(profile); if (profile.teacher) paintBrandMark(profile.teacher); markActiveNav(); }
+}
+
 function sidebarHtml(which, profile) {
   const items = (NAVS[which] || []).filter(i => !(i.teacherOnly && profile.role === 'assistant'))
     // In student view the student's own settings are not the teacher's to
     // open: they are the teacher's settings underneath.
-    .filter(i => !(profile.preview && ['/portal/settings.html', '/portal/messages.html'].includes(i.href)));
+    .filter(i => !(profile.preview && ['/portal/settings.html', '/portal/messages.html'].includes(i.href)))
+    .filter(i => !i.when || studyHas().includes(i.when))
+    // A heading with nothing under it goes too.
+    .filter((i, n, all) => !i.section || (all[n + 1] && !all[n + 1].section));
 
   // The supplied logo wherever there is room for it. The rail collapses
   // to 74px on desktop, where there is not — so the pencil n alone stands in

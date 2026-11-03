@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>Flashcards | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#7B3FE4">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Flashcards</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="fc-wrap" id="study">
+      <div class="page-hero" id="hero"></div>
+      <div id="stage"></div>
+      <div class="fc-tools" id="tools" style="display:none">
+        <span class="small muted">Space flips · ← → move · 1 still learning · 2 know</span>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="fc-btn" onclick="shuffle()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Shuffle</button>
+          <button type="button" class="fc-btn" onclick="fullScreen()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>Full screen</button>
+        </div>
+      </div>
+      <div class="section-head" id="list-head" style="display:none"><div><h2 id="list-title">Cards in this deck</h2></div></div>
+      <div class="fc-list" id="list"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let deck = null, all = [], order = [], at = 0, flipped = false, state = { known: [], learning: [] };
+const key = () => `lumen_fc_${me.id}_${deck.id}`;
+function saveState() { try { localStorage.setItem(key(), JSON.stringify(state)); } catch (_) {} }
+
+(async () => {
+  me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Flashcards' });
+
+  const id = new URLSearchParams(location.search).get('deck');
+  const { data, error } = await sb.from('flashcard_decks')
+    .select('id, title, courses(title), modules(title), flashcards(id, front, back, order_index)')
+    .eq('id', id).maybeSingle();
+  if (error || !data || !(data.flashcards || []).length) {
+    document.getElementById('stage').innerHTML = `<div class="card"><div class="card-body">${emptyState('Deck not found', 'It may have been hidden by your teacher. Go back to Flashcards to pick another.')}</div></div>`;
+    return;
+  }
+  deck = data;
+  all = deck.flashcards.sort((a, b) => a.order_index - b.order_index);
+  try { state = { known: [], learning: [], ...JSON.parse(localStorage.getItem(key()) || '{}') }; } catch (_) {}
+  const ids = new Set(all.map(c => c.id));
+  state.known = state.known.filter(i => ids.has(i)); state.learning = state.learning.filter(i => ids.has(i));
+  document.title = `${deck.title} | Lumen`;
+  document.getElementById('hero').innerHTML = `
+    <div class="crumbs"><a href="/portal/flashcards.html">Flashcards</a>${deck.modules?.title ? `<span class="sep">›</span><span>${escHtml(deck.modules.title)}</span>` : ''}</div>
+    <h1>${escHtml(deck.title)} ${deck.courses?.title ? `<span class="soft">(${escHtml(deck.courses.title)})</span>` : ''}</h1>`;
+  start(all.map(c => c.id));
+  document.addEventListener('keydown', onKey);
+})();
+
+function start(ids) { order = ids.slice(); at = 0; flipped = false; draw(); }
+
+function draw() {
+  const stage = document.getElementById('stage');
+  document.getElementById('tools').style.display = '';
+  drawList();
+  const tally = `<div class="fc-tally"><span class="learn"><b>${state.learning.length}</b>Still learning</span>
+      <span class="small muted" style="font-weight:600">${Math.min(at + 1, order.length)}/${order.length}</span>
+      <span class="know">Know<b>${state.known.length}</b></span></div>
+    <div class="fc-progress"><span style="width:${order.length ? at / order.length * 100 : 0}%"></span></div>`;
+  if (at >= order.length) {
+    const learning = state.learning.filter(i => order.includes(i));
+    stage.innerHTML = tally + `<div class="fc-done">
+      <h2>${state.known.length === all.length ? 'You know every card in this deck.' : 'Round done.'}</h2>
+      <p class="muted" style="margin-bottom:18px">You know ${state.known.length} of ${all.length}. ${learning.length ? `${learning.length} still to learn.` : ''}</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        ${learning.length ? `<button type="button" class="fc-btn learn" onclick="start(state.learning.slice())">Study the ${learning.length} still learning</button>` : ''}
+        <button type="button" class="fc-btn" onclick="start(all.map(c => c.id))">Go through all again</button>
+        <button type="button" class="fc-btn" onclick="state = { known: [], learning: [] }; saveState(); start(all.map(c => c.id))">Reset</button>
+      </div></div>`;
+    return;
+  }
+  const c = all.find(x => x.id === order[at]);
+  stage.innerHTML = tally + `<div class="fc-stage">
+      <button type="button" class="fc-card${flipped ? ' is-flipped' : ''}" id="card" onclick="flip()" aria-label="Flip the card">
+        <div class="fc-face front"><div class="fc-label">Front</div><div class="fc-text">${escHtml(c.front)}</div>
+          <div class="fc-hint">Click anywhere on the card to flip it, or tap<kbd>SPACE</kbd></div></div>
+        <div class="fc-face back"><div class="fc-label">Back</div><div class="fc-text">${escHtml(c.back)}</div></div>
+      </button></div>
+    <div class="fc-actions">
+      <button type="button" class="fc-btn icon" onclick="move(-1)" aria-label="Previous card" ${at ? '' : 'disabled'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+      <button type="button" class="fc-btn learn" onclick="sortCard('learning')">Still learning</button>
+      <button type="button" class="fc-btn know" onclick="sortCard('known')">Know it</button>
+      <button type="button" class="fc-btn icon" onclick="move(1)" aria-label="Next card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+    </div>`;
+}
+
+function flip() { flipped = !flipped; document.getElementById('card')?.classList.toggle('is-flipped', flipped); }
+function move(d) { at = Math.max(0, Math.min(order.length, at + d)); flipped = false; draw(); }
+function sortCard(pile) {
+  const id = order[at];
+  state.known = state.known.filter(i => i !== id); state.learning = state.learning.filter(i => i !== id);
+  state[pile].push(id);
+  saveState();
+  move(1);
+}
+function shuffle() {
+  const rest = order.slice(at);
+  for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+  order = order.slice(0, at).concat(rest); flipped = false; draw();
+}
+function fullScreen() {
+  const el = document.getElementById('study');
+  if (document.fullscreenElement) document.exitFullscreen(); else el.requestFullscreen?.();
+}
+function onKey(e) {
+  if (e.target.closest('input, textarea, select') || at >= order.length) return;
+  if (e.key === ' ') { e.preventDefault(); flip(); }
+  else if (e.key === 'ArrowRight') move(1);
+  else if (e.key === 'ArrowLeft') move(-1);
+  else if (e.key === '1') sortCard('learning');
+  else if (e.key === '2') sortCard('known');
+}
+function drawList() {
+  document.getElementById('list-head').style.display = '';
+  document.getElementById('list-title').textContent = `Cards in this deck (${all.length})`;
+  document.getElementById('list').innerHTML = all.map(c => `<div class="fc-item ${state.known.includes(c.id) ? 'known' : state.learning.includes(c.id) ? 'learning' : ''}">
+    <div>${escHtml(c.front)}</div><div>${escHtml(c.back)}</div></div>`).join('');
+}
+</script>
+</body>
+</html>

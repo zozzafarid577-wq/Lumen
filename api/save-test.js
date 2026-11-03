@@ -26,6 +26,14 @@ export default handler(async (req, res) => {
   const questions = normaliseQuestions(body.questions);
   if (!questions.length) throw new HttpError(400, 'A test needs at least one question.');
 
+  // Which student tab the paper sits in. Left out (an older page), the
+  // stored kind is kept as it is.
+  const kind = body.kind === undefined || body.kind === null ? null : String(body.kind);
+  if (kind && !TEST_KINDS.includes(kind)) throw new HttpError(400, 'That is not a kind of test Lumen knows.');
+  if (kind === 'frq' && questions.some(q => q.kind !== 'frq')) {
+    throw new HttpError(400, 'An FRQ paper can only hold free-response questions.');
+  }
+
   if (!body.course_id) throw new HttpError(400, 'Choose which course this test belongs to.');
   await assertTenant('courses', body.course_id, teacherId);
   if (body.module_id) await assertTenant('modules', body.module_id, teacherId);
@@ -53,6 +61,7 @@ export default handler(async (req, res) => {
     close_at: closeAt ? closeAt.toISOString() : null,
     is_active: body.is_active !== false,
   };
+  if (kind) fields.kind = kind;
 
   let testId = body.test_id || null;
   if (testId) {
@@ -127,6 +136,8 @@ async function assertLessonInModule(lessonId, moduleId, teacherId) {
   if (data.module_id !== moduleId) throw new HttpError(400, 'That lesson is not in the unit you chose.');
   return data;
 }
+
+const TEST_KINDS = ['practice', 'mock', 'frq'];
 
 // ── Validation ────────────────────────────────────────────────────
 // A question with no correct answer marks every student wrong and there

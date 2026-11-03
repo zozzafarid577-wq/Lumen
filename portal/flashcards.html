@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>Flashcards | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#7B3FE4">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Flashcards</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="page-hero" id="hero"></div>
+    <div id="decks"></div>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+
+// What a student knows of a deck lives on their device: which cards they
+// sorted into Know and which into Still learning. Shared with the study
+// page (flashcard.html), which writes it.
+function deckState(deckId) {
+  try { return JSON.parse(localStorage.getItem(`lumen_fc_${me.id}_${deckId}`) || '{}'); } catch (_) { return {}; }
+}
+
+(async () => {
+  me = await requireAuth('student');
+  if (!me) return;
+  renderShell('student', me, { title: 'Flashcards' });
+
+  const host = document.getElementById('decks');
+  host.innerHTML = '<div class="skel" style="height:140px"></div>';
+  const { data: decks, error } = await sb.from('flashcard_decks')
+    .select('id, title, course_id, module_id, courses(title), modules(title, order_index), lessons(title), flashcards(id)')
+    .eq('is_active', true).order('order_index').order('created_at');
+
+  const course = (decks || [])[0]?.courses?.title || '';
+  document.getElementById('hero').innerHTML = `
+    <div class="crumbs"><a href="/portal/courses.html">My courses</a>${course ? `<span class="sep">›</span><span>${escHtml(course)}</span>` : ''}<span class="sep">›</span><span>Flashcards</span></div>
+    <h1>${course ? `<span class="soft">${escHtml(course)}</span> ` : ''}Flashcards</h1>
+    <p>Test yourself: read the front, say the answer, flip it. Sort each card into Know or Still learning, and come back to the ones you don't know yet.</p>`;
+
+  const list = (decks || []).filter(d => (d.flashcards || []).length);
+  if (error || !list.length) {
+    host.innerHTML = `<div class="card"><div class="card-body">${emptyState('No flashcards yet', 'When your teacher adds a deck, it appears here.')}</div></div>`;
+    return;
+  }
+
+  const groups = new Map();
+  for (const d of list) {
+    const key = d.module_id || 'all';
+    if (!groups.has(key)) groups.set(key, { title: d.modules?.title || 'Whole course', order: d.modules ? d.modules.order_index : 1e9, decks: [] });
+    groups.get(key).decks.push(d);
+  }
+  host.innerHTML = [...groups.values()].sort((a, b) => a.order - b.order).map(g => {
+    const total = g.decks.reduce((n, d) => n + d.flashcards.length, 0);
+    return `<section class="study-group">
+      <div class="group-head"><h2>${escHtml(g.title)}</h2>
+        <span class="chip">${g.decks.length} deck${g.decks.length === 1 ? '' : 's'}</span>
+        <span class="chip sun">${total} card${total === 1 ? '' : 's'}</span></div>
+      <div class="card-grid">${g.decks.map(deckCard).join('')}</div>
+    </section>`;
+  }).join('');
+})();
+
+function deckCard(d) {
+  const n = d.flashcards.length;
+  const ids = new Set(d.flashcards.map(c => c.id));
+  const known = (deckState(d.id).known || []).filter(id => ids.has(id)).length;
+  const pctKnown = n ? Math.round(known / n * 100) : 0;
+  return `<a class="study-card" href="/portal/flashcard.html?deck=${d.id}" target="_blank" rel="noopener">
+    <div class="sc-top"><div class="sc-title">${escHtml(d.title)}</div>
+      <span class="sc-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg></span></div>
+    <div class="sc-meta">${escHtml([d.lessons?.title, `${n} card${n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</div>
+    <div class="sc-bar" aria-label="${known} of ${n} known"><span style="width:${pctKnown}%"></span></div>
+    <div class="sc-status${known === n && n ? ' ok' : ''}">${known ? `${known} of ${n} known` : 'Not started'}</div>
+    <span class="sc-btn${known ? ' again' : ''}">${known ? 'Keep going' : 'Study deck'}</span>
+  </a>`;
+}
+</script>
+</body>
+</html>

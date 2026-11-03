@@ -367,6 +367,7 @@ const STAFF_PAGE_PERM = {
   '/teacher/question-bank.html': 'questions',
   '/teacher/tests.html':         'tests',
   '/teacher/marks.html':         'tests',
+  '/teacher/flashcards.html':    'tests',
   '/teacher/assignments.html':   'assignments',
   '/teacher/announcements.html': 'announcements',
 };

@@ -273,3 +273,38 @@ describe('the question bank is left alone', () => {
     expect(Object.keys(res.body).sort()).toEqual(['question_count', 'test_id']);
   });
 });
+
+describe('the kind of paper', () => {
+  const FRQ = () => ({
+    kind: 'frq', question_text: 'Explain how each concept applies.',
+    frq: { points: [{ label: 'A', prompt: 'Explain' }] },
+    rubric: { points: [{ label: 'A', rubric: 'Names it' }] },
+  });
+
+  it('stores a mock exam as a mock', async () => {
+    const res = await call({ title: 'Mock A', course_id: COURSE, kind: 'mock', questions: [Q()] });
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload.kind).toBe('mock');
+  });
+
+  it('leaves the kind alone when an older page does not send one', async () => {
+    await call({ title: 'Quiz', course_id: COURSE, questions: [Q()] });
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload).not.toHaveProperty('kind');
+  });
+
+  it('refuses a kind it does not know', async () => {
+    const res = await call({ title: 'Quiz', course_id: COURSE, kind: 'exam', questions: [Q()] });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('keeps multiple-choice questions out of an FRQ paper', async () => {
+    const res = await call({ title: 'FRQs', course_id: COURSE, kind: 'frq', questions: [FRQ(), Q()] });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('saves an FRQ paper of FRQs', async () => {
+    const res = await call({ title: 'FRQs', course_id: COURSE, kind: 'frq', questions: [FRQ()] });
+    expect(res.statusCode).toBe(200);
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload.kind).toBe('frq');
+  });
+});

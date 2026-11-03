@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Google tag (gtag.js). Not on join, set-password or reset-password:
+     their addresses carry one-time tokens, and those stay off Google. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EXZJJ6E73E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-EXZJJ6E73E');
+</script>
+<title>Flashcards | Lumen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lumen">
+<meta name="theme-color" content="#7B3FE4">
+<!-- The purple screen an iPhone shows while Lumen opens from the home
+     screen, one per screen size; without it the launch is a white flash. -->
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/assets/app/splash/splash-640x1136.png">
+<link rel="stylesheet" href="/css/portal.css">
+<script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+  .deck-cards { display: flex; flex-direction: column; gap: 8px; }
+  .fc-row { display: grid; grid-template-columns: 28px 1fr 1fr 32px; gap: 8px; align-items: start; }
+  .fc-row .n { font-size: .74rem; color: var(--muted); padding-top: 9px; text-align: right; }
+  .fc-row textarea { min-height: 56px; }
+  .paste-box { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 12px 0; background: var(--bg); }
+  .paste-box textarea { min-height: 120px; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
+  @media (max-width: 700px) { .fc-row { grid-template-columns: 1fr 32px; } .fc-row .n { display: none; } .fc-row .back { grid-column: 1 / 2; } }
+</style>
+</head>
+<body>
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+<aside class="sidebar" id="sidebar"></aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="page-title">Flashcards</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary btn-sm" onclick="openDeck()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New deck
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Your decks</span>
+        <span class="small muted" id="count">—</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Deck</th><th>Course</th><th>Cards</th><th>Students see it</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="deck">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-head">
+      <span class="modal-title" id="d-title">New deck</span>
+      <button class="modal-close" onclick="closeModal('deck')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="d-alert" style="display:none;margin-bottom:16px"></div>
+      <div class="form-group">
+        <label class="form-label" for="d-name">Deck title *</label>
+        <input type="text" class="form-input" id="d-name" placeholder="Unit 1 — key terms">
+      </div>
+      <div class="form-row form-row-3">
+        <div class="form-group">
+          <label class="form-label" for="d-course">Course *</label>
+          <select class="form-select" id="d-course" onchange="onCourseChange()"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="d-unit">Unit</label>
+          <select class="form-select" id="d-unit" onchange="onUnitChange()"><option value="">Whole course</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="d-lesson">Lesson</label>
+          <select class="form-select" id="d-lesson"><option value="">Whole unit</option></select>
+        </div>
+      </div>
+      <label class="form-check"><input type="checkbox" id="d-active" checked>Visible to students</label>
+
+      <div class="section-head" style="margin:22px 0 10px"><div><h2 style="font-size:.9rem">Cards</h2><div class="sub" id="d-count">No cards yet</div></div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-outline btn-sm" onclick="togglePaste()">Paste many</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addCard()">Add a card</button>
+        </div>
+      </div>
+      <div class="paste-box" id="paste-box" style="display:none">
+        <label class="form-label" for="paste-text">One card per line: front, then back, split by a | or a tab (copying two columns from Sheets or Excel works)</label>
+        <textarea class="form-textarea" id="paste-text" spellcheck="false" placeholder="Define polar molecule | A molecule with an uneven spread of charge
+Neuron | A nerve cell that sends signals"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" class="btn btn-primary btn-sm" onclick="addPasted()">Add to deck</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="togglePaste(false)">Close</button>
+        </div>
+      </div>
+      <div class="fc-row small muted" style="margin-bottom:4px"><span></span><span>Front (the question or term)</span><span class="back">Back (the answer)</span><span></span></div>
+      <div class="deck-cards" id="d-cards"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('deck')">Cancel</button>
+      <button class="btn btn-primary" id="d-save" onclick="saveDeck()">Save deck</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/assets/vendor/supabase-2.117.0.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+let me = null;
+let courses = [], decks = [], cards = [], editing = null;
+
+(async () => {
+  me = await requireAuth(['teacher', 'assistant'], { perm: 'tests' });
+  if (!me) return;
+  renderShell('teacher', me, { title: 'Flashcards' });
+  document.getElementById('rows').innerHTML = skeletonRows(5, 3);
+  const { data } = await sb.from('courses').select('id, title')
+    .eq('teacher_id', me.teacher_id).eq('is_active', true).order('title');
+  courses = data || [];
+  document.getElementById('d-course').innerHTML = courses.length
+    ? courses.map(c => `<option value="${c.id}">${escHtml(c.title)}</option>`).join('')
+    : '<option value="">No courses yet</option>';
+  await loadDecks();
+})();
+
+async function loadDecks() {
+  const { data, error } = await sb.from('flashcard_decks')
+    .select('*, courses(title), modules(title), flashcards(id)')
+    .eq('teacher_id', me.teacher_id).order('order_index').order('created_at');
+  const tbody = document.getElementById('rows');
+  if (error) {
+    tbody.innerHTML = emptyRow(5, /flashcard_decks/.test(error.message || '')
+      ? 'Flashcards need the v22 database update. Run supabase-migration-v22.sql in Supabase, then reload.'
+      : friendlyError(error.message));
+    return;
+  }
+  decks = data || [];
+  document.getElementById('count').textContent = `${decks.length} deck${decks.length === 1 ? '' : 's'}`;
+  if (!decks.length) { tbody.innerHTML = emptyRow(5, 'No decks yet — make one with New deck, and paste your terms straight in.'); return; }
+  tbody.innerHTML = decks.map(d => `<tr>
+    <td><div style="font-weight:600">${escHtml(d.title)}</div><div class="small muted">${escHtml(d.modules?.title || 'Whole course')}</div></td>
+    <td class="small muted">${escHtml(d.courses?.title || '—')}</td>
+    <td class="small">${(d.flashcards || []).length}</td>
+    <td><span class="badge ${d.is_active ? 'b-green' : 'b-gray'}">${d.is_active ? 'Visible' : 'Hidden'}</span></td>
+    <td style="text-align:right;white-space:nowrap">
+      <button class="btn btn-ghost btn-xs" onclick="openDeck('${d.id}')">Edit</button>
+      <button class="btn btn-ghost btn-xs" onclick="toggleDeck('${d.id}')">${d.is_active ? 'Hide' : 'Show'}</button>
+      <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="deleteDeck('${d.id}')">Delete</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function openDeck(id) {
+  if (!courses.length) { showToast('Create a course first — a deck has to belong to one.', 'error'); return; }
+  editing = id ? decks.find(d => d.id === id) : null;
+  document.getElementById('d-title').textContent = editing ? 'Edit deck' : 'New deck';
+  document.getElementById('d-name').value = editing?.title || '';
+  document.getElementById('d-course').value = editing?.course_id || courses[0].id;
+  document.getElementById('d-active').checked = editing ? editing.is_active : true;
+  say('');
+  togglePaste(false);
+  await onCourseChange();
+  if (editing?.module_id) {
+    document.getElementById('d-unit').value = editing.module_id;
+    await onUnitChange();
+    document.getElementById('d-lesson').value = editing.lesson_id || '';
+  }
+  cards = [];
+  if (editing) {
+    const { data } = await sb.from('flashcards').select('front, back, order_index').eq('deck_id', editing.id).order('order_index');
+    cards = (data || []).map(c => ({ front: c.front, back: c.back }));
+  }
+  if (!cards.length) cards = [{ front: '', back: '' }, { front: '', back: '' }, { front: '', back: '' }];
+  drawCards();
+  openModal('deck');
+}
+
+async function onCourseChange() {
+  const { data } = await sb.from('modules').select('id, title').eq('course_id', document.getElementById('d-course').value).order('order_index');
+  document.getElementById('d-unit').innerHTML = '<option value="">Whole course</option>'
+    + (data || []).map(u => `<option value="${u.id}">${escHtml(u.title)}</option>`).join('');
+  await onUnitChange();
+}
+
+async function onUnitChange() {
+  const unit = document.getElementById('d-unit').value;
+  const select = document.getElementById('d-lesson');
+  if (!unit) { select.innerHTML = '<option value="">Whole unit</option>'; select.disabled = true; return; }
+  const { data } = await sb.from('lessons').select('id, title').eq('module_id', unit).order('order_index');
+  select.disabled = !(data || []).length;
+  select.innerHTML = '<option value="">Whole unit</option>' + (data || []).map(l => `<option value="${l.id}">${escHtml(l.title)}</option>`).join('');
+}
+
+function drawCards() {
+  document.getElementById('d-cards').innerHTML = cards.map((c, i) => `
+    <div class="fc-row">
+      <span class="n">${i + 1}</span>
+      <textarea class="form-textarea" aria-label="Card ${i + 1} front" oninput="cards[${i}].front = this.value">${escHtml(c.front)}</textarea>
+      <textarea class="form-textarea back" aria-label="Card ${i + 1} back" oninput="cards[${i}].back = this.value">${escHtml(c.back)}</textarea>
+      <button type="button" class="btn btn-ghost btn-xs" aria-label="Remove card ${i + 1}" onclick="removeCard(${i})">✕</button>
+    </div>`).join('');
+  const n = cards.filter(c => c.front.trim() && c.back.trim()).length;
+  document.getElementById('d-count').textContent = n ? `${n} card${n === 1 ? '' : 's'}` : 'No cards yet';
+}
+function addCard() { cards.push({ front: '', back: '' }); drawCards(); }
+function removeCard(i) { cards.splice(i, 1); drawCards(); }
+function togglePaste(force) {
+  const box = document.getElementById('paste-box');
+  const show = force === undefined ? box.style.display === 'none' : force;
+  box.style.display = show ? '' : 'none';
+  if (show) document.getElementById('paste-text').focus();
+}
+function addPasted() {
+  const lines = document.getElementById('paste-text').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const added = [];
+  for (const line of lines) {
+    const parts = line.includes('\t') ? line.split('\t') : line.split('|');
+    if (parts.length < 2) continue;
+    added.push({ front: parts[0].trim(), back: parts.slice(1).join(line.includes('\t') ? ' ' : '|').trim() });
+  }
+  if (!added.length) { showToast('Nothing to add — put a | or a tab between the front and the back.', 'error'); return; }
+  cards = cards.filter(c => c.front.trim() || c.back.trim()).concat(added);
+  document.getElementById('paste-text').value = '';
+  togglePaste(false);
+  drawCards();
+  showToast(`${added.length} card${added.length === 1 ? '' : 's'} added.`, 'success');
+}
+
+function say(msg) {
+  const el = document.getElementById('d-alert');
+  el.textContent = msg; el.style.display = msg ? '' : 'none';
+}
+
+async function saveDeck() {
+  const title = document.getElementById('d-name').value.trim();
+  const list = cards.map(c => ({ front: c.front.trim(), back: c.back.trim() })).filter(c => c.front || c.back);
+  if (!title) { say('Give the deck a title.'); return; }
+  if (!list.length) { say('Add at least one card.'); return; }
+  const half = list.findIndex(c => !c.front || !c.back);
+  if (half >= 0) { say(`Card ${half + 1} needs both a front and a back.`); return; }
+
+  const btn = document.getElementById('d-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const fields = {
+      teacher_id: me.teacher_id,
+      course_id: document.getElementById('d-course').value,
+      module_id: document.getElementById('d-unit').value || null,
+      lesson_id: document.getElementById('d-lesson').value || null,
+      title: title.slice(0, 200),
+      is_active: document.getElementById('d-active').checked,
+    };
+    let deckId = editing?.id;
+    if (deckId) {
+      const { error } = await sb.from('flashcard_decks').update(fields).eq('id', deckId);
+      if (error) throw error;
+      const { error: delErr } = await sb.from('flashcards').delete().eq('deck_id', deckId);
+      if (delErr) throw delErr;
+    } else {
+      const { data, error } = await sb.from('flashcard_decks').insert(fields).select('id').single();
+      if (error) throw error;
+      deckId = data.id;
+    }
+    const { error: insErr } = await sb.from('flashcards').insert(list.map((c, i) => ({
+      teacher_id: me.teacher_id, deck_id: deckId, front: c.front.slice(0, 2000), back: c.back.slice(0, 4000), order_index: i,
+    })));
+    if (insErr) throw insErr;
+    closeModal('deck');
+    showToast(`Deck saved · ${list.length} card${list.length === 1 ? '' : 's'}.`, 'success');
+    await loadDecks();
+  } catch (err) {
+    say(friendlyError(err.message || String(err)));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save deck';
+  }
+}
+
+async function toggleDeck(id) {
+  const d = decks.find(x => x.id === id);
+  const { error } = await sb.from('flashcard_decks').update({ is_active: !d.is_active }).eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast(d.is_active ? 'Hidden from students.' : 'Visible to students.', 'success');
+  await loadDecks();
+}
+
+async function deleteDeck(id) {
+  const d = decks.find(x => x.id === id);
+  if (!d || !confirm(`Delete “${d.title}” and its ${(d.flashcards || []).length} cards? This cannot be undone.`)) return;
+  const { error } = await sb.from('flashcard_decks').delete().eq('id', id);
+  if (error) { showToast(friendlyError(error.message), 'error'); return; }
+  showToast('Deck deleted.', 'success');
+  await loadDecks();
+}
+</script>
+</body>
+</html>

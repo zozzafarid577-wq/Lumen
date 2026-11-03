@@ -48,6 +48,19 @@
   .pick:hover { background: var(--bg); }
   .pick .mv { color: var(--primary); font-weight: 800; flex-shrink: 0; }
   .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .kind-pill { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 4px; font-size: .66rem; font-weight: 800;
+               letter-spacing: .06em; text-transform: uppercase; vertical-align: 1px; }
+  .kind-pill.mock { background: var(--primary-soft); color: var(--primary); }
+  .kind-pill.frq  { background: var(--sun-soft); color: #8A6A00; }
+  .kind-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .kind-tabs button { border: 1px solid var(--border); background: var(--card); color: var(--text-2); border-radius: 999px;
+                      padding: 4px 12px; font: 600 .74rem Inter, sans-serif; cursor: pointer; }
+  .kind-tabs button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .frq-q-edit { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
+  .frq-q-edit .fq-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 700; font-size: .84rem; }
+  .frq-part-edit { display: grid; grid-template-columns: 64px 1fr 1fr 32px; gap: 8px; align-items: start; margin-top: 8px; }
+  .frq-part-edit textarea { min-height: 64px; }
+  @media (max-width: 700px) { .frq-part-edit { grid-template-columns: 56px 1fr 32px; } .frq-part-edit .fp-rubric { grid-column: 2 / 3; } }
   .paste-box { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
   .paste-box textarea { min-height: 150px; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
   /* Editing is reading down a long list, not typing a few lines, so the
@@ -82,6 +95,12 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Your tests</span>
+        <div class="kind-tabs" id="kind-tabs">
+          <button type="button" aria-pressed="true" data-k="" onclick="setKindFilter(this)">All</button>
+          <button type="button" aria-pressed="false" data-k="practice" onclick="setKindFilter(this)">Practice</button>
+          <button type="button" aria-pressed="false" data-k="mock" onclick="setKindFilter(this)">Mock exams</button>
+          <button type="button" aria-pressed="false" data-k="frq" onclick="setKindFilter(this)">FRQs</button>
+        </div>
         <span class="small muted" id="count">—</span>
       </div>
       <div class="tbl-wrap">
@@ -106,10 +125,19 @@
     <div class="modal-body">
       <div class="alert alert-error" id="b-alert" style="display:none;margin-bottom:16px"></div>
 
-      <div class="form-row">
+      <div class="form-row form-row-3">
         <div class="form-group">
           <label class="form-label" for="b-name">Title *</label>
           <input type="text" class="form-input" id="b-name" placeholder="Unit 1 quiz — cell division">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="b-kind">Type</label>
+          <select class="form-select" id="b-kind" onchange="onKindChange()">
+            <option value="practice">Practice test</option>
+            <option value="mock">Mock exam</option>
+            <option value="frq">FRQ</option>
+          </select>
+          <p class="form-hint" id="b-kind-hint">Shown on the student's course page.</p>
         </div>
         <div class="form-group">
           <label class="form-label" for="b-section">Section</label>
@@ -165,6 +193,15 @@
 
       <label class="form-check"><input type="checkbox" id="b-active" checked>Visible to students</label>
 
+      <div id="frq-area" style="display:none">
+        <div class="section-head" style="margin:22px 0 12px"><div><h2 style="font-size:.9rem">Free-response questions</h2>
+          <div class="sub">Each part is worth one point and is marked against its scoring guideline.</div></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addFrq()">Add an FRQ</button>
+        </div>
+        <div id="frq-list"></div>
+      </div>
+
+      <div id="mcq-area">
       <div class="section-head" style="margin:22px 0 12px"><div><h2 style="font-size:.9rem">Questions</h2><div class="sub" id="b-qcount">Nothing chosen yet</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <button type="button" class="btn btn-outline btn-sm" id="edit-toggle" onclick="openEditText()">Edit as text</button>
@@ -207,6 +244,7 @@ Explanation: A–T and G–C are the two pairs."></textarea>
           <div class="picker-body" id="chosen-col"></div>
         </div>
       </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('builder')">Cancel</button>
@@ -227,6 +265,13 @@ let me = null;
 let courses = [], units = [], lessons = [], sections = [], bank = [], tests = [];
 let chosen = [];       // questions on the test being built, in order
 let editingTest = null;
+let frqs = [];         // the FRQs on an FRQ paper being built
+let kindFilter = '';
+const KIND_HINT = {
+  practice: "Shown on the student's course page.",
+  mock: 'Shown in the students\' Mock tests tab.',
+  frq: 'Shown in the students\' FRQs tab.',
+};
 
 (async () => {
   me = await requireAuth(['teacher', 'assistant'], { perm: 'tests' });
@@ -335,18 +380,30 @@ async function loadTests() {
   if (error) { tbody.innerHTML = emptyRow(6, friendlyError(error.message)); return; }
   // Papers done in class are kept on the In-class marks page, not here.
   tests = (data || []).filter(t => !t.is_offline);
+  drawTests();
+}
 
-  document.getElementById('count').textContent = `${tests.length} test${tests.length === 1 ? '' : 's'}`;
-  if (!tests.length) {
-    tbody.innerHTML = emptyRow(6, 'No tests yet — paste your questions in, or pick them from your bank.');
+function setKindFilter(btn) {
+  kindFilter = btn.dataset.k;
+  document.querySelectorAll("#kind-tabs button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  drawTests();
+}
+
+function drawTests() {
+  const tbody = document.getElementById('rows');
+  const shown = kindFilter ? tests.filter(t => (t.kind || 'practice') === kindFilter) : tests;
+
+  document.getElementById('count').textContent = `${shown.length} test${shown.length === 1 ? '' : 's'}`;
+  if (!shown.length) {
+    tbody.innerHTML = emptyRow(6, kindFilter ? 'None of this type yet — make one with New test.' : 'No tests yet — paste your questions in, or pick them from your bank.');
     return;
   }
 
-  tbody.innerHTML = tests.map(t => {
+  tbody.innerHTML = shown.map(t => {
     const w = testWindow(t);
     return `<tr>
       <td>
-        <div style="font-weight:600">${escHtml(t.title)}
+        <div style="font-weight:600">${escHtml(t.title)}${t.kind === 'mock' ? '<span class="kind-pill mock">Mock</span>' : t.kind === 'frq' ? '<span class="kind-pill frq">FRQ</span>' : ''}
           ${sectionBadge(t.test_sections, 'margin-left:6px')}</div>
         <div class="small muted">${t.time_limit_min ? t.time_limit_min + ' min · ' : ''}pass at ${t.passing_score_pct}%</div>
       </td>
@@ -373,6 +430,8 @@ async function openBuilder(id, seed = null) {
   const t = id ? tests.find(x => x.id === id) : null;
   editingTest = t || null;
   chosen = [];
+  frqs = [];
+  document.getElementById('b-kind').value = t?.kind || 'practice';
 
   document.getElementById('b-title').textContent = t ? 'Edit test' : 'New test';
   document.getElementById('b-name').value = t?.title || '';
@@ -402,15 +461,30 @@ async function openBuilder(id, seed = null) {
   // a test students have already done.
   if (t) {
     const { data } = await sb.from('test_questions')
-      .select('question_text, options, explanation, image_url, points, order_index')
+      .select('id, kind, frq, question_text, options, explanation, image_url, points, order_index')
       .eq('test_id', t.id).order('order_index');
-    // A free-response question has no options and carries a scoring
-    // guideline this editor cannot show, so saving here would lose it.
-    if ((data || []).some(q => !(q.options || []).length)) {
-      showToast('This test has free-response questions, which cannot be edited here yet. Ask Lumen to change it.', 'error');
+    const isFrq = (q) => q.kind === 'frq' || !(q.options || []).length;
+    const rows = data || [];
+    if (rows.length && rows.every(isFrq)) {
+      // An FRQ paper: its scoring guidelines are staff-only rows of their own.
+      const { data: rubrics } = await sb.from('frq_rubrics')
+        .select('question_id, general, points').in('question_id', rows.map(q => q.id));
+      const byQ = new Map((rubrics || []).map(r => [r.question_id, r]));
+      frqs = rows.map(q => {
+        const r = byQ.get(q.id) || {};
+        const rules = new Map((r.points || []).map(p => [p.label, p.rubric]));
+        return {
+          question_text: q.question_text, image_url: q.image_url || '', general: r.general || '',
+          parts: (q.frq?.points || []).map(p => ({ label: p.label, prompt: p.prompt, rubric: rules.get(p.label) || '' })),
+        };
+      });
+      document.getElementById('b-kind').value = 'frq';
+    } else if (rows.some(isFrq)) {
+      showToast('This test mixes free-response and multiple-choice questions, which cannot be edited here yet. Ask Lumen to change it.', 'error');
       return;
+    } else {
+      chosen = rows.map(q => ({ ...q, id: 'existing-' + q.order_index }));
     }
-    chosen = (data || []).map(q => ({ ...q, id: 'existing-' + q.order_index }));
   } else if (seed?.ids?.length) {
     chosen = await questionsFromBank(seed.ids);
     if (chosen.length < seed.ids.length) {
@@ -419,8 +493,54 @@ async function openBuilder(id, seed = null) {
     }
   }
 
+  if (document.getElementById('b-kind').value === 'frq' && !frqs.length) addFrq(false);
+  onKindChange();
   renderPicker();
   openModal('builder');
+}
+
+// ── The type of paper, and the FRQ editor ─────────────────────────
+function onKindChange() {
+  const kind = document.getElementById('b-kind').value;
+  document.getElementById('b-kind-hint').textContent = KIND_HINT[kind] || '';
+  document.getElementById('frq-area').style.display = kind === 'frq' ? '' : 'none';
+  document.getElementById('mcq-area').style.display = kind === 'frq' ? 'none' : '';
+  if (kind === 'frq' && !frqs.length) addFrq(false);
+  renderFrqs();
+}
+
+function blankPart(i) { return { label: String.fromCharCode(65 + i), prompt: '', rubric: '' }; }
+function addFrq(draw = true) {
+  frqs.push({ question_text: '', image_url: '', general: '', parts: [blankPart(0), blankPart(1)] });
+  if (draw) renderFrqs();
+}
+function removeFrq(i) { frqs.splice(i, 1); renderFrqs(); }
+function addPart(i) { const q = frqs[i]; q.parts.push(blankPart(q.parts.length)); renderFrqs(); }
+function removePart(i, j) { frqs[i].parts.splice(j, 1); renderFrqs(); }
+function setFrq(i, key, value) { frqs[i][key] = value; }
+function setPart(i, j, key, value) { frqs[i].parts[j][key] = value; }
+
+function renderFrqs() {
+  const host = document.getElementById('frq-list');
+  if (!host) return;
+  host.innerHTML = frqs.map((q, i) => `
+    <div class="frq-q-edit">
+      <div class="fq-head"><span>FRQ ${i + 1} · ${q.parts.length} point${q.parts.length === 1 ? '' : 's'}</span>
+        ${frqs.length > 1 ? `<button type="button" class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="removeFrq(${i})">Remove</button>` : ''}</div>
+      <label class="form-label" for="fq-${i}">The question (the scenario students read)</label>
+      <textarea class="form-textarea" id="fq-${i}" oninput="setFrq(${i}, 'question_text', this.value)" placeholder="Dr. Rivera is studying how sleep affects memory…">${escHtml(q.question_text)}</textarea>
+      <div class="frq-part-edit small muted" style="margin-top:12px"><span>Part</span><span>What students are asked</span><span class="fp-rubric">Scoring guideline (hidden from students)</span><span></span></div>
+      ${q.parts.map((p, j) => `
+        <div class="frq-part-edit">
+          <input class="form-input" aria-label="Part label" value="${escHtml(p.label)}" oninput="setPart(${i}, ${j}, 'label', this.value)">
+          <textarea class="form-textarea" aria-label="Part ${escHtml(p.label)} prompt" oninput="setPart(${i}, ${j}, 'prompt', this.value)" placeholder="Explain how the independent variable…">${escHtml(p.prompt)}</textarea>
+          <textarea class="form-textarea fp-rubric" aria-label="Part ${escHtml(p.label)} scoring guideline" oninput="setPart(${i}, ${j}, 'rubric', this.value)" placeholder="Earns the point if the response…">${escHtml(p.rubric)}</textarea>
+          <button type="button" class="btn btn-ghost btn-xs" aria-label="Remove part ${escHtml(p.label)}" onclick="removePart(${i}, ${j})" ${q.parts.length < 2 ? 'disabled' : ''}>✕</button>
+        </div>`).join('')}
+      <button type="button" class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="addPart(${i})">+ Add a part</button>
+      <label class="form-label" for="fg-${i}" style="margin-top:12px">General guidance for marking (optional)</label>
+      <textarea class="form-textarea" id="fg-${i}" style="min-height:56px" oninput="setFrq(${i}, 'general', this.value)" placeholder="Responses must apply the concept to the scenario…">${escHtml(q.general)}</textarea>
+    </div>`).join('');
 }
 
 async function onCourseChange() {
@@ -666,13 +786,24 @@ async function saveTest() {
       open_at: openVal ? new Date(openVal).toISOString() : null,
       close_at: closeVal ? new Date(closeVal).toISOString() : null,
       is_active: document.getElementById('b-active').checked,
-      questions: chosen.map(c => ({
-        question_text: c.question_text,
-        options: c.options,
-        explanation: c.explanation,
-        image_url: c.image_url || null,
-        points: c.points || 1,
-      })),
+      // Sent only once the database has the column (supabase-migration-v22.sql),
+      // so saving keeps working on a space that has not been updated yet.
+      kind: (tests.some(t => 'kind' in t) || document.getElementById('b-kind').value !== 'practice') ? document.getElementById('b-kind').value : undefined,
+      questions: document.getElementById('b-kind').value === 'frq'
+        ? frqs.map(q => ({
+            kind: 'frq',
+            question_text: q.question_text,
+            image_url: q.image_url || null,
+            frq: { points: q.parts.map(p => ({ label: p.label.trim(), prompt: p.prompt })) },
+            rubric: { general: q.general || null, points: q.parts.map(p => ({ label: p.label.trim(), rubric: p.rubric })) },
+          }))
+        : chosen.map(c => ({
+            question_text: c.question_text,
+            options: c.options,
+            explanation: c.explanation,
+            image_url: c.image_url || null,
+            points: c.points || 1,
+          })),
     });
     closeModal('builder');
     showToast(`Test saved · ${out.question_count} question${out.question_count === 1 ? '' : 's'}.`, 'success');
