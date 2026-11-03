@@ -162,7 +162,7 @@ async function load() {
 }
 
 function submissionBlock(a, sub) {
-  return `<div style="background:var(--bg);border-radius:11px;padding:13px 15px;margin-bottom:14px">
+  return `<div style="background:var(--bg);border-radius:6px;padding:13px 15px;margin-bottom:14px">
     <div class="small muted mb8">Handed in ${fmtDateTime(sub.submitted_at)}</div>
     ${sub.text_answer ? `<p class="small" style="white-space:pre-wrap">${escHtml(sub.text_answer)}</p>` : ''}
     ${sub.file_url ? `<p class="small" style="margin-top:6px"><a href="${escHtml(sub.file_url)}" target="_blank" rel="noopener" style="color:var(--primary);font-weight:600">The link you gave</a></p>` : ''}

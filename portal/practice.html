@@ -41,12 +41,12 @@
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <style>
   .practice-wrap { max-width: 760px; margin: 0 auto; }
-  .q-block { border: 1px solid var(--border); border-radius: 15px; padding: 22px 24px; background: var(--card); }
+  .q-block { border: 1px solid var(--border); border-radius: 8px; padding: 22px 24px; background: var(--card); }
   .q-num { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
   .q-text { font-size: .95rem; font-weight: 600; line-height: 1.55; margin-bottom: 16px; }
   .q-opt {
     display: flex; align-items: flex-start; gap: 11px; padding: 12px 15px; margin-bottom: 9px;
-    border: 1.5px solid var(--border); border-radius: 11px; cursor: pointer;
+    border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer;
     font-size: .87rem; line-height: 1.5; transition: border-color .15s, background .15s;
   }
   .q-opt:hover { border-color: var(--primary-line); }
@@ -56,7 +56,7 @@
   .q-opt.wrong   { border-color: var(--danger);  background: #FCEDEF; color: var(--danger); font-weight: 600; }
   /* Once an answer is in, the options are a result to read, not a form. */
   .q-block.marked .q-opt { cursor: default; pointer-events: none; }
-  .q-explain { font-size: .82rem; color: var(--text-2); background: var(--bg); border-radius: 10px; padding: 11px 14px; margin-top: 12px; line-height: 1.55; }
+  .q-explain { font-size: .82rem; color: var(--text-2); background: var(--bg); border-radius: 6px; padding: 11px 14px; margin-top: 12px; line-height: 1.55; }
   .q-verdict { font-size: .84rem; font-weight: 700; margin-top: 14px; }
   .score-dots { display: flex; gap: 5px; flex-wrap: wrap; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
@@ -78,7 +78,7 @@
   .pick-sub { color: var(--muted); font-size: .88rem; margin-bottom: 20px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
   .tile {
-    position: relative; text-align: left; border: 2px solid transparent; border-radius: 18px; padding: 20px 18px 18px;
+    position: relative; text-align: left; border: 2px solid transparent; border-radius: 8px; padding: 20px 18px 18px;
     color: #fff; cursor: pointer; font: inherit; min-height: 128px; overflow: hidden;
     box-shadow: 0 8px 22px rgba(60,20,60,.14); transition: transform .15s, box-shadow .15s, border-color .15s;
   }

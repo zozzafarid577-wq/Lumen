@@ -46,7 +46,7 @@
      a teacher does with it next is print it, and a modal prints
      badly — the page behind it comes too. */
   .paper-q {
-    border: 1px solid var(--border); border-radius: 12px;
+    border: 1px solid var(--border); border-radius: 8px;
     padding: 15px 17px; margin-bottom: 12px; background: var(--card);
   }
   .paper-q.wrong { border-color: #E9B9C2; background: #FDF4F6; }
@@ -68,7 +68,7 @@
 
   .opt {
     display: flex; gap: 10px; align-items: flex-start;
-    padding: 8px 11px; border-radius: 9px; font-size: .86rem; line-height: 1.45;
+    padding: 8px 11px; border-radius: 6px; font-size: .86rem; line-height: 1.45;
     border: 1px solid transparent; margin-bottom: 5px;
   }
   .opt-letter {
@@ -89,7 +89,7 @@
   .opt.chosen-wrong .opt-tag { color: var(--danger); }
 
   /* Free-response points: the answer, the marking, and the teacher's say. */
-  .frq-pt { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .frq-pt { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
   .frq-pt.earned { border-color: var(--success); }
   .frq-pt.missed { border-color: var(--danger); }
   .frq-pt .pt-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -627,7 +627,7 @@ function drawQuestion(q, i, given) {
         <span class="paper-text">${escHtml(q.question_text)}</span>
         ${mark}
       </div>
-      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:10px;margin-bottom:12px">` : ''}
+      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:6px;margin-bottom:12px">` : ''}
       ${options}
       ${q.explanation ? `<div class="paper-why"><strong>Why:</strong> ${escHtml(q.explanation)}</div>` : ''}
     </div>`;
@@ -649,7 +649,7 @@ function drawFrq(q, i, given) {
         <span class="paper-text">${escHtml(trim(q.question_text, 400))}</span>
         <span class="paper-mark ${got === pts.length ? 'right' : 'wrong'}">${got}/${pts.length}</span>
       </div>
-      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:10px;margin-bottom:12px">` : ''}
+      ${q.image_url ? `<img src="${escHtml(q.image_url)}" alt="" style="max-width:100%;border-radius:6px;margin-bottom:12px">` : ''}
       ${pts.map(p => {
         const m = marks.get(p.label);
         const state = m ? (m.earned ? 'earned' : 'missed') : '';

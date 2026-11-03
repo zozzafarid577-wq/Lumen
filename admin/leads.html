@@ -115,7 +115,7 @@ function render() {
   }
 
   host.innerHTML = list.map(l => `
-    <div style="border:1px solid var(--border);border-radius:13px;padding:16px 18px;margin-bottom:12px">
+    <div style="border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:12px">
       <div class="spread" style="align-items:flex-start;margin-bottom:8px">
         <div>
           <div style="font-weight:700;font-size:.9rem">${escHtml(l.full_name)}</div>
@@ -129,7 +129,7 @@ function render() {
         <span class="badge ${{ new: 'b-brand', contacted: 'b-yellow', won: 'b-green', lost: 'b-gray' }[l.status] || 'b-gray'}">${escHtml(l.status)}</span>
       </div>
 
-      ${l.message ? `<p class="small" style="white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:11px 13px;margin-bottom:10px">${escHtml(l.message)}</p>` : ''}
+      ${l.message ? `<p class="small" style="white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:11px 13px;margin-bottom:10px">${escHtml(l.message)}</p>` : ''}
 
       <div class="row">
         <a href="mailto:${escHtml(l.email)}" class="btn btn-outline btn-xs">${escHtml(l.email)}</a>

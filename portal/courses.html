@@ -124,7 +124,7 @@
      Only drawn when the teacher has actually recorded something. */
   .help-panel {
     background: var(--primary-soft); border: 1px solid var(--primary-line);
-    border-radius: 20px; padding: 24px 26px; margin-top: 26px;
+    border-radius: 8px; padding: 24px 26px; margin-top: 26px;
   }
   .help-panel h2 {
     font-family: 'Manrope', sans-serif; font-weight: 800; color: var(--primary);
@@ -132,7 +132,7 @@
   }
   .help-video {
     position: relative; width: 100%; max-width: 560px; aspect-ratio: 16 / 9;
-    border-radius: 14px; overflow: hidden; background: #1B1519;
+    border-radius: 8px; overflow: hidden; background: #1B1519;
     border: 1px solid var(--primary-line);
   }
   .help-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
@@ -141,7 +141,7 @@
      Numbered, because "Unit 3" is how a student and their teacher
      talk about it, and the number is what they scan the page for. */
   .unit {
-    border: 1px solid var(--border); border-radius: 16px; margin-bottom: 16px;
+    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px;
     overflow: hidden; background: var(--card); box-shadow: var(--shadow-xs);
     transition: box-shadow .22s, border-color .22s;
     animation: rise .38s cubic-bezier(.4,0,.2,1) both;
@@ -163,7 +163,7 @@
   .unit-chev svg { width: 18px; height: 18px; }
   .unit[open] .unit-chev { transform: rotate(180deg); }
   .unit-num {
-    width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
+    width: 42px; height: 42px; border-radius: 8px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Manrope', sans-serif; font-size: 1rem; font-weight: 800; color: #fff;
     background: linear-gradient(140deg, var(--primary) 0%, var(--primary-hover) 100%);
@@ -209,7 +209,7 @@
   .pb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
   .test-card {
     display: flex; flex-direction: column; gap: 10px; padding: 14px;
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
     box-shadow: var(--shadow-xs); transition: box-shadow .18s, border-color .18s;
   }
   .test-card:hover { box-shadow: var(--shadow-sm); border-color: var(--primary-line); }

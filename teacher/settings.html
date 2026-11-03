@@ -47,7 +47,7 @@
     border-radius: 9999px; background: var(--card); cursor: pointer; font: inherit; font-size: .8rem; font-weight: 600; color: var(--text); }
   .swatch i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
   .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--text); }
-  .look-preview { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--bg); }
+  .look-preview { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
   .lp-row { display: grid; grid-template-columns: 120px 1fr; min-height: 230px; }
   .lp-side { background: var(--card); border-right: 1px solid var(--border); padding: 14px 12px; }
   .lp-item { font-size: .7rem; padding: 7px 9px; border-radius: 8px; color: var(--text-2); margin-top: 4px; }
@@ -56,7 +56,7 @@
   .lp-hi { font-family: Manrope, sans-serif; font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
   .lp-btn { display: inline-block; margin-top: 14px; background: #fff; border-radius: 9999px; padding: 7px 14px; font-size: .74rem; font-weight: 700; }
   .lp-body { padding: 14px 18px; }
-  .lp-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-size: .74rem; display: flex; justify-content: space-between; align-items: center; }
+  .lp-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: .74rem; display: flex; justify-content: space-between; align-items: center; }
   .lp-chip { color: #fff; border-radius: 9999px; padding: 4px 10px; font-weight: 700; font-size: .68rem; }
 </style>
 </head>
@@ -183,7 +183,7 @@
               <label class="form-label">Colour theme</label>
               <div class="swatches" id="lk-themes"></div>
               <div class="row" style="gap:10px;align-items:center;margin-top:10px">
-                <input type="color" id="lk-color" value="#A2509F" oninput="pickCustom(this.value)" aria-label="Your own colour" style="width:44px;height:36px;border:1px solid var(--border);border-radius:10px;padding:2px;background:var(--card)">
+                <input type="color" id="lk-color" value="#A2509F" oninput="pickCustom(this.value)" aria-label="Your own colour" style="width:44px;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;background:var(--card)">
                 <span class="small muted">or pick any colour of your own</span>
               </div>
             </div>

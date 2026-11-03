@@ -124,7 +124,7 @@
 
       <div id="creds-box" style="display:none">
         <div class="alert alert-success mb16">Space opened. Hand these over — the password is shown only once.</div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px">
           <div class="spread" style="margin-bottom:8px">
             <span class="small muted">Email</span><span class="small" style="font-weight:700" id="cred-email">—</span>
           </div>
@@ -601,7 +601,7 @@ async function askDelete(id) {
       ['Work handed in', counts.submissions],
     ];
     document.getElementById('del-counts').innerHTML = `
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:6px 16px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 16px">
         ${rows.map(([label, n]) => `
           <div class="spread" style="padding:8px 0${label === 'Work handed in' ? '' : ';border-bottom:1px solid var(--border)'}">
             <span class="small muted">${escHtml(label)}</span>

@@ -54,13 +54,13 @@
   }
   .clock.low { background: #FCEDEF; color: var(--danger); animation: tick 1s steps(2) infinite; }
   @keyframes tick { 50% { opacity: .55; } }
-  .q-block { border: 1px solid var(--border); border-radius: 15px; padding: 22px 24px; margin-bottom: 16px; background: var(--card); }
+  .q-block { border: 1px solid var(--border); border-radius: 8px; padding: 22px 24px; margin-bottom: 16px; background: var(--card); }
   .q-num { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
-  .q-img { display: block; max-width: 100%; max-height: 420px; margin: -4px 0 16px; border-radius: 10px; border: 1px solid var(--border, #e5e7eb); background: #fff; }
+  .q-img { display: block; max-width: 100%; max-height: 420px; margin: -4px 0 16px; border-radius: 6px; border: 1px solid var(--border, #e5e7eb); background: #fff; }
   .q-text { font-size: .95rem; font-weight: 600; line-height: 1.55; margin-bottom: 16px; white-space: pre-line; }
   .q-opt {
     display: flex; align-items: flex-start; gap: 11px; padding: 12px 15px; margin-bottom: 9px;
-    border: 1.5px solid var(--border); border-radius: 11px; cursor: pointer;
+    border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer;
     font-size: .87rem; line-height: 1.5; transition: border-color .15s, background .15s;
   }
   .q-opt:hover { border-color: var(--primary-line); }
@@ -68,15 +68,15 @@
   .q-opt.chosen { border-color: var(--primary); background: var(--primary-soft); }
   .q-opt.correct { border-color: var(--success); background: #E7F4EF; color: var(--success); font-weight: 600; }
   .q-opt.wrong   { border-color: var(--danger);  background: #FCEDEF; color: var(--danger); font-weight: 600; }
-  .q-explain { font-size: .82rem; color: var(--text-2); background: var(--bg); border-radius: 10px; padding: 11px 14px; margin-top: 10px; line-height: 1.55; }
+  .q-explain { font-size: .82rem; color: var(--text-2); background: var(--bg); border-radius: 6px; padding: 11px 14px; margin-top: 10px; line-height: 1.55; }
   .result-hero { text-align: center; padding: 40px 24px; }
   /* Free-response questions: one box per point, marked per point after. */
   .frq-part { margin-top: 14px; }
   .frq-part label { display: block; font-size: .86rem; font-weight: 600; line-height: 1.5; margin-bottom: 6px; white-space: pre-line; }
   .frq-part .frq-label { display: inline-block; min-width: 26px; padding: 1px 7px; margin-right: 6px; border-radius: 6px; background: var(--primary-soft); color: var(--primary); font-size: .74rem; font-weight: 800; text-align: center; }
-  .frq-part textarea { width: 100%; min-height: 96px; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 11px; font: inherit; font-size: .88rem; line-height: 1.55; resize: vertical; background: var(--card); color: inherit; }
+  .frq-part textarea { width: 100%; min-height: 96px; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 6px; font: inherit; font-size: .88rem; line-height: 1.55; resize: vertical; background: var(--card); color: inherit; }
   .frq-part textarea:focus { outline: none; border-color: var(--primary); }
-  .frq-point { border: 1px solid var(--border); border-radius: 11px; padding: 12px 14px; margin-top: 10px; }
+  .frq-point { border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; margin-top: 10px; }
   .frq-point.earned { border-color: var(--success); background: #E7F4EF22; }
   .frq-point.missed { border-color: var(--danger); background: #FCEDEF33; }
   .frq-point .verdict { font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
@@ -84,22 +84,19 @@
   .frq-point.missed .verdict { color: var(--danger); }
   .frq-point .their { font-size: .84rem; line-height: 1.55; white-space: pre-line; background: var(--bg); border-radius: 8px; padding: 8px 11px; margin: 8px 0; }
   .frq-point .guide { font-size: .8rem; color: var(--text-2); margin-top: 8px; padding: 9px 12px; border-radius: 8px;
-                      background: color-mix(in srgb, #0891b2 9%, transparent); white-space: pre-line; line-height: 1.5; }
-  .frq-point .guide b { display: block; color: #0e7490; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 3px; }
+                      background: var(--primary-soft); white-space: pre-line; line-height: 1.5; }
+  .frq-point .guide b { display: block; color: var(--primary); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 3px; }
 
-  /* FRQs get a colour of their own (teal into blue), apart from the
-     purple practice block and the plain multiple-choice cards. */
-  .frq-zone { border-radius: 18px; padding: 18px; margin: 26px 0 16px;
-              background: linear-gradient(135deg, #0d9488 0%, #0891b2 50%, #2563eb 100%);
-              box-shadow: 0 8px 24px rgb(8 145 178 / .22); }
-  .frq-zone .section-head { margin: 0 4px 14px; }
-  .frq-zone .section-head h2, .frq-zone .section-head .sub { color: #fff; }
-  .frq-zone .section-head .sub { opacity: .88; }
+  /* FRQs sit on a soft tinted shelf of their own, apart from the plain
+     multiple-choice cards. */
+  .frq-zone { border-radius: 8px; padding: 16px; margin: 22px 0 14px;
+              background: var(--primary-soft); border: 1px solid var(--primary-line); }
+  .frq-zone .section-head { margin: 0 2px 12px; }
   .frq-zone .q-block:last-child { margin-bottom: 0; }
-  .q-block.frq-q { padding: 0; overflow: hidden; border-color: transparent; }
-  .frq-q .frq-band { padding: 12px 24px; color: #fff; font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-                     background: linear-gradient(135deg, #0d9488 0%, #0891b2 50%, #2563eb 100%); }
-  .frq-q .frq-body { padding: 18px 24px 22px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 15px 15px; }
+  .q-block.frq-q { padding: 0; overflow: hidden; }
+  .frq-q .frq-band { padding: 10px 20px; color: var(--primary); font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+                     background: var(--primary-soft); border-bottom: 1px solid var(--primary-line); }
+  .frq-q .frq-body { padding: 16px 20px 18px; }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
 </style>
 </head>

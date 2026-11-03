@@ -167,7 +167,7 @@
     </div>
     <div class="modal-body">
       <div class="alert alert-error" id="gm-alert" style="display:none;margin-bottom:16px"></div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px">
         <div class="form-label" style="margin-bottom:8px">Send group marks reports to</div>
         <div class="row" style="gap:10px;align-items:flex-start;flex-wrap:wrap">
           <input type="text" class="form-input" id="rt-name" maxlength="80" placeholder="Teacher’s name" style="flex:1;min-width:150px" aria-label="Teacher’s name">
@@ -251,7 +251,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Courses *</label>
-          <div id="ns-courses" style="border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;max-height:180px;overflow-y:auto"></div>
+          <div id="ns-courses" style="border:1.5px solid var(--border);border-radius:6px;padding:12px 14px;max-height:180px;overflow-y:auto"></div>
           <p class="form-hint">They will see only the courses ticked here.</p>
         </div>
       </div>
@@ -262,7 +262,7 @@
            copy and WhatsApp buttons. -->
       <div id="creds-box" style="display:none">
         <div class="alert alert-success mb16">Account created. Send them this link and they choose their own password.</div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
           <div class="spread" style="margin-bottom:8px">
             <span class="small muted">Signs in with</span>
             <span class="small" style="font-weight:700" id="cred-email">—</span>
@@ -337,7 +337,7 @@
            list of everything they have ever made. -->
       <div id="iv-fresh" style="display:none">
         <div class="alert alert-success mb16">Link ready. Send it to the batch — it works until you close it.</div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
           <span class="small" style="font-weight:700;word-break:break-all" id="iv-url">—</span>
         </div>
         <div class="row mb16">
@@ -368,7 +368,7 @@
     </div>
     <div class="modal-body">
       <div class="alert alert-success mb16" id="ap-mailed">Emailed to them. Send the link on as well if you want to be sure.</div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px">
         <div class="spread" style="margin-bottom:8px">
           <span class="small muted">Signs in with</span><span class="small" style="font-weight:700" id="ap-email">—</span>
         </div>
@@ -395,7 +395,7 @@
     </div>
     <div class="modal-body">
       <p class="small muted mb16" id="reset-note">Their old password stopped working just now. This link lets them choose a new one, and works once.</p>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px">
         <div class="spread" style="margin-bottom:8px">
           <span class="small muted">Signs in with</span><span class="small" style="font-weight:700" id="r-email">—</span>
         </div>
@@ -432,7 +432,7 @@
            cannot. The email is here because it is the half of the
            sign-in a teacher can read out; the password is not, because
            nothing keeps a copy of it once it has been handed over. -->
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:18px">
         <div class="spread" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">
           <span class="small muted">Signs in with</span>
           <span class="small" style="font-weight:700;font-family:ui-monospace,monospace" id="sd-signin-email">—</span>
@@ -473,7 +473,7 @@
         <p class="form-hint">Where a result is sent the moment a test is finished. Leave empty for none.</p>
       </div>
 
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:4px">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:4px">
         <div class="spread" style="margin-bottom:10px">
           <span class="small muted">Courses &amp; groups</span>
           <button class="btn btn-ghost btn-xs" id="sd-enrol">Change</button>
@@ -1089,7 +1089,7 @@ function renderInvites(used) {
     const full = v.max_uses && count >= v.max_uses;
     const live = v.is_open && !expired && !full;
 
-    return `<div style="border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:8px">
+    return `<div style="border:1px solid var(--border);border-radius:6px;padding:11px 13px;margin-bottom:8px">
       <div class="spread" style="gap:10px;flex-wrap:wrap">
         <div style="min-width:0">
           <span style="font-weight:650">${escHtml(v.label || where || 'Link')}</span>
@@ -1237,7 +1237,7 @@ function openEnrol(id) {
   host.innerHTML = courses.map(c => {
     const on = (s.enrollments || []).find(e => e.course_id === c.id);
     const mine = groupsFor(c.id);
-    return `<div style="border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:9px">
+    return `<div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:9px">
       <label class="form-check" style="margin:0">
         <input type="checkbox" class="en-course" value="${c.id}" ${on ? 'checked' : ''}
           onchange="document.getElementById('en-g-${c.id}').disabled = !this.checked">

@@ -41,19 +41,19 @@
 <script>try{if(localStorage.getItem('lumen_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <style>
   .picker { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .picker-col { border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 300px; }
-  .picker-head { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); border-radius: 12px 12px 0 0; }
+  .picker-col { border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 300px; }
+  .picker-head { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); border-radius: 8px 8px 0 0; }
   .picker-body { flex: 1; overflow-y: auto; max-height: 340px; padding: 8px; }
-  .pick { padding: 9px 11px; border-radius: 9px; font-size: .79rem; line-height: 1.45; cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
+  .pick { padding: 9px 11px; border-radius: 6px; font-size: .79rem; line-height: 1.45; cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
   .pick:hover { background: var(--bg); }
   .pick .mv { color: var(--primary); font-weight: 800; flex-shrink: 0; }
   .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .paste-box { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
+  .paste-box { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; background: var(--bg); }
   .paste-box textarea { min-height: 150px; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
   /* Editing is reading down a long list, not typing a few lines, so the
      box opens tall enough to see a question and its options at once. */
   .paste-box.editing textarea { min-height: 360px; }
-  .paste-eg { margin: 10px 0 0; padding: 11px 13px; background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  .paste-eg { margin: 10px 0 0; padding: 11px 13px; background: var(--card); border: 1px solid var(--border); border-radius: 6px;
               font-family: ui-monospace, Menlo, monospace; font-size: .72rem; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; }
   @media (max-width: 720px) { .picker, .form-row-3 { grid-template-columns: 1fr; } }
 </style>
