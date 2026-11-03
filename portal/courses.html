@@ -234,6 +234,23 @@
   .tc-btn.wait { background: transparent; border: 1px dashed var(--border); color: var(--muted); font-weight: 600; }
   @media (max-width: 700px) { .practice-block { padding: 14px; } }
 
+  /* ── PDFs: a shelf of covers ── */
+  .mat-shelf { padding: 18px 20px; }
+  .mat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 16px; }
+  .mat-tile { display: flex; flex-direction: column; gap: 6px; color: inherit; text-decoration: none; min-width: 0; }
+  .mt-cover { aspect-ratio: 1 / 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
+              background: var(--card); box-shadow: var(--shadow-xs); transition: transform .18s, box-shadow .18s, border-color .18s; }
+  .mat-tile:hover .mt-cover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: var(--primary-line); }
+  .mt-cover img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .mt-paper { position: relative; height: 100%; padding: 14px 12px; display: flex; flex-direction: column; gap: 10px;
+              background: linear-gradient(180deg, var(--sun-soft, #FFF6D6) 0 22%, var(--card) 22%); }
+  .mt-ext { align-self: flex-start; font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+            color: var(--primary); background: var(--card); border: 1px solid var(--primary-line); border-radius: 4px; padding: 2px 6px; }
+  .mt-lines { flex: 1; margin-top: 8px; background: repeating-linear-gradient(180deg, var(--border) 0 2px, transparent 2px 12px); opacity: .9; }
+  .mt-title { font-size: .8rem; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mt-kind { font-size: .7rem; color: var(--muted); margin-top: -3px; }
+  @media (max-width: 700px) { .mat-shelf { padding: 14px; } .mat-grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 12px; } }
+
   .unit-meta { flex: 1; min-width: 0; }
   .practise-btn { display: inline-flex; align-items: center; gap: 6px; }
   .practise-btn svg { width: 13px; height: 13px; }
@@ -456,6 +473,7 @@ async function load() {
 
   drawCourseCard(course, visible, toSit);
   drawUnits(host, visible, byUnit, byLesson);
+  watchCovers();
 }
 
 // The hello. A student opening this page should be met by their own
@@ -629,10 +647,8 @@ function drawUnits(host, visible, byUnit, byLesson) {
                   ...lessons.flatMap(l => (byLesson.get(l.id) || []).map(t => ({ t, section: l.title, many: (byLesson.get(l.id) || []).length > 1 }))),
                   ...unitTests.map(t => ({ t, section: 'Whole unit', many: true })),
                 ])
-              + lessons.map(l =>
-                (l.video_url ? videoRow(l) : '')
-                + (l.lesson_materials || []).map(materialRow).join('')
-              ).join('')
+              + lessons.map(l => l.video_url ? videoRow(l) : '').join('')
+              + materialGrid(lessons.flatMap(l => l.lesson_materials || []))
             : '<div class="locked-card">Nothing in this unit yet.</div>')
         : `<div class="locked-card">${icon(ICONS.lock, 'lock-big')}This unit opens ${escHtml(u.open_at ? fmtDateTime(u.open_at) : 'when your teacher is ready')}.</div>`}
     </details>`;
@@ -651,6 +667,98 @@ function materialRow(m) {
     </div>
     <a href="${escHtml(materialHref(m))}"${isLessonFile(m.file_url) ? '' : ' target="_blank" rel="noopener"'} class="btn btn-outline btn-xs">Open</a>
   </div>`;
+}
+
+// PDFs and other handouts as a shelf of small covers, the way a
+// bookshop shows them, not a list of filenames. A PDF's cover is its own
+// first page, drawn once and remembered on the device (coverQueue below);
+// until then, and for anything that is not a PDF, a paper-style tile.
+function materialGrid(mats) {
+  if (!mats.length) return '';
+  return `<div class="mat-shelf"><div class="mat-grid">${mats.map(materialTile).join('')}</div></div>`;
+}
+
+function materialTile(m) {
+  const kind = isLessonFile(m.file_url) ? lessonFileLabel(m.file_url) : (MAT_LABEL[m.kind] || 'File');
+  const pdf = isLessonFile(m.file_url) && /\.pdf$/i.test(lessonFileKey(m.file_url));
+  const cached = pdf ? coverFromCache(m.id) : null;
+  return `<a class="mat-tile" href="${escHtml(materialHref(m))}"${isLessonFile(m.file_url) ? '' : ' target="_blank" rel="noopener"'}>
+    <div class="mt-cover${cached ? ' has-img' : ''}"${pdf && !cached ? ` data-cover="${m.id}" data-file="${escHtml(m.file_url)}"` : ''}>
+      ${cached ? `<img src="${cached}" alt="">` : `<div class="mt-paper"><span class="mt-ext">${escHtml(kind)}</span><span class="mt-lines"></span></div>`}
+    </div>
+    <div class="mt-title">${escHtml(m.title)}</div>
+    <div class="mt-kind">${escHtml(kind)}</div>
+  </a>`;
+}
+
+const COVER_KEY = 'lumen_cover_';
+function coverFromCache(id) {
+  try { return localStorage.getItem(COVER_KEY + id); } catch (_) { return null; }
+}
+function coverToCache(id, data) {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(COVER_KEY));
+    if (keys.length >= 60) localStorage.removeItem(keys[0]);
+    localStorage.setItem(COVER_KEY + id, data);
+  } catch (_) { /* a full store just means drawing it again next time */ }
+}
+
+// Covers are drawn one at a time as they scroll into view: each needs a
+// signed link and the first page of the PDF (pdf.js asks for only the
+// bytes it needs), and a unit of twenty PDFs should not fetch twenty at
+// once on a phone.
+let coverObserver = null, coverBusy = false;
+const coverQueue = [];
+function watchCovers() {
+  const els = document.querySelectorAll('.mt-cover[data-cover]');
+  if (!els.length) return;
+  if (!coverObserver) {
+    coverObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        coverObserver.unobserve(e.target);
+        coverQueue.push(e.target);
+      });
+      nextCover();
+    }, { rootMargin: '300px' });
+  }
+  els.forEach(el => coverObserver.observe(el));
+}
+async function nextCover() {
+  if (coverBusy || !coverQueue.length) return;
+  coverBusy = true;
+  const el = coverQueue.shift();
+  try {
+    const data = await drawCover(el.dataset.cover, el.dataset.file);
+    if (data && el.isConnected) {
+      coverToCache(el.dataset.cover, data);
+      el.classList.add('has-img');
+      el.innerHTML = `<img src="${data}" alt="">`;
+    }
+  } catch (_) { /* the paper tile stays */ }
+  coverBusy = false;
+  nextCover();
+}
+async function drawCover(id, fileUrl) {
+  let url = null;
+  if (fileUrl.startsWith(R2_FILE)) {
+    url = (await apiPost('/api/support', { flow: 'file-view', material_id: id }))?.url;
+  } else {
+    url = (await sb.storage.from('lesson-media').createSignedUrl(lessonFileKey(fileUrl), 600)).data?.signedUrl;
+  }
+  if (!url) return null;
+  const base = '/assets/vendor/pdfjs-4.10.38/';
+  const pdfjs = await import(base + 'pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.mjs';
+  const doc = await pdfjs.getDocument({ url, isEvalSupported: false, disableAutoFetch: true, disableStream: true }).promise;
+  const page = await doc.getPage(1);
+  const v1 = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: 320 / v1.width });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  doc.destroy();
+  return canvas.toDataURL('image/jpeg', 0.72);
 }
 
 function practiceBlock(tests) {
