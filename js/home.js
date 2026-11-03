@@ -75,6 +75,17 @@
     },
     // The report: the rows arrive, the marks pop in.
     report(ui) { ui.classList.add('play'); },
+    // Flashcards: the card turns over and back.
+    flash(ui) { ui.classList.add('play'); },
+    // Your brand: the logo lands, then the colours change round.
+    brand(ui) {
+      const hero = ui.querySelector('.u-hero'), sw = $$('.u-swatch i', ui);
+      let k = 0;
+      ui.classList.add('play');
+      const go = () => { sw.forEach((s, j) => s.classList.toggle('on', j === k)); hero.style.background = sw[k].style.background; k = (k + 1) % sw.length; };
+      go();
+      return setInterval(go, 1400);
+    },
     // Protection: the warning drops in every few seconds.
     protect(ui) {
       const w = ui.querySelector('.u-warn');
@@ -83,18 +94,51 @@
       return setInterval(go, 5000);
     },
   };
+  const timers = new Map();
+  const start = ui => { if (!timers.has(ui) && scenes[ui.dataset.scene]) timers.set(ui, scenes[ui.dataset.scene](ui) || 0); };
+  const stop = ui => { if (timers.has(ui)) { clearInterval(timers.get(ui)); timers.delete(ui); ui.classList.remove('play'); } };
   function phones() {
     if (still || !('IntersectionObserver' in window)) return;
-    const timers = new Map();
-    const io = new IntersectionObserver(entries => entries.forEach(e => {
-      const ui = e.target, name = ui.dataset.scene;
-      if (e.isIntersecting && !timers.has(ui)) timers.set(ui, scenes[name](ui) || 0);
-      else if (!e.isIntersecting && timers.has(ui)) { clearInterval(timers.get(ui)); timers.delete(ui); ui.classList.remove('play'); }
-    }), { threshold: .3 });
+    const io = new IntersectionObserver(entries => entries.forEach(e => (e.isIntersecting ? start : stop)(e.target)), { threshold: .3 });
     $$('.ui[data-scene]').forEach(ui => {
       $$('.u-row', ui).forEach((r, i) => r.style.setProperty('--i', i));   // the order the rows arrive in
-      if (scenes[ui.dataset.scene]) io.observe(ui);
+      if (!ui.closest('.fx')) io.observe(ui);   // the story's phones are started by story()
     });
+  }
+
+  // ── The features as a story ─────────────────────────────────────
+  // The section stays put while the page scrolls through it; the line
+  // fills, and each stretch of scrolling belongs to one feature.
+  function story() {
+    const fx = document.querySelector('.fx');
+    if (!fx || still) return;
+    const items = $$('.fx-item', fx), phonesEls = $$('.fx-phone', fx), dots = $$('.fx-dot', fx), n = items.length;
+    let cur = -1;
+    const show = i => {
+      if (i === cur) return;
+      items.forEach((el, j) => { el.classList.toggle('on', j === i); el.classList.toggle('past', j < i); });
+      phonesEls.forEach((el, j) => {
+        el.classList.toggle('on', j === i); el.classList.toggle('past', j < i);
+        const ui = el.querySelector('.ui'); if (ui) (j === i ? start : stop)(ui);
+      });
+      dots.forEach((d, j) => { d.classList.toggle('on', j === i); d.classList.toggle('done', j < i); });
+      cur = i;
+    };
+    const set = () => {
+      const r = fx.getBoundingClientRect(), run = fx.offsetHeight - innerHeight;
+      const p = Math.max(0, Math.min(1, -r.top / Math.max(1, run)));
+      // the fill reaches each dot half way through that feature's stretch
+      fx.style.setProperty('--p', Math.max(0, Math.min(1, (p * n - .5) / (n - 1))).toFixed(3));
+      show(Math.min(n - 1, Math.floor(p * n)));
+    };
+    // A dot takes the page to its feature.
+    dots.forEach((d, i) => d.addEventListener('click', () => {
+      const run = fx.offsetHeight - innerHeight;
+      scrollTo({ top: fx.getBoundingClientRect().top + scrollY + run * (i + .5) / n, behavior: 'smooth' });
+    }));
+    set();
+    addEventListener('scroll', set, { passive: true });
+    addEventListener('resize', set);
   }
 
   // ── A gentle tilt on the hero phone, following the pointer ─────
@@ -165,5 +209,5 @@
     addEventListener('scroll', set, { passive: true });
   }
 
-  document.addEventListener('DOMContentLoaded', () => { reveal(); phones(); tilt(); nudge(); track(); navShadow(); });
+  document.addEventListener('DOMContentLoaded', () => { reveal(); phones(); story(); tilt(); nudge(); track(); navShadow(); });
 })();
