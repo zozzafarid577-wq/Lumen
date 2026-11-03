@@ -236,7 +236,7 @@ const CONNECTION_FAILED_MESSAGE =
 // a teacher who never opens the picker still ends up with sections that
 // differ from each other.
 const SECTION_COLORS = [
-  '#A2509F', '#2563EB', '#147A57', '#B4690E',
+  '#7B3FE4', '#2563EB', '#147A57', '#B4690E',
   '#C62F45', '#6D28D9', '#0E7490', '#BE185D',
 ];
 
@@ -349,10 +349,10 @@ function showOutageScreen(message) {
     + 'justify-content:center;padding:24px;font-family:Inter,system-ui,sans-serif';
   el.innerHTML = `
     <div style="max-width:430px;background:#fff;border:1px solid #EDDDE6;border-radius:18px;padding:34px;text-align:center;box-shadow:0 10px 34px rgba(27,21,25,.09)">
-      <div style="font-family:Manrope,sans-serif;font-size:1.6rem;font-weight:500;letter-spacing:-.045em;margin-bottom:16px">L<span style="color:#A2509F;font-weight:700;border-bottom:.12em solid #A2509F">u</span>men</div>
+      <div style="font-family:Manrope,sans-serif;font-size:1.6rem;font-weight:500;letter-spacing:-.045em;margin-bottom:16px">L<span style="color:#7B3FE4;font-weight:700;border-bottom:.12em solid #7B3FE4">u</span>men</div>
       <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;color:#1B1519;margin-bottom:10px">Back shortly</div>
       <p style="margin:0 0 20px;font-size:.9rem;line-height:1.6;color:#554C53">${escHtml(message || SERVICE_DOWN_MESSAGE)}</p>
-      <button onclick="location.reload()" style="background:#A2509F;color:#fff;border:0;border-radius:9999px;padding:12px 26px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:Manrope,sans-serif">Try again</button>
+      <button onclick="location.reload()" style="background:#7B3FE4;color:#fff;border:0;border-radius:9999px;padding:12px 26px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:Manrope,sans-serif">Try again</button>
     </div>`;
   document.body.appendChild(el);
 }
@@ -462,12 +462,12 @@ function installStyles() {
   css.id = 'install-css';
   css.textContent = `
     .install-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px;
-      font: 700 .86rem/1 Manrope, system-ui, sans-serif; color:#fff; background:#A2509F;
+      font: 700 .86rem/1 Manrope, system-ui, sans-serif; color:#fff; background:#7B3FE4;
       border:0; border-radius:9999px; padding:11px 18px; cursor:pointer;
-      box-shadow:0 4px 14px rgba(162,80,159,.28); -webkit-tap-highlight-color:transparent; }
+      box-shadow:0 4px 14px rgba(123,63,228,.28); -webkit-tap-highlight-color:transparent; }
     .install-btn:active { transform:scale(.97); }
     .install-btn.block { display:flex; width:100%; padding:14px 18px; font-size:.95rem; }
-    .install-btn.soft { color:#A2509F; background:rgba(162,80,159,.1); box-shadow:none; padding:9px 14px; font-size:.8rem; }
+    .install-btn.soft { color:#7B3FE4; background:rgba(123,63,228,.1); box-shadow:none; padding:9px 14px; font-size:.8rem; }
     .install-veil { position:fixed; inset:0; z-index:10000; background:rgba(20,10,22,.55);
       display:flex; align-items:flex-end; justify-content:center; animation:inst-fade .2s ease; }
     .install-sheet { width:100%; max-width:440px; background:#fff; color:#1c1720; border-radius:22px 22px 0 0;
@@ -477,7 +477,7 @@ function installStyles() {
     .install-sheet .lead { margin:0 0 18px; color:#6f6672; font-size:.86rem; text-align:center; line-height:1.45; }
     .install-step { display:flex; align-items:center; gap:14px; padding:13px 14px; border-radius:14px;
       background:#f7f1f7; margin-bottom:10px; font-size:.92rem; line-height:1.35; }
-    .install-step .n { width:26px; height:26px; flex-shrink:0; border-radius:50%; background:#A2509F; color:#fff;
+    .install-step .n { width:26px; height:26px; flex-shrink:0; border-radius:50%; background:#7B3FE4; color:#fff;
       font-weight:800; font-size:.8rem; display:flex; align-items:center; justify-content:center; }
     .install-step .ic { margin-left:auto; color:#2f7cf6; display:flex; }
     .install-close { display:block; margin:16px auto 0; background:none; border:0; color:#8b8089;
@@ -597,6 +597,9 @@ function mountInstallButton(host, { style = '', label = 'Install the app' } = {}
 // flashing Lumen purple first.
 // ─────────────────────────────────────────────────────────────────
 const BRAND_THEMES = [
+  // The logo's own purple: the default for every space that has not
+  // chosen another.
+  { key: 'lumen',    name: 'Lumen',    color: '#7B3FE4' },
   { key: 'plum',     name: 'Plum',     color: '#A2509F' },
   { key: 'ocean',    name: 'Ocean',    color: '#1F6FB2' },
   { key: 'emerald',  name: 'Emerald',  color: '#138A63' },
@@ -687,7 +690,7 @@ function brandColor(branding) {
 }
 
 function brandPalette(hex) {
-  const rgb = hexToRgb(hex) || hexToRgb('#A2509F');
+  const rgb = hexToRgb(hex) || hexToRgb('#7B3FE4');
   return {
     '--primary': rgbToHex(rgb),
     '--primary-hover': rgbToHex(mixRgb(rgb, [0, 0, 0], 0.16)),
@@ -737,7 +740,7 @@ function applyBrand(teacher) {
   paintTemplate(brandTemplate(b));
   paintBrandMark(teacher);
   try {
-    localStorage.setItem('lumen_brand', JSON.stringify({ color: brandColor(b), template: brandTemplate(b) }));
+    localStorage.setItem('lumen_brand', JSON.stringify({ color: brandColor(b), template: brandTemplate(b), own: !!b.own_name }));
   } catch (_) {}
 }
 
@@ -894,3 +897,114 @@ function lessonFileLabel(url) {
   if (['mp3', 'm4a', 'wav', 'ogg'].includes(ext)) return 'Audio';
   return 'File';
 }
+
+// ─────────────────────────────────────────────────────────────────
+// The Lumen wordmark, drawn in place
+//
+// "lumen" with the n as a bent pencil: the eraser is the dot, the wood
+// and lead are the n's right foot. Inline SVG rather than the PNG, so it
+// is sharp at any size and takes the page's ink (currentColor) in light
+// and dark alike. With { animate: true } it is sketched in: each letter's
+// outline is drawn, it fills, and then the pencil arrives — wood, lead,
+// the ferrule, and last the eraser, which glows once.
+// ─────────────────────────────────────────────────────────────────
+const LUMEN_GLYPHS = [
+  [0,    'M242 -9Q196 -9 161.5 -5.0Q127 -1 103.0 11.0Q79 23 64.0 45.5Q49 68 42.0 104.5Q35 141 35 196V639Q35 662 39.0 682.5Q43 703 62.0 716.5Q81 730 126 730Q171 730 189.5 716.5Q208 703 212.0 682.0Q216 661 216 638V207Q216 192 216.5 183.5Q217 175 219.5 171.0Q222 167 227.5 166.5Q233 166 243 166Q256 166 270.5 162.5Q285 159 295.5 141.5Q306 124 306 81Q306 36 295.5 17.0Q285 -2 270.0 -5.5Q255 -9 242 -9Z'],
+  [299,  'M257 -7Q209 -7 167.5 12.0Q126 31 95.0 65.5Q64 100 47.0 146.0Q30 192 30 246V409Q30 432 34.0 452.5Q38 473 57.0 486.5Q76 500 121 500Q167 500 185.5 486.5Q204 473 208.0 452.0Q212 431 212 408V246Q212 223 220.5 207.0Q229 191 245.5 182.5Q262 174 284 174Q306 174 322.0 183.0Q338 192 347.0 208.0Q356 224 356 246V410Q356 433 360.0 453.5Q364 474 383.0 487.0Q402 500 447 500Q493 500 511.5 486.5Q530 473 534.0 452.0Q538 431 538 409V80Q538 58 534.0 38.0Q530 18 511.0 5.0Q492 -8 447 -8Q414 -8 395.5 -0.5Q377 7 369.0 18.5Q361 30 359.5 41.5Q358 53 358 61L375 56Q375 56 367.0 46.5Q359 37 343.5 24.5Q328 12 306.5 2.5Q285 -7 257 -7Z'],
+  [855,  'M118 -9Q73 -9 54.0 4.5Q35 18 31.5 39.0Q28 60 28 82V409Q28 432 32.0 452.5Q36 473 55.0 486.0Q74 499 120 499Q165 499 185.5 481.5Q206 464 206 425L189 430Q189 430 196.5 440.5Q204 451 218.5 465.0Q233 479 254.0 489.5Q275 500 302 500Q333 500 359.0 492.0Q385 484 406.5 467.5Q428 451 444 427Q455 440 474.0 457.0Q493 474 519.5 487.0Q546 500 579 500Q638 500 679.5 470.0Q721 440 742.5 383.0Q764 326 764 245V82Q764 60 760.0 39.0Q756 18 737.0 4.5Q718 -9 672 -9Q627 -9 608.0 5.0Q589 19 585.5 40.0Q582 61 582 83V246Q582 270 576.5 285.5Q571 301 560.5 309.0Q550 317 534 317Q517 317 506.5 310.0Q496 303 491.5 287.5Q487 272 487 245V82Q487 60 483.0 39.0Q479 18 460.0 4.5Q441 -9 395 -9Q350 -9 331.0 5.0Q312 19 308.5 40.0Q305 61 305 83V246Q305 270 300.0 286.0Q295 302 284.5 309.5Q274 317 257 317Q237 317 227.0 307.0Q217 297 213.5 281.0Q210 265 210 246V81Q210 59 206.0 38.0Q202 17 183.0 4.0Q164 -9 118 -9Z'],
+  [1634, 'M288 -20Q213 -20 161.0 4.5Q109 29 77.0 68.5Q45 108 30.0 154.0Q15 200 15 243Q15 322 50.0 382.0Q85 442 147.0 476.0Q209 510 289 510Q351 510 395.0 490.0Q439 470 466.5 439.0Q494 408 507.0 373.0Q520 338 520 308Q520 251 492.0 221.0Q464 191 420 191H207Q211 175 223.5 163.5Q236 152 255.0 145.5Q274 139 296 139Q318 139 335.0 141.5Q352 144 364.5 148.0Q377 152 387.5 156.0Q398 160 406.5 162.5Q415 165 423 165Q441 165 456.0 153.0Q471 141 483 117Q490 104 493.0 92.5Q496 81 496 71Q496 41 471.5 21.0Q447 1 401.0 -9.5Q355 -20 288 -20ZM207 285H319Q333 285 339.5 291.0Q346 297 346 309Q346 322 338.5 331.0Q331 340 318.0 344.5Q305 349 287 349Q263 349 245.0 339.5Q227 330 217.5 315.5Q208 301 207 285Z'],
+];
+const LUMEN_N = 'M120 -8Q75 -8 56.0 5.5Q37 19 33.5 40.0Q30 61 30 83V412Q30 434 34.0 454.0Q38 474 57.0 486.5Q76 499 121 499Q162 499 180.5 488.5Q199 478 204.0 463.0Q209 448 208.5 435.5Q208 423 210 420L202 414Q201 429 213.5 444.0Q226 459 246.5 471.5Q267 484 290.5 491.5Q314 499 335 499Q385 499 423.0 480.0Q461 461 486.5 426.5Q512 392 525.0 346.0Q538 300 538 246V82Q538 60 534.0 39.0Q530 18 511.5 5.0Q493 -8 447 -8Q401 -8 382.0 5.5Q363 19 359.0 40.0Q355 61 355 83V246Q355 269 346.5 285.0Q338 301 322.5 309.5Q307 318 284 318Q262 318 245.5 309.0Q229 300 220.0 284.0Q211 268 211 246V82Q211 60 207.0 39.0Q203 18 184.5 5.0Q166 -8 120 -8Z';
+const LUMEN_ERASER = 'M30 420H211V458A62 62 0 0 1 149 520H92A62 62 0 0 1 30 458Z';
+let lumenMarkSeq = 0;
+
+function lumenWordmark({ animate = false, cls = '', title = 'Lumen' } = {}) {
+  ensureLumenSketchCss();
+  const id = 'lw' + (++lumenMarkSeq);
+  const letters = LUMEN_GLYPHS.map(([x, d], i) =>
+    `<g transform="translate(${x} 0)"><path class="lw-ink" style="--i:${i}" pathLength="1" d="${d}"/></g>`).join('');
+  return `<svg class="lumen-word${animate ? ' is-sketching' : ''} ${cls}" viewBox="0 -760 2720 930" role="img" aria-label="${escHtml(title)}">
+    <defs><filter id="${id}g" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="45"/></filter>
+      <clipPath id="${id}c"><rect x="-50" y="-200" width="390" height="580"/><rect x="215" y="40" width="500" height="1200"/></clipPath></defs>
+    <g transform="scale(1 -1)">${letters}
+      <g transform="translate(2157 0)">
+        <path class="lw-ink" style="--i:4" pathLength="1" d="${LUMEN_N}" clip-path="url(#${id}c)"/>
+        <g class="lw-body"><rect x="30" y="330" width="181" height="50"/><rect x="355" y="40" width="183" height="80"/></g>
+        <g class="lw-tip"><path d="M355 41H538L446.5 -150Z" fill="#F6D6A8"/><path d="M413 -80H480L446.5 -150Z" fill="#4B4560"/></g>
+        <g class="lw-ferrule"><rect x="26" y="380" width="189" height="40" fill="#E3D9FF"/><path d="M26 400H215" stroke="#7B3FE4" stroke-opacity=".35" stroke-width="9"/></g>
+        <g class="lw-eraser" fill="#FFD23F"><g class="lw-glow" filter="url(#${id}g)"><path d="${LUMEN_ERASER}"/></g><path d="${LUMEN_ERASER}"/></g>
+        <path class="lw-grain" d="M120.5 110V350M446.5 70V230" stroke="#7B3FE4" stroke-opacity=".22" stroke-width="14" stroke-linecap="round"/>
+      </g>
+    </g>
+  </svg>`;
+}
+
+function ensureLumenSketchCss() {
+  if (document.getElementById('lumen-sketch-css')) return;
+  const st = document.createElement('style');
+  st.id = 'lumen-sketch-css';
+  st.textContent = `
+    .lumen-word { display: block; height: 100%; width: auto; overflow: visible; color: inherit; }
+    .lumen-word .lw-ink, .lumen-word .lw-body { fill: currentColor; }
+    .lumen-word .lw-glow { opacity: .75; }
+    @media (prefers-reduced-motion: no-preference) {
+      .lumen-word.is-sketching .lw-ink {
+        stroke: currentColor; stroke-width: 16; stroke-linejoin: round;
+        stroke-dasharray: 1; stroke-dashoffset: 1; fill-opacity: 0;
+        animation: lw-draw .62s cubic-bezier(.55,.1,.4,1) calc(var(--i) * .15s) forwards,
+                   lw-fill .38s ease calc(var(--i) * .15s + .5s) forwards;
+      }
+      .lumen-word.is-sketching .lw-body { opacity: 0; animation: lw-in .3s ease 1.1s forwards; }
+      .lumen-word.is-sketching .lw-tip,
+      .lumen-word.is-sketching .lw-ferrule,
+      .lumen-word.is-sketching .lw-eraser { opacity: 0; transform-box: fill-box; transform-origin: 50% 50%; }
+      .lumen-word.is-sketching .lw-tip     { animation: lw-pop .42s cubic-bezier(.3,1.6,.5,1) 1.2s forwards; }
+      .lumen-word.is-sketching .lw-ferrule { animation: lw-pop .42s cubic-bezier(.3,1.6,.5,1) 1.38s forwards; }
+      .lumen-word.is-sketching .lw-eraser  { animation: lw-pop .5s cubic-bezier(.3,1.7,.5,1) 1.54s forwards; }
+      .lumen-word.is-sketching .lw-glow    { opacity: 0; animation: lw-glow 1.1s ease 1.9s forwards; }
+      .lumen-word.is-sketching .lw-grain   { opacity: 0; animation: lw-in .4s ease 1.5s forwards; }
+    }
+    @keyframes lw-draw { to { stroke-dashoffset: 0; } }
+    @keyframes lw-fill { to { fill-opacity: 1; stroke-width: 0; } }
+    @keyframes lw-in   { to { opacity: 1; } }
+    @keyframes lw-pop  { 0% { opacity: 0; transform: scale(.4) rotate(-12deg); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+    @keyframes lw-glow { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: .75; } }
+
+    .lumen-splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+      background: var(--bg, #F8F7FC); color: var(--text, #1B1240); cursor: pointer; transition: opacity .35s ease; }
+    .lumen-splash .lumen-word { height: clamp(56px, 12vw, 92px); }
+    .lumen-splash.is-done { opacity: 0; pointer-events: none; }`;
+  document.head.appendChild(st);
+}
+
+// Once per browser session, the first portal page a person opens is
+// greeted by the sketch while it signs them in. Tap, click or any key
+// skips it. Not for people who asked their device for less motion, and
+// not in a space that shows its own name instead of Lumen's.
+(function lumenSplash() {
+  try {
+    if (!/^\/(portal|teacher)\//.test(location.pathname)) return;
+    if (sessionStorage.getItem('lumen_splash')) return;
+    sessionStorage.setItem('lumen_splash', '1');
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (JSON.parse(localStorage.getItem('lumen_brand') || 'null')?.own) return;
+  } catch (_) { return; }
+  const show = () => {
+    const el = document.createElement('div');
+    el.className = 'lumen-splash';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = lumenWordmark({ animate: true });
+    document.body.appendChild(el);
+    let gone = false;
+    const done = () => {
+      if (gone) return; gone = true;
+      el.classList.add('is-done');
+      setTimeout(() => el.remove(), 400);
+      removeEventListener('keydown', done);
+    };
+    el.addEventListener('click', done);
+    addEventListener('keydown', done);
+    setTimeout(done, 2500);
+  };
+  if (document.body) show(); else addEventListener('DOMContentLoaded', show);
+})();

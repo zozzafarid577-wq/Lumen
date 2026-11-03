@@ -21,7 +21,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Lumen">
-<meta name="theme-color" content="#A2509F">
+<meta name="theme-color" content="#7B3FE4">
 <!-- The purple screen an iPhone shows while Lumen opens from the home
      screen, one per screen size; without it the launch is a white flash. -->
 <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/assets/app/splash/splash-1320x2868.png">
@@ -183,7 +183,7 @@
               <label class="form-label">Colour theme</label>
               <div class="swatches" id="lk-themes"></div>
               <div class="row" style="gap:10px;align-items:center;margin-top:10px">
-                <input type="color" id="lk-color" value="#A2509F" oninput="pickCustom(this.value)" aria-label="Your own colour" style="width:44px;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;background:var(--card)">
+                <input type="color" id="lk-color" value="#7B3FE4" oninput="pickCustom(this.value)" aria-label="Your own colour" style="width:44px;height:36px;border:1px solid var(--border);border-radius:6px;padding:2px;background:var(--card)">
                 <span class="small muted">or pick any colour of your own</span>
               </div>
             </div>
@@ -489,7 +489,7 @@ let look = {};
 function openLook() {
   document.getElementById('look-card').style.display = 'block';
   look = { ...(me.teacher.branding || {}) };
-  if (!look.theme) look.theme = 'plum';
+  if (!look.theme) look.theme = 'lumen';
   document.getElementById('lk-own').checked = !!look.own_name;
   document.getElementById('lk-title').value = look.welcome_title || '';
   document.getElementById('lk-text').value = look.welcome_text || '';

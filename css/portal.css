@@ -11,25 +11,31 @@
   --top: 62px;
 
   /* Surfaces */
-  --bg:      #FAF8FA;
+  --bg:      #F8F7FC;
   --card:    #ffffff;
   --surface: #ffffff;
-  --border:  #E8E2E8;
+  --border:  #E6E3F0;
 
   /* Ink */
-  --text:   #1B1519;
-  --text-2: #554C53;
-  --muted:  #8B8089;
+  --text:   #1B1240;
+  --text-2: #4A4466;
+  --muted:  #7E7896;
 
   /* Brand — the purple is taken from the logo's "u". */
-  --primary:       #A2509F;
-  --primary-hover: #8B3F89;
-  --primary-soft:  #F6ECF6;
-  --primary-line:  #E4CAE3;
-  --accent:        #A2509F;
+  --primary:       #7B3FE4;
+  --primary-hover: #6735C0;
+  --primary-soft:  #F2ECFC;
+  --primary-line:  #DAC9F7;
+  --accent:        #7B3FE4;
   /* The brand colour as r,g,b, for tints: rgba(var(--brand-rgb), .2). */
-  --brand-rgb:     162,80,159;
-  --brand-dark:    #4A2949;
+  --brand-rgb:     123,63,228;
+  --brand-dark:    #3B2163;
+
+  /* The rest of the logo: the pencil's eraser, its wood, its lead. */
+  --sun:      #FFD23F;
+  --sun-soft: #FFF6D6;
+  --wood:     #F6D6A8;
+  --lead:     #4B4560;
 
   /* Semantic */
   --success: #147A57;
@@ -41,7 +47,7 @@
   --shadow-sm: 0 2px 10px rgba(27,21,25,.06), 0 1px 3px rgba(27,21,25,.04);
   --shadow-md: 0 8px 28px rgba(27,21,25,.08), 0 2px 8px rgba(27,21,25,.04);
   --shadow-lg: 0 20px 60px rgba(27,21,25,.13), 0 8px 20px rgba(27,21,25,.06);
-  --shadow-brand: 0 6px 22px rgba(162,80,159,.26);
+  --shadow-brand: 0 6px 22px rgba(123,63,228,.26);
 }
 
 /* ── RESET ───────────────────────────────────────────────────── */
@@ -87,7 +93,7 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 }
 .sidebar-brand .b-mark svg { width: 27px; height: 27px; }
 .sidebar-brand .b-full { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.logo-side { height: 25px; width: auto; display: block; }
+.logo-side { height: 27px; width: auto; display: block; color: var(--text); }
 .brand-sub {
   font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -619,17 +625,18 @@ html[data-theme="dark"] .section-badge { background: var(--primary); color: #fff
    in each page's <head> sets it before paint so there is no flash.
    ═══════════════════════════════════════════════════════════════ */
 html[data-theme="dark"] {
-  --bg:      #131016;
-  --card:    #1C171E;
-  --surface: #1C171E;
-  --border:  #2E2632;
-  --text:    #F6F2F6;
-  --text-2:  #C3B8C2;
-  --muted:   #897E88;
-  --primary:       #CE81CB;
-  --primary-hover: #DD9BDA;
-  --primary-soft:  #2A1F2A;
-  --primary-line:  #4A3449;
+  --bg:      #110D1F;
+  --card:    #1A1530;
+  --surface: #1A1530;
+  --border:  #2C2547;
+  --text:    #F4F2FB;
+  --text-2:  #C2BCD8;
+  --muted:   #8A84A3;
+  --sun-soft: #3A3218;
+  --primary:       #A57CF0;
+  --primary-hover: #B998F4;
+  --primary-soft:  #241B3D;
+  --primary-line:  #3E3166;
   --success: #3FBE8E;
   --warning: #E0A045;
   --danger:  #F2708A;
@@ -640,13 +647,13 @@ html[data-theme="dark"] {
   --shadow-brand: 0 6px 22px rgba(0,0,0,.5);
 }
 html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
-html[data-theme="dark"] .topbar { background: rgba(28,23,30,.92); }
+html[data-theme="dark"] .topbar { background: rgba(26,21,48,.92); }
 html[data-theme="dark"] .modal { background: var(--card); }
 html[data-theme="dark"] .form-input,
 html[data-theme="dark"] .form-select,
-html[data-theme="dark"] .form-textarea { background: #221C24; color: var(--text); }
+html[data-theme="dark"] .form-textarea { background: #211A3A; color: var(--text); }
 html[data-theme="dark"] .btn-outline { background: var(--surface); }
-html[data-theme="dark"] .badge { background: #2A2230; color: var(--text-2); }
+html[data-theme="dark"] .badge { background: #261E42; color: var(--text-2); }
 /* Keep the right/wrong answer tints readable on a dark surface. */
 html[data-theme="dark"] .q-opt.correct { background: rgba(63,190,142,.14); color: #86EFAC; border-color: rgba(63,190,142,.4); }
 html[data-theme="dark"] .q-opt.wrong   { background: rgba(242,112,138,.14); color: #FCA5A5; border-color: rgba(242,112,138,.4); }
