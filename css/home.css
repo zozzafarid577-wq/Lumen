@@ -11,6 +11,7 @@
   --brush: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 24' preserveAspectRatio='none'%3E%3Cpath d='M4 15C60 7 130 6 200 9S280 13 296 10L294 19C230 21 150 15 90 17S20 21 6 22Z' fill='%23FFD23F'/%3E%3C/svg%3E");
   --blob: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cpath d='M100 10c14 0 18 30 30 34s38-12 46 0-14 34-10 48 34 22 28 36-36 6-46 16-6 42-20 46-24-26-38-28-34 20-44 10 4-36-2-48-38-14-36-28 32-14 36-28-12-38 0-46 32 8 44 2 0-42 12-42z' fill='%23FFFFFF'/%3E%3C/svg%3E");
 }
+html:has(body.home), .home { overflow-x: clip; }
 .home { background: #fff; }
 .home h1, .home h2, .home h3 { font-family: 'Fredoka', 'Manrope', sans-serif; letter-spacing: -.01em; font-weight: 700; }
 .home em { font-style: normal; position: relative; z-index: 0; white-space: nowrap; }
@@ -179,4 +180,102 @@
   .h-cta { padding: 54px 22px; border-radius: 28px; }
   .home .nav-cta { gap: 6px; }
   .home .nav-cta .btn-sm { padding: 9px 12px; }
+}
+
+/* ═══ MOTION, GRADIENTS AND THE EXTRAS (driven by js/home.js) ═══ */
+
+/* Gradients: the hero's purple has depth and drifts slowly; the night
+   section and the closing band pick up the same glow. */
+.h-hero {
+  background:
+    radial-gradient(60% 80% at 85% 20%, rgba(255,210,63,.16) 0%, transparent 60%),
+    radial-gradient(70% 90% at 10% 100%, rgba(42,29,94,.65) 0%, transparent 65%),
+    linear-gradient(135deg, #8A52F0 0%, #7B3FE4 45%, #5B2BC2 100%);
+  background-size: 160% 160%, 160% 160%, 100% 100%;
+  animation: h-drift 18s ease-in-out infinite alternate;
+}
+@keyframes h-drift { to { background-position: 30% 40%, 70% 10%, 0 0; } }
+.h-night { background: radial-gradient(80% 70% at 90% 30%, rgba(123,63,228,.45) 0%, transparent 60%), linear-gradient(160deg, #1B1240 0%, #241757 100%); }
+.h-cta { background: radial-gradient(70% 120% at 0% 0%, rgba(255,210,63,.22) 0%, transparent 55%), linear-gradient(135deg, #8A52F0 0%, #6633D6 100%); }
+.h-steps div { background: linear-gradient(160deg, #8A52F0 0%, #6633D6 100%); }
+.h-ic { background: linear-gradient(135deg, #FFE27A 0%, #FFC21A 100%); }
+
+/* The nav lifts off the page once it scrolls. */
+.nav { transition: box-shadow .25s, background .25s; }
+.nav.scrolled { box-shadow: 0 8px 30px -12px rgba(27,18,64,.25); background: rgba(255,255,255,.92); }
+
+/* Rise into view. Only once js/home.js has said motion is on, so with
+   no script nothing is ever hidden. */
+.motion .rv { opacity: 0; transform: translateY(34px); transition: opacity .7s cubic-bezier(.2,.7,.2,1) var(--d, 0ms), transform .7s cubic-bezier(.2,.7,.2,1) var(--d, 0ms); }
+.motion .h-feat > .phone.rv { transform: translateY(50px) rotate(-3deg) scale(.96); }
+.motion .rv.in { opacity: 1; transform: none; }
+.motion .h-feat > .phone.rv.in { transform: rotate(0); }
+
+/* Hover lift on the cards. */
+.h-grid article, .h-who article { transition: transform .25s, box-shadow .25s, border-color .25s; }
+.h-grid article:hover, .h-who article:hover { transform: translateY(-6px); box-shadow: 0 22px 40px -18px rgba(60,20,140,.35); border-color: var(--primary-l); }
+.h-grid article:hover .h-ic, .h-who article:hover .h-ic { animation: h-wiggle .5s ease; }
+@keyframes h-wiggle { 30% { transform: rotate(-10deg) scale(1.08); } 65% { transform: rotate(6deg); } }
+
+/* The hero phone floats; the hero buttons get a sheen. */
+.h-phone-wrap { perspective: 900px; }
+.h-phone-wrap .phone { animation: h-float 6s ease-in-out infinite; transition: transform .2s ease-out; }
+@keyframes h-float { 50% { translate: 0 -14px; } }
+.btn-sun { position: relative; overflow: hidden; }
+.h-hero .btn-sun::after, .h-cta .btn-sun::after {
+  content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent); transform: skewX(-20deg);
+  animation: h-sheen 3.6s ease-in-out infinite 1.2s;
+}
+@keyframes h-sheen { 0%, 60% { left: -60%; } 100% { left: 130%; } }
+
+/* The ticker. */
+.h-ticker { background: var(--sun); color: var(--night); overflow: hidden; padding: 14px 0; transform: rotate(-1.2deg); margin: -14px -10px 0; position: relative; z-index: 2; box-shadow: 0 10px 30px -12px rgba(27,18,64,.35); }
+.h-ticker-track { display: flex; width: max-content; animation: h-tick 38s linear infinite; }
+.h-ticker span { font: 700 1.05rem 'Fredoka', sans-serif; white-space: nowrap; padding: 0 22px; display: flex; align-items: center; gap: 22px; }
+.h-ticker span::after { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--primary); }
+@keyframes h-tick { to { transform: translateX(-50%); } }
+
+/* Phone scenes. */
+.ui[data-scene="dash"] .u-prog i { transform-origin: left; }
+.ui[data-scene="dash"].play .u-prog i { animation: h-grow 1.4s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * .15s); }
+@keyframes h-grow { from { transform: scaleX(0); } }
+.u-opt, .u-chips span { transition: background .3s, border-color .3s, color .3s, transform .3s; }
+.u-opt.on { transform: scale(1.03); box-shadow: 0 0 0 4px rgba(123,63,228,.12); }
+.ui[data-scene="mock"] .u-timer b { font-variant-numeric: tabular-nums; }
+.ui[data-scene="bank"] .u-opt.right { transition: opacity .4s, transform .4s; }
+.ui[data-scene="bank"]:not(.play) .u-opt.right { opacity: .25; transform: scale(.96); }
+.ui[data-scene="report"].play .u-row { animation: h-slide .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * .25s); }
+.ui[data-scene="report"].play .u-row .pill { animation: h-pop .4s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--i, 0) * .25s + .2s); }
+@keyframes h-slide { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes h-pop { from { opacity: 0; transform: scale(.4); } }
+.u-warn.drop { animation: h-drop .7s cubic-bezier(.3,1.5,.5,1); }
+@keyframes h-drop { from { transform: translateY(-120%); opacity: 0; } 70% { transform: translateY(4px); } }
+.ui[data-scene="protect"] .u-wm { animation: h-wm 14s linear infinite; }
+@keyframes h-wm { to { transform: translate(-30px, 20px); } }
+
+/* The one-time card and the WhatsApp button. */
+.h-wa { position: fixed; right: 20px; bottom: 20px; z-index: 90; width: 56px; height: 56px; border-radius: 50%; background: #25D366; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 30px -8px rgba(0,0,0,.35); transition: transform .2s; }
+.h-wa:hover { transform: scale(1.08); }
+.h-wa svg { width: 30px; height: 30px; }
+.h-wa::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid #25D366; animation: h-ring 2.4s ease-out infinite; }
+@keyframes h-ring { from { transform: scale(1); opacity: .8; } to { transform: scale(1.6); opacity: 0; } }
+.h-nudge { position: fixed; right: 20px; bottom: 90px; z-index: 95; width: min(360px, calc(100vw - 40px)); display: flex; gap: 14px; align-items: flex-start;
+  background: #fff; border-radius: 22px; padding: 18px 18px 18px 16px; box-shadow: 0 24px 60px -16px rgba(27,18,64,.45); border: 2px solid var(--sun);
+  transform: translateY(30px) scale(.95); opacity: 0; transition: transform .35s cubic-bezier(.3,1.4,.5,1), opacity .3s; }
+.h-nudge.on { transform: none; opacity: 1; }
+.h-nudge-icon { width: 52px; height: 52px; border-radius: 14px; flex: none; transform: rotate(-4deg); }
+.h-nudge b { font: 700 1.08rem 'Fredoka', sans-serif; color: var(--ink); }
+.h-nudge p { font-size: .88rem; margin: 4px 0 12px; line-height: 1.45; }
+.h-nudge-actions { display: flex; gap: 14px; align-items: center; }
+.h-nudge-wa { font: 600 .85rem 'Fredoka', sans-serif; color: var(--primary); }
+.h-nudge-x { position: absolute; top: 8px; right: 10px; border: 0; background: none; font-size: 1.4rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .h-hero, .h-ticker-track, .h-phone-wrap .phone, .btn-sun::after, .h-wa::before, .ui * { animation: none !important; }
+}
+@media (max-width: 560px) {
+  .h-ticker span { font-size: .92rem; padding: 0 16px; gap: 16px; }
+  .h-wa { right: 14px; bottom: 14px; width: 52px; height: 52px; }
+  .h-nudge { right: 14px; bottom: 78px; }
 }
