@@ -83,8 +83,23 @@
   .frq-point.earned .verdict { color: var(--success); }
   .frq-point.missed .verdict { color: var(--danger); }
   .frq-point .their { font-size: .84rem; line-height: 1.55; white-space: pre-line; background: var(--bg); border-radius: 8px; padding: 8px 11px; margin: 8px 0; }
-  .frq-point details { font-size: .8rem; color: var(--text-2); margin-top: 6px; }
-  .frq-point details div { white-space: pre-line; line-height: 1.5; margin-top: 6px; }
+  .frq-point .guide { font-size: .8rem; color: var(--text-2); margin-top: 8px; padding: 9px 12px; border-radius: 8px;
+                      background: color-mix(in srgb, #0891b2 9%, transparent); white-space: pre-line; line-height: 1.5; }
+  .frq-point .guide b { display: block; color: #0e7490; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 3px; }
+
+  /* FRQs get a colour of their own (teal into blue), apart from the
+     purple practice block and the plain multiple-choice cards. */
+  .frq-zone { border-radius: 18px; padding: 18px; margin: 26px 0 16px;
+              background: linear-gradient(135deg, #0d9488 0%, #0891b2 50%, #2563eb 100%);
+              box-shadow: 0 8px 24px rgb(8 145 178 / .22); }
+  .frq-zone .section-head { margin: 0 4px 14px; }
+  .frq-zone .section-head h2, .frq-zone .section-head .sub { color: #fff; }
+  .frq-zone .section-head .sub { opacity: .88; }
+  .frq-zone .q-block:last-child { margin-bottom: 0; }
+  .q-block.frq-q { padding: 0; overflow: hidden; border-color: transparent; }
+  .frq-q .frq-band { padding: 12px 24px; color: #fff; font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+                     background: linear-gradient(135deg, #0d9488 0%, #0891b2 50%, #2563eb 100%); }
+  .frq-q .frq-body { padding: 18px 24px 22px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 15px 15px; }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
 </style>
 </head>
@@ -312,8 +327,9 @@ function qImage(q) {
 function frqBlock(q, i) {
   const given = answers[q.id] || {};
   return `
-    <div class="q-block" id="q-${q.id}">
-      <div class="q-num">Question ${i + 1} of ${questions.length} · free response · ${frqPoints(q).length} points</div>
+    <div class="q-block frq-q" id="q-${q.id}">
+      <div class="frq-band">Question ${i + 1} of ${questions.length} · FRQ · ${frqPoints(q).length} points</div>
+      <div class="frq-body">
       <div class="q-text" style="font-weight:500">${escHtml(q.question_text)}</div>
       ${qImage(q)}
       ${frqBoxes(q).map(b => `
@@ -321,6 +337,7 @@ function frqBlock(q, i) {
           <label for="a-${q.id}-${escHtml(b.key)}"><span class="frq-label">${escHtml(b.key)}</span>${escHtml(b.prompt)}${b.worth > 1 ? ` <span class="muted">(${b.worth} points)</span>` : ''}</label>
           <textarea id="a-${q.id}-${escHtml(b.key)}" data-q="${q.id}" data-l="${escHtml(b.key)}" placeholder="Write your answer in full sentences.">${escHtml(given[b.key] || '')}</textarea>
         </div>`).join('')}
+      </div>
     </div>`;
 }
 
@@ -549,8 +566,8 @@ function frqReview() {
   const status = lastRow?.grading?.status;
   if (!frqs.length || !['graded', 'awaiting_teacher'].includes(status)) return '';
   const marked = status === 'graded';
-  return `
-    <div class="section-head"><div><h2>Your written answers</h2><div class="sub">${marked ? 'Marked point by point against the official AP scoring guidelines' : 'Next to the official AP scoring guideline for each point — your teacher will mark them'}</div></div></div>
+  return `<div class="frq-zone">
+    <div class="section-head"><div><h2>Your FRQ answers</h2><div class="sub">${marked ? 'Marked point by point against the official AP scoring guidelines' : 'Next to the official AP scoring guideline for each point — your teacher will mark them'}</div></div></div>
     ${frqs.map(({ q, i }) => {
       const points = new Map((lastRow.grading.questions?.[q.id]?.points || []).map(p => [p.label, p]));
       const rules = new Map((lastRow.guidelines?.[q.id]?.points || []).map(p => [p.label, p.rubric]));
@@ -565,11 +582,12 @@ function frqReview() {
             <div class="small" style="margin-top:4px;white-space:pre-line">${escHtml(p.prompt)}</div>
             <div class="their">${theirs ? escHtml(theirs) : '<span class="muted">Left blank</span>'}</div>
             ${m.reason ? `<div class="small">${escHtml(m.reason)}</div>` : ''}
-            ${rules.get(p.label) ? `<details${marked ? '' : ' open'}><summary>What the scoring guideline asks for</summary><div>${escHtml(rules.get(p.label))}</div></details>` : ''}
+            ${rules.get(p.label) ? `<div class="guide"><b>What the scoring guideline asks for</b>${escHtml(rules.get(p.label))}</div>` : ''}
           </div>`;
         }).join('')}
       </div>`;
-    }).join('')}`;
+    }).join('')}
+  </div>`;
 }
 
 function mcqReview() {
