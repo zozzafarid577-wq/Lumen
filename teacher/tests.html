@@ -177,6 +177,16 @@
         </div>
       </div>
 
+      <div id="sections-area" style="display:none;margin-bottom:16px">
+        <label class="form-label">Exam sections</label>
+        <div id="sections-rows"></div>
+        <div class="row" style="gap:8px;margin-top:6px">
+          <button type="button" class="btn btn-outline btn-sm" onclick="addSection()">Add a section</button>
+          <span class="small muted" id="sections-sum"></span>
+        </div>
+        <p class="form-hint">Split the paper the way the real exam is: each section is that many questions, in order, with its own clock, and once a student hands a section in they cannot go back to it. With sections set, the time limit above is their minutes added up. Leave empty to sit the paper as one part on the time limit.</p>
+      </div>
+
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="b-open">Opens</label>
@@ -439,6 +449,7 @@ async function openBuilder(id, seed = null) {
   document.getElementById('b-course').value = t?.course_id
     || (courses.some(c => c.id === seed?.course_id) ? seed.course_id : courses[0].id);
   document.getElementById('b-time').value = t?.time_limit_min || '';
+  examParts = Array.isArray(t?.exam_sections) ? t.exam_sections.map(x => ({ ...x })) : [];
   document.getElementById('b-pass').value = t?.passing_score_pct ?? 60;
   document.getElementById('b-open').value = toLocalInput(t?.open_at);
   document.getElementById('b-close').value = toLocalInput(t?.close_at);
@@ -507,6 +518,56 @@ function onKindChange() {
   document.getElementById('mcq-area').style.display = kind === 'frq' ? 'none' : '';
   if (kind === 'frq' && !frqs.length) addFrq(false);
   renderFrqs();
+  renderSections();
+}
+
+// ── A mock exam's timed sections ──────────────────────────────────
+// Each row is a run of questions in the paper's order and the minutes it
+// gets. Kept as plain rows here and checked on the server, which refuses
+// sections that do not add up to the questions on the paper.
+let examParts = [];
+
+function addSection() {
+  const left = Math.max(0, chosen.length - examParts.reduce((t, x) => t + (Number(x.questions) || 0), 0));
+  examParts.push({ questions: left || '', minutes: '' });
+  renderSections();
+}
+
+function removeSection(i) {
+  examParts.splice(i, 1);
+  renderSections();
+}
+
+function setSection(i, field, value) {
+  examParts[i][field] = value === '' ? '' : Number(value);
+  updateSectionSum();
+}
+
+function renderSections() {
+  const isMock = document.getElementById('b-kind').value === 'mock';
+  document.getElementById('sections-area').style.display = isMock ? '' : 'none';
+  document.getElementById('sections-rows').innerHTML = examParts.map((x, i) => `
+    <div class="row" style="gap:8px;margin-bottom:6px;flex-wrap:nowrap">
+      <span class="small" style="min-width:74px;font-weight:600">Section ${i + 1}</span>
+      <input type="number" class="form-input" min="1" placeholder="Questions" value="${escHtml(String(x.questions ?? ''))}"
+             oninput="setSection(${i}, 'questions', this.value)" aria-label="Questions in section ${i + 1}">
+      <input type="number" class="form-input" min="1" placeholder="Minutes" value="${escHtml(String(x.minutes ?? ''))}"
+             oninput="setSection(${i}, 'minutes', this.value)" aria-label="Minutes for section ${i + 1}">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="removeSection(${i})" aria-label="Remove section ${i + 1}">Remove</button>
+    </div>`).join('');
+  updateSectionSum();
+}
+
+function updateSectionSum() {
+  const el = document.getElementById('sections-sum');
+  const on = document.getElementById('b-kind').value === 'mock' && examParts.length > 0;
+  document.getElementById('b-time').disabled = on;
+  if (!on) { el.textContent = ''; return; }
+  const qs = examParts.reduce((t, x) => t + (Number(x.questions) || 0), 0);
+  const mins = examParts.reduce((t, x) => t + (Number(x.minutes) || 0), 0);
+  el.textContent = `${qs} of ${chosen.length} questions · ${mins} min in all`;
+  el.style.color = qs === chosen.length ? '' : 'var(--danger)';
+  if (mins) document.getElementById('b-time').value = mins;
 }
 
 function blankPart(i) { return { label: String.fromCharCode(65 + i), prompt: '', rubric: '' }; }
@@ -577,6 +638,7 @@ async function onUnitChange() {
 }
 
 function renderPicker() {
+  updateSectionSum();
   const q = document.getElementById('b-search').value.trim().toLowerCase();
   const courseId = document.getElementById('b-course').value;
 
@@ -789,6 +851,11 @@ async function saveTest() {
       // Sent only once the database has the column (supabase-migration-v22.sql),
       // so saving keeps working on a space that has not been updated yet.
       kind: (tests.some(t => 'kind' in t) || document.getElementById('b-kind').value !== 'practice') ? document.getElementById('b-kind').value : undefined,
+      // Likewise only once the column is there (supabase-migration-v23.sql),
+      // or when the teacher has set sections and needs to hear it failed.
+      exam_sections: (tests.some(t => 'exam_sections' in t) || examParts.length)
+        ? (document.getElementById('b-kind').value === 'mock' ? examParts : [])
+        : undefined,
       questions: document.getElementById('b-kind').value === 'frq'
         ? frqs.map(q => ({
             kind: 'frq',

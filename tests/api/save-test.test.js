@@ -308,3 +308,43 @@ describe('the kind of paper', () => {
     expect(getSupabaseCalls('practice_tests.insert')[0].payload.kind).toBe('frq');
   });
 });
+
+describe('a mock exam in timed sections', () => {
+  const four = () => [Q(), Q(), Q(), Q()];
+  const mock = (exam_sections) => call({ title: 'Mock A', course_id: COURSE, kind: 'mock', questions: four(), exam_sections });
+
+  it('stores the sections and adds their clocks up into the time limit', async () => {
+    const res = await mock([{ questions: 2, minutes: 45 }, { questions: 2, minutes: 45 }]);
+    expect(res.statusCode).toBe(200);
+    const { payload } = getSupabaseCalls('practice_tests.insert')[0];
+    expect(payload.exam_sections).toEqual([{ questions: 2, minutes: 45 }, { questions: 2, minutes: 45 }]);
+    expect(payload.time_limit_min).toBe(90);
+  });
+
+  it('refuses sections that do not add up to the questions on the paper', async () => {
+    const res = await mock([{ questions: 2, minutes: 45 }, { questions: 1, minutes: 45 }]);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/add up/);
+  });
+
+  it('refuses a section with no time', async () => {
+    const res = await mock([{ questions: 2, minutes: 45 }, { questions: 2 }]);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('stores a single section as none, so the paper runs on its own time limit', async () => {
+    await mock([{ questions: 4, minutes: 60 }]);
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload.exam_sections).toBeNull();
+  });
+
+  it('keeps sections off anything that is not a mock exam', async () => {
+    await call({ title: 'Quiz', course_id: COURSE, kind: 'practice', questions: four(),
+      exam_sections: [{ questions: 2, minutes: 10 }, { questions: 2, minutes: 10 }] });
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload.exam_sections).toBeNull();
+  });
+
+  it('leaves the column alone when an older page does not send it', async () => {
+    await call({ title: 'Mock A', course_id: COURSE, kind: 'mock', questions: four() });
+    expect(getSupabaseCalls('practice_tests.insert')[0].payload).not.toHaveProperty('exam_sections');
+  });
+});

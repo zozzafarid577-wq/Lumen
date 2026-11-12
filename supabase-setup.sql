@@ -1586,3 +1586,8 @@ CREATE POLICY "cards_student_read" ON public.flashcards
     )
   );
 CREATE INDEX IF NOT EXISTS idx_flashcards_deck ON public.flashcards (deck_id, order_index);
+
+-- ────────────────────────────────────────
+-- v23 — mock exams sat in timed sections (also supabase-migration-v23.sql)
+-- ────────────────────────────────────────
+ALTER TABLE public.practice_tests ADD COLUMN IF NOT EXISTS exam_sections JSONB;

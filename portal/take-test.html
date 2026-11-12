@@ -98,6 +98,36 @@
                      background: var(--primary-soft); border-bottom: 1px solid var(--primary-line); }
   .frq-q .frq-body { padding: 16px 20px 18px; }
   .result-pct { font-family: 'Manrope', sans-serif; font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: -.05em; }
+
+  /* Exam mode: a mock exam sat the way the real one is — one question on
+     screen, a flag for "come back to this", a sheet of every question in
+     the section, and sections that close behind the student. */
+  .sec-strip { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+               font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .sec-strip .sec-name { color: var(--primary); }
+  .q-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+  .q-head .q-num { margin-bottom: 0; }
+  .flag-btn { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--border); background: var(--card); color: var(--text-2);
+              border-radius: 999px; padding: 5px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+  .flag-btn svg { width: 14px; height: 14px; }
+  .flag-btn[aria-pressed="true"] { border-color: #E0A100; background: #FFF6DB; color: #8A6A00; }
+  .exam-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; }
+  .nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; margin: 14px 0 6px; }
+  .nav-cell { position: relative; height: 44px; border-radius: 8px; border: 1.5px dashed var(--border); background: var(--card);
+              font: inherit; font-weight: 800; font-size: .86rem; color: var(--text-2); cursor: pointer; }
+  .nav-cell.answered { border-style: solid; border-color: var(--primary-line); background: var(--primary-soft); color: var(--primary); }
+  .nav-cell.current { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .nav-cell.flagged::after { content: ''; position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; border-radius: 50%;
+                             background: #E0A100; border: 2px solid var(--card); }
+  .nav-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .76rem; color: var(--text-2); }
+  .nav-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .flag-btn { white-space: nowrap; flex-shrink: 0; }
+  /* A phone has room for the clock and one button: the sheet is a tap
+     away under the section strip, and the course line can go. */
+  @media (max-width: 600px) {
+    .exam-bar { padding: 0 14px; }
+    #sheet-btn, #t-sub { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -109,7 +139,8 @@
   </div>
   <div class="row" style="flex-wrap:nowrap">
     <span class="clock" id="clock" style="display:none">--:--</span>
-    <button class="btn btn-primary btn-sm" id="submit-btn" onclick="submitTest()" style="display:none">Hand in</button>
+    <button class="btn btn-outline btn-sm" id="sheet-btn" onclick="openSheet()" style="display:none">Questions</button>
+    <button class="btn btn-primary btn-sm" id="submit-btn" onclick="handIn()" style="display:none">Hand in</button>
     <a href="/portal/courses.html" class="btn btn-ghost btn-sm" id="leave-btn">Leave</a>
   </div>
 </div>
@@ -117,6 +148,30 @@
 <div class="exam-wrap" id="wrap">
   <div class="skel" style="height:120px;margin-bottom:16px"></div>
   <div class="skel" style="height:120px"></div>
+</div>
+
+<div class="modal-backdrop" id="sheet">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <span class="modal-title" id="sheet-title">Questions</span>
+      <button class="modal-close" onclick="closeModal('sheet')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="nav-legend">
+        <span><i style="background:var(--primary-soft);border:1.5px solid var(--primary-line)"></i>Answered</span>
+        <span><i style="border:1.5px dashed var(--border)"></i>Not answered</span>
+        <span><i style="background:#E0A100;border-radius:50%"></i>Flagged</span>
+      </div>
+      <div class="nav-grid" id="sheet-grid"></div>
+      <p class="small muted" id="sheet-count" style="margin-top:10px"></p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('sheet')">Back to the question</button>
+        <button class="btn btn-primary btn-sm" id="sheet-finish" onclick="closeModal('sheet'); handIn()">Hand in</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast-wrap" id="toasts"></div>
@@ -136,6 +191,15 @@ let deadline = null;     // epoch ms, or null when there is no time limit
 let ticker = null;
 let submitted = false;
 let lastRow = null;       // the handed-in paper, with its marking once the server has marked it
+
+// Exam mode (mock exams only). The paper is sat in sections, one question
+// on screen at a time; `cur` is that question's place in the whole paper.
+let exam = false;
+let sections = [];        // [{ from, to, minutes }] — question indexes, `to` not included
+let sec = 0;              // the section being sat; the ones before it are closed
+let secStartedAt = null;  // when this section's clock started
+let cur = 0;
+let flags = new Set();    // question ids the student wants to come back to
 
 (async () => {
   me = await requireAuth('student');
@@ -164,6 +228,8 @@ let lastRow = null;       // the handed-in paper, with its marking once the serv
   questions = qs;
 
   startedAt = Date.now();
+  exam = test.kind === 'mock';
+  sections = examSections();
   // Answers kept from an earlier visit — a closed tab, a dropped phone
   // connection, a page refreshed by accident. The clock carries on from
   // when they first started, so leaving does not buy extra time.
@@ -171,19 +237,25 @@ let lastRow = null;       // the handed-in paper, with its marking once the serv
   if (draft) {
     answers = draft.answers;
     startedAt = draft.startedAt || startedAt;
+    if (exam) {
+      flags = new Set(draft.flags);
+      sec = Math.min(draft.sec, sections.length - 1);
+      secStartedAt = draft.secStartedAt;
+      cur = draft.cur;
+    }
   }
-  if (test.time_limit_min) {
-    deadline = startedAt + test.time_limit_min * 60000;
-    document.getElementById('clock').style.display = 'inline-flex';
-    ticker = setInterval(tick, 1000);
-    tick();
+  if (exam) {
+    secStartedAt = secStartedAt || startedAt;
+    if (cur < sections[sec].from || cur >= sections[sec].to) cur = sections[sec].from;
   }
+  startClock();
 
   document.getElementById('t-title').textContent = test.title;
   document.getElementById('t-sub').textContent =
     [test.courses?.title, `${questions.length} question${questions.length === 1 ? '' : 's'}`,
      `pass mark ${passMarks(test.passing_score_pct, questions.reduce((t, q) => t + (q.points || 1), 0))}`].filter(Boolean).join(' · ');
   document.getElementById('submit-btn').style.display = 'inline-flex';
+  if (exam) document.getElementById('sheet-btn').style.display = 'inline-flex';
   saveDraft();
 
   renderQuestions();
@@ -212,14 +284,23 @@ function readDraft() {
     const ids = new Set(questions.map(q => q.id));
     const kept = {};
     for (const [qid, v] of Object.entries(d.answers)) if (ids.has(qid)) kept[qid] = v;
-    return { answers: kept, startedAt: Number(d.startedAt) || null };
+    return {
+      answers: kept, startedAt: Number(d.startedAt) || null,
+      flags: Array.isArray(d.flags) ? d.flags.filter(id => ids.has(id)) : [],
+      sec: Number.isInteger(d.sec) && d.sec >= 0 ? d.sec : 0,
+      secStartedAt: Number(d.secStartedAt) || null,
+      cur: Number.isInteger(d.cur) && d.cur >= 0 && d.cur < questions.length ? d.cur : 0,
+    };
   } catch (_) { return null; }
 }
 
 function saveDraft() {
   if (me.preview || submitted) return;
   try {
-    localStorage.setItem(draftKey(), JSON.stringify({ answers, startedAt, savedAt: Date.now() }));
+    localStorage.setItem(draftKey(), JSON.stringify({
+      answers, startedAt, savedAt: Date.now(),
+      ...(exam ? { flags: [...flags], sec, secStartedAt, cur } : {}),
+    }));
   } catch (_) { /* storage full or blocked: the test still works, it just will not survive a reload */ }
 }
 
@@ -261,12 +342,117 @@ function tick() {
   clock.classList.toggle('low', left < 120000);
 
   // Time up: hand in what they have rather than throwing it away. A
-  // half-finished test scored is worth more than nothing recorded.
+  // half-finished test scored is worth more than nothing recorded. In a
+  // sectioned exam that closes the section and opens the next one.
   if (left <= 0) {
     clearInterval(ticker);
+    if (exam && sec < sections.length - 1) {
+      showToast(`Time is up for section ${sec + 1} — on to section ${sec + 2}.`, 'info');
+      nextSection();
+      return;
+    }
     showToast('Time is up — handing in what you have.', 'info');
     submitTest(true);
   }
+}
+
+// The clock for the test, or in exam mode for the section being sat.
+function startClock() {
+  clearInterval(ticker);
+  const minutes = exam ? sections[sec].minutes : test.time_limit_min;
+  if (!minutes) { document.getElementById('clock').style.display = 'none'; return; }
+  deadline = (exam ? secStartedAt : startedAt) + minutes * 60000;
+  document.getElementById('clock').style.display = 'inline-flex';
+  ticker = setInterval(tick, 1000);
+  tick();
+}
+
+// ── Exam mode ─────────────────────────────────────────────────────
+// How the paper is split. The teacher's sections are used only while
+// they still add up to the questions on the paper; a test edited since
+// falls back to one section on the paper's own time limit, so no
+// question is ever out of reach.
+function examSections() {
+  const set = Array.isArray(test.exam_sections) ? test.exam_sections : [];
+  const total = set.reduce((t, x) => t + (Number(x.questions) || 0), 0);
+  if (set.length > 1 && total === questions.length) {
+    let from = 0;
+    return set.map(x => {
+      const part = { from, to: from + Number(x.questions), minutes: Number(x.minutes) || null };
+      from = part.to;
+      return part;
+    });
+  }
+  return [{ from: 0, to: questions.length, minutes: test.time_limit_min || null }];
+}
+
+function isAnswered(q) { return answers[q.id] != null; }
+
+function goTo(i) {
+  const s = sections[sec];
+  cur = Math.max(s.from, Math.min(s.to - 1, i));
+  saveDraft();
+  renderQuestions();
+  window.scrollTo({ top: 0 });
+}
+
+function toggleFlag(qid) {
+  if (flags.has(qid)) flags.delete(qid); else flags.add(qid);
+  saveDraft();
+  const btn = document.getElementById('flag-btn');
+  if (btn) {
+    const on = flags.has(qid);
+    btn.setAttribute('aria-pressed', String(on));
+    btn.lastChild.textContent = on ? 'Flagged' : 'Flag for review';
+  }
+}
+
+function openSheet() {
+  const s = sections[sec];
+  const qs = questions.slice(s.from, s.to);
+  document.getElementById('sheet-title').textContent = sections.length > 1
+    ? `Section ${sec + 1} of ${sections.length} · questions ${s.from + 1}–${s.to}` : 'All questions';
+  document.getElementById('sheet-grid').innerHTML = qs.map((q, k) => {
+    const i = s.from + k;
+    const cls = [isAnswered(q) && 'answered', flags.has(q.id) && 'flagged', i === cur && 'current'].filter(Boolean).join(' ');
+    const state = [isAnswered(q) ? 'answered' : 'not answered', flags.has(q.id) && 'flagged'].filter(Boolean).join(', ');
+    return `<button type="button" class="nav-cell ${cls}" onclick="closeModal('sheet'); goTo(${i})" aria-label="Question ${i + 1}, ${state}">${i + 1}</button>`;
+  }).join('');
+  const done = qs.filter(isAnswered).length;
+  const flagged = qs.filter(q => flags.has(q.id)).length;
+  document.getElementById('sheet-count').textContent =
+    `${done} of ${qs.length} answered${flagged ? ` · ${flagged} flagged` : ''}`;
+  document.getElementById('sheet-finish').textContent = finishLabel();
+  openModal('sheet');
+}
+
+function finishLabel() {
+  return exam && sec < sections.length - 1 ? `Hand in section ${sec + 1}` : 'Hand in the exam';
+}
+
+// The top button and the sheet's: closes the section, or hands in the
+// paper from the last one. A section closes for good, so say what is
+// still open in it before it goes.
+function handIn() {
+  if (!exam || sec === sections.length - 1) { submitTest(); return; }
+  const s = sections[sec];
+  const qs = questions.slice(s.from, s.to);
+  const blank = qs.filter(q => !isAnswered(q)).length;
+  const flagged = qs.filter(q => flags.has(q.id)).length;
+  const open = [blank && `${blank} unanswered`, flagged && `${flagged} flagged`].filter(Boolean).join(' and ');
+  if (!confirm(`Hand in section ${sec + 1}?${open ? ` You still have ${open}.` : ''} You cannot come back to this section.`)) return;
+  nextSection();
+}
+
+function nextSection() {
+  sec += 1;
+  secStartedAt = Date.now();
+  cur = sections[sec].from;
+  saveDraft();
+  startClock();
+  renderQuestions();
+  window.scrollTo({ top: 0 });
+  showToast(`Section ${sec + 1} of ${sections.length} has started.`, 'info');
 }
 
 // How many options a question marks as right. More than one — the
@@ -325,7 +511,7 @@ function frqBlock(q, i) {
   const given = answers[q.id] || {};
   return `
     <div class="q-block frq-q" id="q-${q.id}">
-      <div class="frq-band">Question ${i + 1} of ${questions.length} · FRQ · ${frqPoints(q).length} points</div>
+      <div class="frq-band"${exam ? ' style="display:flex;align-items:center;justify-content:space-between;gap:10px"' : ''}><span>Question ${i + 1} of ${questions.length} · FRQ · ${frqPoints(q).length} points</span>${exam ? flagButton(q) : ''}</div>
       <div class="frq-body">
       <div class="q-text" style="font-weight:500">${escHtml(q.question_text)}</div>
       ${qImage(q)}
@@ -338,13 +524,13 @@ function frqBlock(q, i) {
     </div>`;
 }
 
-function renderQuestions() {
-  document.getElementById('wrap').innerHTML = questions.map((q, i) => {
-    if (isFrq(q)) return frqBlock(q, i);
-    const multi = isMulti(q);
-    return `
+function questionHtml(q, i) {
+  if (isFrq(q)) return frqBlock(q, i);
+  const multi = isMulti(q);
+  const num = `<div class="q-num">Question ${i + 1} of ${questions.length}${q.points > 1 ? ` · ${q.points} marks` : ''}</div>`;
+  return `
     <div class="q-block" id="q-${q.id}">
-      <div class="q-num">Question ${i + 1} of ${questions.length}${q.points > 1 ? ` · ${q.points} marks` : ''}</div>
+      ${exam ? `<div class="q-head">${num}${flagButton(q)}</div>` : num}
       <div class="q-text">${escHtml(q.question_text)}</div>
       ${qImage(q)}
       ${multi ? `<p class="small muted" style="margin:-4px 0 10px">Choose ${rightAnswers(q).length} answers — you only score if you get all of them and nothing else.</p>` : ''}
@@ -354,7 +540,39 @@ function renderQuestions() {
           <span>${escHtml(o.text)}</span>
         </label>`).join('')}
     </div>`;
-  }).join('') + `
+}
+
+function flagButton(q) {
+  const on = flags.has(q.id);
+  return `<button type="button" class="flag-btn" id="flag-btn" aria-pressed="${on}" onclick="toggleFlag('${q.id}')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg><span>${on ? 'Flagged' : 'Flag for review'}</span></button>`;
+}
+
+// One question on screen, with Back and Next inside its section. The
+// last question's Next opens the sheet, so the student sees what is
+// still blank or flagged before handing the section in.
+function examHtml() {
+  const s = sections[sec];
+  const q = questions[cur];
+  const last = cur === s.to - 1;
+  return `
+    <div class="sec-strip">
+      <span>${sections.length > 1 ? `<span class="sec-name">Section ${sec + 1} of ${sections.length}</span> · ` : ''}Question ${cur - s.from + 1} of ${s.to - s.from}</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="openSheet()">See all questions</button>
+    </div>
+    ${questionHtml(q, cur)}
+    <div class="exam-nav">
+      <button class="btn btn-outline" onclick="goTo(${cur - 1})" ${cur === s.from ? 'disabled' : ''}>Back</button>
+      ${last
+        ? `<button class="btn btn-primary" onclick="openSheet()">Review and hand in</button>`
+        : `<button class="btn btn-primary" onclick="goTo(${cur + 1})">Next</button>`}
+    </div>
+    <p class="small muted" style="margin-top:14px;text-align:center" id="answered-count"></p>`;
+}
+
+function renderQuestions() {
+  document.getElementById('submit-btn').textContent = exam ? finishLabel() : 'Hand in';
+  document.getElementById('wrap').innerHTML = exam ? examHtml() : questions.map((q, i) => questionHtml(q, i)).join('') + `
     <div style="text-align:center;margin-top:24px">
       <button class="btn btn-primary btn-lg" onclick="submitTest()">Hand in my answers</button>
       <p class="small muted" style="margin-top:12px" id="answered-count"></p>
@@ -395,13 +613,17 @@ function renderQuestions() {
       saveDraft();
     });
   });
-  updateCount();
+  // Only the question on screen exists in exam mode, so it is filled in
+  // from the answers each time it is drawn.
+  if (exam) restoreTicks(); else updateCount();
 }
 
 function updateCount() {
-  const n = Object.keys(answers).length;
-  document.getElementById('answered-count').textContent =
-    `${n} of ${questions.length} answered${n < questions.length ? ' — unanswered questions score zero.' : ''}`;
+  const el = document.getElementById('answered-count');
+  if (!el) return;
+  const pool = exam ? questions.slice(sections[sec].from, sections[sec].to) : questions;
+  const n = pool.filter(isAnswered).length;
+  el.textContent = `${n} of ${pool.length} answered${exam && sections.length > 1 ? ' in this section' : ''}${n < pool.length ? ' — unanswered questions score zero.' : ''}`;
 }
 
 async function submitTest(auto = false) {
@@ -418,6 +640,7 @@ async function submitTest(auto = false) {
   window.removeEventListener('beforeunload', warnOnLeave);
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('clock').style.display = 'none';
+  document.getElementById('sheet-btn').style.display = 'none';
 
   // Marked here so the student sees their result at once; the same
   // numbers are stored, and the teacher sees exactly these. Written

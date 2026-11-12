@@ -62,6 +62,14 @@ export default handler(async (req, res) => {
     is_active: body.is_active !== false,
   };
   if (kind) fields.kind = kind;
+  // Sent only by a page that knows the column is there
+  // (supabase-migration-v23.sql), so an older space keeps saving.
+  if (body.exam_sections !== undefined) {
+    fields.exam_sections = kind && kind !== 'mock' ? null : normaliseSections(body.exam_sections, questions.length);
+    // The paper's time limit is the sections' clocks added up, so the
+    // tests list and the scores page still show the right length.
+    if (fields.exam_sections) fields.time_limit_min = fields.exam_sections.reduce((t, x) => t + x.minutes, 0);
+  }
 
   let testId = body.test_id || null;
   if (testId) {
@@ -213,6 +221,30 @@ function normaliseFrq(raw, n, text) {
     frq: { points },
     rubric: { general: cleanText(raw?.rubric?.general, { max: 6000 }), points: rubricPoints },
   };
+}
+
+// A mock exam in timed sections: each is a run of questions, in the
+// paper's order, with its own clock. Every question has to land in
+// exactly one section, or a student could never reach the ones left over.
+// A single section is the paper on its own time limit, so it is stored
+// as none.
+function normaliseSections(list, questionCount) {
+  if (list == null || (Array.isArray(list) && !list.length)) return null;
+  if (!Array.isArray(list)) throw new HttpError(400, 'The exam sections were not sent as a list.');
+  if (list.length > 6) throw new HttpError(400, 'A mock exam can have at most 6 sections.');
+  const sections = list.map((raw, i) => ({
+    questions: positiveIntOrNull(raw?.questions, `number of questions in section ${i + 1}`),
+    minutes: positiveIntOrNull(raw?.minutes, `time for section ${i + 1}`),
+  }));
+  sections.forEach((x, i) => {
+    if (!x.questions) throw new HttpError(400, `Say how many questions are in section ${i + 1}.`);
+    if (!x.minutes) throw new HttpError(400, `Give section ${i + 1} a time in minutes.`);
+  });
+  const total = sections.reduce((t, x) => t + x.questions, 0);
+  if (total !== questionCount) {
+    throw new HttpError(400, `The sections hold ${total} question${total === 1 ? '' : 's'} but the test has ${questionCount}. They have to add up.`);
+  }
+  return sections.length > 1 ? sections : null;
 }
 
 function parseWhen(value, which) {
