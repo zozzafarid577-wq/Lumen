@@ -1591,3 +1591,8 @@ CREATE INDEX IF NOT EXISTS idx_flashcards_deck ON public.flashcards (deck_id, or
 -- v23 — mock exams sat in timed sections (also supabase-migration-v23.sql)
 -- ────────────────────────────────────────
 ALTER TABLE public.practice_tests ADD COLUMN IF NOT EXISTS exam_sections JSONB;
+
+-- ────────────────────────────────────────
+-- v24 — reports that go to parents on their own (also supabase-migration-v24.sql)
+-- ────────────────────────────────────────
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS parent_reports JSONB NOT NULL DEFAULT '{}'::jsonb;

@@ -46,17 +46,22 @@ export default async function handler(req, res) {
     }
     try {
       // The morning run: group reports for tomorrow's groups, the week's
-      // hardest questions, and yesterday's results sent to parents. One
-      // schedule for all three; one failing does not stop the others.
+      // hardest questions, yesterday's results sent to parents, and the
+      // daily and weekly reports parents get on their own. One schedule
+      // for all of them; one failing does not stop the others.
       if (req.query.task === 'morning') {
         const { runGroupReports } = await import('./_lib/group-report.js');
         const { runHardQuestions } = await import('./_lib/hard-questions.js');
         const { runParentDigest } = await import('./_lib/parent-digest.js');
+        const { runParentReports } = await import('./_lib/parent-reports.js');
         const step = async (name, fn) => { try { return await fn(); } catch (err) { console.error(`morning ${name} failed:`, err); return { error: err.message }; } };
         const groups = await step('group reports', () => runGroupReports());
         const hard = await step('hardest questions', () => runHardQuestions());
         const parents = await step('parent digest', () => runParentDigest());
+        // Last: it is the one that can run long, and it stops itself in time.
+        const reports = await step('parent reports', () => runParentReports());
         return res.status(200).json({ ok: true, groups,
+          reports: reports.error ? reports : { day: reports.day, teachers: reports.teachers.length },
           hard: hard.error ? hard : { day: hard.day, teachers: hard.teachers.length },
           parents: parents.error ? parents : { day: parents.day, teachers: parents.teachers.length } });
       }

@@ -236,6 +236,35 @@
       </div>
     </div>
 
+    <!-- ── REPORTS TO PARENTS (teacher only) ───────────────────── -->
+    <div class="card mb24" id="reports-card" style="display:none">
+      <div class="card-header"><span class="card-title">Reports to parents</span></div>
+      <div class="card-body">
+        <div class="alert alert-error" id="rp-alert" style="display:none;margin-bottom:16px"></div>
+        <p class="small muted mb16">
+          Sent by Lumen every morning, in English and Arabic, to each student's parent email.
+          Parents still get each test result the moment it is finished; these come on top.
+        </p>
+        <label class="form-check"><input type="checkbox" id="rp-daily">
+          <span><strong>Daily evaluation</strong> — the morning after any day with a test, a lesson watched or homework due: the marks, the lessons, and any homework not handed in. A quiet day sends nothing.</span></label>
+        <label class="form-check" style="margin-top:10px"><input type="checkbox" id="rp-weekly" onchange="document.getElementById('rp-day-row').style.display = this.checked ? '' : 'none'">
+          <span><strong>Weekly report</strong> — the week in numbers, and every unit sorted into <em>strong</em> (75% and up), <em>getting there</em> (60–74%) and <em>needs work</em> (below 60%), with the weakest named as next week's focus. Each test counts once, at the student's best attempt.</span></label>
+        <div class="form-group" id="rp-day-row" style="max-width:240px;margin:12px 0 0 28px;display:none">
+          <label class="form-label" for="rp-day">Sent on</label>
+          <select class="form-select" id="rp-day">
+            <option value="6">Saturday</option><option value="0">Sunday</option><option value="1">Monday</option>
+            <option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:18px;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="rp-save" onclick="saveReports()">Save</button>
+          <input type="email" class="form-input" id="rp-to" placeholder="Your email" style="max-width:240px" aria-label="Where to send the sample">
+          <button class="btn btn-outline btn-sm" id="rp-test" onclick="testReports()">Send me a sample</button>
+        </div>
+        <p class="form-hint">A sample sends both reports for your first three students to you, marked [TEST]. No parent gets it.</p>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header"><span class="card-title">Session</span></div>
       <div class="card-body">
@@ -283,6 +312,16 @@ let me = null;
     document.getElementById('sp-video').value = me.teacher.intro_video_url || '';
     document.getElementById('sp-bio').value = me.teacher.bio || '';
     openLook();
+    // Only once the space has the column (supabase-migration-v24.sql).
+    if ('parent_reports' in me.teacher) {
+      const rp = me.teacher.parent_reports || {};
+      document.getElementById('reports-card').style.display = 'block';
+      document.getElementById('rp-daily').checked = rp.daily === true;
+      document.getElementById('rp-weekly').checked = rp.weekly === true;
+      document.getElementById('rp-day').value = String(Number.isInteger(rp.weekly_day) ? rp.weekly_day : 6);
+      document.getElementById('rp-day-row').style.display = rp.weekly ? '' : 'none';
+      document.getElementById('rp-to').value = me.email || '';
+    }
   }
   // One section at a time, with a menu beside it (js/ui.js). Someone who
   // has to change their password first lands on that section.
@@ -365,6 +404,44 @@ async function saveSpace() {
   say('sp-alert', '');
   showToast('Space saved.', 'success');
   setTimeout(() => location.reload(), 700);
+}
+
+// ── Reports to parents ────────────────────────────────────────────
+async function saveReports() {
+  const btn = document.getElementById('rp-save');
+  btn.disabled = true;
+  const parent_reports = {
+    daily: document.getElementById('rp-daily').checked,
+    weekly: document.getElementById('rp-weekly').checked,
+    weekly_day: Number(document.getElementById('rp-day').value),
+  };
+  const { error } = await sb.from('teachers').update({ parent_reports }).eq('id', me.teacher_id);
+  btn.disabled = false;
+  if (error) { say('rp-alert', friendlyError(error.message)); return; }
+  say('rp-alert', '');
+  me.teacher.parent_reports = parent_reports;
+  showToast(parent_reports.daily || parent_reports.weekly ? 'Saved — parents get them from tomorrow morning.' : 'Saved — no reports go to parents.', 'success');
+}
+
+async function testReports() {
+  const btn = document.getElementById('rp-test');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const out = await apiPost('/api/support', { flow: 'parent-reports-test', to: document.getElementById('rp-to').value.trim() });
+    const results = out.teachers?.[0]?.results || [];
+    const sent = results.filter(r => r.sent).length;
+    const failed = results.find(r => r.error);
+    if (failed) say('rp-alert', `Not sent: ${failed.error}`);
+    else say('rp-alert', '');
+    showToast(sent ? `${sent} sample${sent === 1 ? '' : 's'} sent to ${out.to}.`
+      : 'Nothing to send yet — none of your first three students has a test, lesson or homework to report.', sent ? 'success' : 'info');
+  } catch (err) {
+    say('rp-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send me a sample';
+  }
 }
 
 // ── Test sections ─────────────────────────────────────────────────

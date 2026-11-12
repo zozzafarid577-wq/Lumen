@@ -581,6 +581,81 @@ export function progressReport({ studentName, spaceName, stats, recent = [], tea
   };
 }
 
+// The morning after a day with something in it (api/_lib/parent-reports.js):
+// what the child finished, watched and missed — nothing more. Sent on its
+// own, so it says plainly who it is from and that it comes every such day.
+export function dailyEvaluation({ studentName, spaceName, teacherEmail, dayLabel, tests = [], lessons = 0, homeworkDue = 0, homeworkDone = 0, missed = [] }) {
+  const marks = (score, max) => (score == null || max == null ? '—' : `${score}/${max}`);
+  const rows = [['Tests finished · الاختبارات', String(tests.length)], ['Lessons watched · الدروس', String(lessons)]];
+  if (homeworkDue) rows.push(['Homework handed in · الواجبات', `${homeworkDone} / ${homeworkDue}`]);
+  const bullets = [
+    ...tests.map(t => `${esc(t.title)} — <strong>${esc(marks(t.score, t.maxScore))}</strong>${t.passed ? '' : ' (below the pass mark)'}`),
+    ...missed.map(m => `<strong style="color:#B42318">Homework not handed in:</strong> ${esc(m)}`),
+  ];
+  return {
+    subject: `${studentName} — ${dayLabel} · التقييم اليومي`,
+    html: layout({
+      heading: `${studentName} — ${dayLabel}`,
+      intro: `Yesterday at <strong>${esc(spaceName || 'Lumen')}</strong>, at a glance.`,
+      rows, bullets,
+      note: 'You get this the morning after any day your child sat a test, watched a lesson or had homework due. '
+        + 'Reply to talk it through with their teacher' + (teacherEmail ? ` — ${esc(teacherEmail)}.` : '.'),
+      loginUrl: '', cta: '',
+      arabic: {
+        heading: `${esc(studentName)} — التقييم اليومي`,
+        intro: `ملخص يوم أمس في <strong>${esc(spaceName || 'Lumen')}</strong>: الاختبارات اللي اتحلت ودرجاتها، والدروس اللي اتشافت، والواجبات اللي ماتسلّمتش.`,
+        note: 'بيوصلك التقييم ده الصبح بعد أي يوم فيه امتحان أو درس أو واجب. للتواصل، رد على الإيميل ده.',
+      },
+    }),
+  };
+}
+
+// Once a week: the week in numbers, and every unit the child has been
+// tested on, sorted by how they are doing in it, with the weakest named
+// as the focus. Marks per unit are averages of best attempts, so they are
+// shown as percentages — the one place a parent gets one.
+export function weeklyReport({ studentName, spaceName, teacherEmail, weekLabel, week, units = [] }) {
+  const rows = [
+    ['Tests this week · اختبارات الأسبوع', String(week.tests)],
+    ['Average this week · متوسط الأسبوع', week.average == null ? '—' : `${week.average}%`],
+    ['Lessons watched · الدروس', String(week.lessons)],
+  ];
+  if (week.homeworkDue) rows.push(['Homework handed in · الواجبات', `${week.homeworkDone} / ${week.homeworkDue}`]);
+  const LEVEL = {
+    strong: ['Strong', 'قوي', '#067647'],
+    getting: ['Getting there', 'في الطريق', '#B54708'],
+    weak: ['Needs work', 'محتاج تركيز', '#B42318'],
+  };
+  const unitLine = (u) => `<strong style="color:${LEVEL[u.level][2]}">${LEVEL[u.level][0]}</strong> — ${esc(u.title)} <span style="color:#8A8089">(${u.pct}%)</span>`;
+  const order = { weak: 0, getting: 1, strong: 2 };
+  const sorted = units.slice().sort((a, b) => order[a.level] - order[b.level] || a.pct - b.pct);
+  const focus = sorted.filter(u => u.level !== 'strong').slice(0, 2);
+  const bullets = [
+    ...(units.length ? ['<strong>Unit by unit</strong>', ...sorted.map(unitLine)] : []),
+    ...(focus.length ? [`<strong>Focus for next week:</strong> ${focus.map(u => esc(u.title)).join(' and ')}`] : []),
+    ...week.missed.map(m => `<strong style="color:#B42318">Homework not handed in:</strong> ${esc(m)}`),
+  ];
+  return {
+    subject: `${studentName} — weekly report · التقرير الأسبوعي`,
+    html: layout({
+      heading: `${studentName} — the week of ${weekLabel}`,
+      intro: `This week at <strong>${esc(spaceName || 'Lumen')}</strong>, and where your child stands in each unit so far. `
+        + 'A unit counts each test once, at your child’s best attempt.',
+      rows, bullets,
+      note: 'Sent every week by your child’s teacher through Lumen. Reply to talk it through'
+        + (teacherEmail ? ` — ${esc(teacherEmail)}.` : '.'),
+      loginUrl: '', cta: '',
+      arabic: {
+        heading: `${esc(studentName)} — التقرير الأسبوعي`,
+        intro: 'ده تقرير الأسبوع: عدد الاختبارات والمتوسط والدروس والواجبات، وكمان مستوى ابنك / بنتك في كل unit: '
+          + (units.length ? sorted.map(u => `${esc(u.title)} — <strong>${LEVEL[u.level][1]}</strong> (${u.pct}%)`).join('، ') : 'لسه مافيش اختبارات')
+          + (focus.length ? `. التركيز الأسبوع الجاي: <strong>${focus.map(u => esc(u.title)).join(' و ')}</strong>.` : '.'),
+        note: 'التقرير ده بيتبعت كل أسبوع من مدرّس ابنك / بنتك. للتواصل، رد على الإيميل ده.',
+      },
+    }),
+  };
+}
+
 export function teacherWelcome({ name, email, password, spaceName, loginUrl }) {
   return {
     subject: 'Your Lumen space is ready',
