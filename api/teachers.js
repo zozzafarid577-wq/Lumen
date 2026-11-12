@@ -2,6 +2,7 @@ import { admin } from './_lib/supabase.js';
 import { handler, HttpError, authenticate, requireRoles, logActivity } from './_lib/auth.js';
 import { cleanEmail, cleanName, cleanSlug, cleanText, generatePassword, findUserByEmail } from './_lib/util.js';
 import { sendEmail, teacherWelcome, signInEmailChanged, loginUrlFor } from './_lib/email.js';
+import { mainOf, groupSpaces, groupTeacher } from './_lib/spaces.js';
 
 // The Lumen console: opening a teacher's space, putting them on a plan,
 // and raising the invoices that go with it.
@@ -32,6 +33,7 @@ export default handler(async (req, res) => {
 // space, the teacher's sign-in, and the subscription in one go, and hands
 // over a password.
 async function createSpace(res, actor, body, req) {
+  if (body.group_with) return createSubject(res, actor, body);
   const fullName = cleanName(body.full_name, 'Teacher name');
   const email    = cleanEmail(body.email);
   const spaceName = cleanName(body.display_name || fullName, 'Space name');
@@ -117,6 +119,35 @@ async function createSpace(res, actor, body, req) {
     teacher_id: teacher.id, slug, email, password,
     email_sent: mail.sent, email_error: mail.error || null,
   });
+}
+
+// ── Another subject for a teacher who already has a space ─────────
+// A new space of its own — its own students, courses and brand — filed
+// under the teacher's main space. No new sign-in (the teacher switches to
+// it from their dashboard) and no subscription: it is on the main space's
+// plan and shares its student places (api/_lib/spaces.js).
+async function createSubject(res, actor, body) {
+  const anchor = await getTeacher(body.group_with);
+  const mainId = mainOf(anchor);
+  const main = mainId === anchor.id ? anchor : await getTeacher(mainId);
+  const spaceName = cleanName(body.display_name, 'Space name');
+  const slug = cleanSlug(body.slug || spaceName);
+  const subject = cleanText(body.subject, { max: 80 });
+
+  const { data: taken } = await admin.from('teachers').select('id').eq('slug', slug).maybeSingle();
+  if (taken) throw new HttpError(409, 'That space name is already taken.');
+
+  const { data: teacher, error } = await admin.from('teachers').insert({
+    slug, display_name: spaceName, subject, group_id: main.id,
+    contact_email: main.contact_email, contact_phone: main.contact_phone, whatsapp: main.whatsapp,
+    brand_color: main.brand_color, logo_url: main.logo_url,
+  }).select().single();
+  if (error) throw new HttpError(500, error.message?.includes('group_id')
+    ? 'Run supabase-migration-v25.sql first — the database does not know about subjects yet.'
+    : 'Could not create that subject.');
+
+  await logActivity(teacher.id, actor, 'space_created', `${spaceName} — a subject of ${main.display_name}`);
+  return res.status(200).json({ teacher_id: teacher.id, slug, subject_of: main.display_name });
 }
 
 // ── Correct a space that is already open ──────────────────────────
@@ -282,6 +313,7 @@ function requirePerson(person, what) {
 // ── Move a teacher onto a plan ────────────────────────────────────
 async function setPlan(res, actor, body) {
   const teacher = await getTeacher(body.teacher_id);
+  if (teacher.group_id) throw new HttpError(400, 'This is a subject of another space and shares its plan. Change the plan on the main space.');
   const plan = body.plan_code ? await getPlan(body.plan_code) : null;
 
   const patch = {
@@ -298,6 +330,14 @@ async function setPlan(res, actor, body) {
   if (Number.isInteger(body.student_limit)) {
     if (body.student_limit < 0 || body.student_limit > 5000) throw new HttpError(400, 'That student limit is not sensible.');
     patch.student_limit = body.student_limit;
+  }
+  // A custom price, agreed with this teacher alone. Kept on Lumen's side:
+  // teachers never read their fee (supabase-migration-v25.sql).
+  for (const k of ['monthly_fee_egp', 'setup_fee_egp']) {
+    if (body[k] === undefined || body[k] === null || body[k] === '') continue;
+    const n = Number(body[k]);
+    if (!Number.isInteger(n) || n < 0) throw new HttpError(400, 'A fee has to be a whole number of EGP.');
+    patch[k] = n;
   }
   if (body.status === 'cancelled') patch.cancelled_at = new Date().toISOString();
   if (body.notes !== undefined) patch.notes = cleanText(body.notes, { max: 500 });
@@ -366,6 +406,15 @@ async function countTenant(teacherId) {
 async function deleteSpace(res, actor, body) {
   const teacher = await getTeacher(body.teacher_id);
 
+  // A main space with subjects under it holds their plan and their
+  // teacher's sign-in. Those go first, one by one, so nothing is lost by
+  // accident.
+  const group = await groupSpaces(teacher.id);
+  const subjects = group.filter(x => x.group_id === teacher.id);
+  if (!teacher.group_id && subjects.length) {
+    throw new HttpError(400, `This space has ${subjects.length} subject${subjects.length === 1 ? '' : 's'} under it (${subjects.map(x => x.display_name).join(', ')}). Delete ${subjects.length === 1 ? 'it' : 'them'} first.`);
+  }
+
   // Typing the slug is the whole safety mechanism. An id in a request
   // body is easy to get wrong; a slug typed by hand is not something
   // that happens by accident.
@@ -382,6 +431,17 @@ async function deleteSpace(res, actor, body) {
   // so nobody in this space could ever be re-created, and each would
   // still carry app_metadata pointing at a tenant that no longer
   // exists. So the accounts go first.
+  // Deleting a subject keeps the teacher: their one sign-in belongs to
+  // every subject, so if it is sitting in this one it moves back to the
+  // main space instead of going with it.
+  if (teacher.group_id) {
+    const { data: me } = await admin.from('profiles').select('id').eq('teacher_id', teacher.id).eq('role', 'teacher');
+    for (const t of me || []) {
+      await admin.auth.admin.updateUserById(t.id, { app_metadata: { role: 'teacher', teacher_id: teacher.group_id } });
+      await admin.from('profiles').update({ teacher_id: teacher.group_id }).eq('id', t.id);
+    }
+  }
+
   const { data: people, error: pErr } = await admin
     .from('profiles').select('id, full_name, role').eq('teacher_id', teacher.id);
   if (pErr) throw new HttpError(500, 'Could not list the accounts in that space.');
@@ -464,12 +524,11 @@ async function getTeacher(id) {
 // The one account in a space that owns it. Assistants and students share
 // the tenant but are not it, so the role filter is what makes this the
 // teacher rather than whoever happens to come back first.
+// In a group of subjects the one teacher account may be sitting in any of
+// them, so it is looked for across the group.
 async function getTeacherProfile(teacherId) {
-  const { data, error } = await admin
-    .from('profiles').select('id, full_name, email, phone, role, teacher_id')
-    .eq('teacher_id', teacherId).eq('role', 'teacher').maybeSingle();
-  if (error) throw new HttpError(500, 'Could not load that teacher’s account.');
-  return data || null;
+  try { return await groupTeacher(teacherId); }
+  catch (_) { throw new HttpError(500, 'Could not load that teacher’s account.'); }
 }
 
 async function getPlan(code) {

@@ -33,6 +33,41 @@ export default handler(async (req, res) => {
   // Phone pop-ups ride on this function: the plan allows twelve, and
   // "tell someone something" is close enough to what this one does.
   if (body.flow === 'push') return runPush(req, res, profile);
+  // A teacher with several subjects: list them, and move the sign-in to
+  // another (api/_lib/spaces.js). The browser refreshes its session after.
+  if (body.flow === 'my-spaces') {
+    if (!['teacher', 'assistant'].includes(profile.role) || !profile.teacher_id) return res.status(200).json({ spaces: [] });
+    const { groupSpaces } = await import('./_lib/spaces.js');
+    const spaces = profile.role === 'teacher' ? await groupSpaces(profile.teacher_id) : [];
+    return res.status(200).json({ current: profile.teacher_id,
+      spaces: spaces.filter(x => x.is_active).map(x => ({ id: x.id, name: x.display_name, subject: x.subject || null, main: !x.group_id })) });
+  }
+  if (body.flow === 'switch-space') {
+    const { switchSpace } = await import('./_lib/spaces.js');
+    return res.status(200).json(await switchSpace(profile, body.teacher_id));
+  }
+  // What the teacher's Subscription page shows: the plan and its places,
+  // shared across their subjects. Never a price — what a teacher pays is
+  // agreed with Lumen directly and kept on Lumen's side.
+  if (body.flow === 'my-plan') {
+    if (!['teacher', 'assistant'].includes(profile.role) || !profile.teacher_id) throw new HttpError(403, 'Only staff can see the plan.');
+    const { getSubscription, countStudents } = await import('./_lib/subscription.js');
+    const { groupSpaces } = await import('./_lib/spaces.js');
+    const [sub, used, spaces] = await Promise.all([getSubscription(profile.teacher_id), countStudents(profile.teacher_id), groupSpaces(profile.teacher_id)]);
+    let planName = null;
+    if (sub?.plan_code) {
+      const { data: plan } = await admin.from('plans').select('name').eq('code', sub.plan_code).maybeSingle();
+      planName = plan?.name || null;
+    }
+    return res.status(200).json({
+      plan: sub ? {
+        name: planName, status: sub.status, student_limit: sub.student_limit,
+        trial_ends_at: sub.trial_ends_at, current_period_end: sub.current_period_end,
+      } : null,
+      used,
+      subjects: spaces.map(x => ({ id: x.id, name: x.display_name, subject: x.subject || null })),
+    });
+  }
   // Files on Cloudflare R2 (api/_lib/files.js) and copying a course for a
   // new batch (api/_lib/course-copy.js). Each checks its own permissions.
   if (body.flow === 'file-upload') return res.status(200).json(await (await import('./_lib/files.js')).lessonUploadLink(profile, body));

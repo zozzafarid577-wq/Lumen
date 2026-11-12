@@ -1,5 +1,6 @@
 import { admin } from './supabase.js';
 import { HttpError } from './auth.js';
+import { getSpace, mainOf, groupIds } from './spaces.js';
 
 // Statuses that still entitle a teacher to add students. `past_due` does
 // not: a plan that is not being paid for should not keep growing. Their
@@ -7,16 +8,21 @@ import { HttpError } from './auth.js';
 // the class because of the teacher's invoice.
 const ADDING_ALLOWED = new Set(['trial', 'active']);
 
+// A subject under a main space has no subscription of its own: it is on
+// the main space's plan (api/_lib/spaces.js).
 export async function getSubscription(teacherId) {
-  const { data } = await admin.from('subscriptions').select('*').eq('teacher_id', teacherId).single();
+  const space = await getSpace(teacherId);
+  const { data } = await admin.from('subscriptions').select('*').eq('teacher_id', mainOf(space) || teacherId).single();
   return data || null;
 }
 
+// Every subject shares the plan's places, so they are counted together.
 export async function countStudents(teacherId) {
+  const ids = await groupIds(teacherId);
   const { count } = await admin
     .from('profiles')
     .select('id', { count: 'exact', head: true })
-    .eq('teacher_id', teacherId)
+    .in('teacher_id', ids)
     .eq('role', 'student')
     .eq('is_active', true);
   return count || 0;
@@ -44,7 +50,7 @@ export async function assertCanAddStudent(teacherId) {
   }
   if (!ADDING_ALLOWED.has(status)) {
     throw new HttpError(402, status === 'past_due'
-      ? 'Your subscription is past due, so new student accounts are paused. Settle the latest invoice to continue — your current students are unaffected.'
+      ? 'Your subscription is past due, so new student accounts are paused. Contact Lumen to continue — your current students are unaffected.'
       : 'Your subscription is not active, so new student accounts are paused. Your existing content and students are unaffected.');
   }
   if (used >= allowed) {

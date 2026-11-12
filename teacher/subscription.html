@@ -71,26 +71,12 @@
       </div>
     </div>
 
-    <div class="card mb24">
-      <div class="card-header">
-        <span class="card-title">Invoices</span>
-        <span class="small muted">Raised by Lumen</span>
-      </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>Issued</th><th>What for</th><th>Period</th><th class="num">Amount</th><th>Status</th></tr></thead>
-          <tbody id="inv-rows"></tbody>
-        </table>
-      </div>
-    </div>
-
     <div class="card">
       <div class="card-header"><span class="card-title">Changing plan</span></div>
       <div class="card-body">
         <p class="small mb16">
-          Plans and student limits are part of your agreement with Lumen, so they are changed by us rather than
-          from this page. Tell us what you need and we will move you — moving up a tier takes effect immediately
-          and nothing has to be rebuilt.
+          Your plan is agreed with Lumen directly, so it is changed by us rather than from this page. Need more
+          student places, or another subject? Tell us and we will set it up — nothing has to be rebuilt.
         </p>
         <div class="row">
           <a href="/contact.html" class="btn btn-primary btn-sm">Ask for a change</a>
@@ -123,14 +109,17 @@ const STATUS_LABEL = {
   me = await requireAuth('teacher');
   if (!me) return;
   renderShell('teacher', me, { title: 'Subscription' });
-  await Promise.all([loadPlan(), loadInvoices()]);
+  await loadPlan();
 })();
 
+// The plan comes from the server (api/support.js, flow "my-plan"): its
+// name, status and places, never what it costs — that is agreed with
+// Lumen and stays on Lumen's side.
 async function loadPlan() {
-  const [{ data: sub }, allow] = await Promise.all([
-    sb.from('subscriptions').select('*, plans(name, package, listing)').eq('teacher_id', me.teacher_id).maybeSingle(),
-    studentAllowance(),
-  ]);
+  let out = null;
+  try { out = await apiPost('/api/support', { flow: 'my-plan' }); } catch (_) {}
+  const allow = await studentAllowance();
+  const sub = out?.plan || null;
 
   const planBox = document.getElementById('plan-box');
   const usageBox = document.getElementById('usage-box');
@@ -148,25 +137,21 @@ async function loadPlan() {
   planBox.innerHTML = `
     <div class="spread mb16">
       <div>
-        <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800">${escHtml(sub.plans?.name || 'Custom plan')}</div>
-        <div class="small muted">${sub.plans?.package === 'full' ? 'Platform + student support' : sub.plans ? 'Platform management' : 'Agreed directly with Lumen'}</div>
+        <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800">${escHtml(sub.name || 'Your Lumen plan')}</div>
+        <div class="small muted">Agreed directly with Lumen</div>
       </div>
       <span class="badge ${badgeClass}">${escHtml(label)}</span>
     </div>
-    <div style="display:flex;align-items:baseline;gap:8px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
-      <span style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;color:var(--primary);line-height:1">${Number(sub.monthly_fee_egp).toLocaleString('en-US')}</span>
-      <span style="font-weight:700">EGP</span><span class="small muted">/ month</span>
-    </div>
-    <div class="spread small" style="margin-top:14px">
+    <div class="spread small" style="padding-top:14px;border-top:1px solid var(--border)">
       <span class="muted">${sub.status === 'trial' ? 'Trial ends' : 'Renews'}</span>
       <span style="font-weight:600">${renews ? fmtDate(renews) : '—'}</span>
     </div>
-    ${sub.setup_fee_egp ? `<div class="spread small" style="margin-top:8px">
-      <span class="muted">Setup fee</span>
-      <span style="font-weight:600">${egp(sub.setup_fee_egp)} · ${sub.setup_fee_paid ? 'paid' : 'due'}</span>
+    ${(out?.subjects || []).length > 1 ? `<div class="spread small" style="margin-top:8px">
+      <span class="muted">Subjects on this plan</span>
+      <span style="font-weight:600;text-align:right">${out.subjects.map(x => escHtml(x.name)).join(' · ')}</span>
     </div>` : ''}
     ${sub.status === 'trial' ? `<div class="alert alert-info" style="margin-top:16px;font-size:.78rem">
-      <div>When the trial ends your space stays exactly as it is — nothing is deleted. Pick a package before then to keep adding students.</div>
+      <div>When the trial ends your space stays exactly as it is — nothing is deleted. Talk to Lumen before then to keep adding students.</div>
     </div>` : ''}`;
 
   const used = allow?.used ?? 0;
@@ -183,28 +168,12 @@ async function loadPlan() {
       ${pctUsed >= 100
         ? 'Every place on your plan is in use. Pausing a student frees theirs without deleting anything.'
         : `${allowed - used} place${allowed - used === 1 ? '' : 's'} left. Paused students do not count against your plan.`}
+      ${(out?.subjects || []).length > 1 ? ' The places are shared by all your subjects.' : ''}
     </p>`;
 
   if (allow) renderSubscriptionNotice(allow);
 }
 
-async function loadInvoices() {
-  const { data, error } = await sb.from('invoices')
-    .select('*').eq('teacher_id', me.teacher_id).order('issued_at', { ascending: false });
-
-  const tbody = document.getElementById('inv-rows');
-  if (error) { tbody.innerHTML = emptyRow(5, friendlyError(error.message)); return; }
-  if (!data?.length) { tbody.innerHTML = emptyRow(5, 'No invoices yet.'); return; }
-
-  tbody.innerHTML = data.map(i => `
-    <tr>
-      <td class="small muted">${fmtDate(i.issued_at)}</td>
-      <td class="small" style="font-weight:600">${escHtml(i.description || i.kind)}</td>
-      <td class="small muted">${i.period_start ? `${fmtDate(i.period_start)} – ${fmtDate(i.period_end)}` : '—'}</td>
-      <td class="num" style="font-weight:600">${egp(i.amount_egp)}</td>
-      <td><span class="badge ${i.status === 'paid' ? 'b-green' : i.status === 'void' ? 'b-gray' : 'b-yellow'}">${escHtml(i.status)}</span></td>
-    </tr>`).join('');
-}
 </script>
 </body>
 </html>

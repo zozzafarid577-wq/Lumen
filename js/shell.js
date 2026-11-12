@@ -111,6 +111,50 @@ function renderShell(which, profile, { title } = {}) {
   if (profile.preview) mountPreviewBanner();
   // The bell, the unread count on Messages, and phone pop-ups.
   if (which !== 'admin' && !profile.preview) mountBell(which, profile);
+  if (which === 'teacher' && profile.role === 'teacher' && !profile.preview) mountSpaceSwitcher(profile);
+}
+
+// A teacher with several subjects (api/_lib/spaces.js) gets a menu at the
+// top of the sidebar to move between them. One sign-in: switching moves
+// the account to that subject and refreshes the session, so every page
+// after it reads that subject's students and courses. Asked for once per
+// visit and kept for the tab, so it costs nothing on every page after.
+async function mountSpaceSwitcher(profile) {
+  const key = `lumen_spaces:${profile.id}:${profile.teacher_id}`;
+  let list = null;
+  try { list = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_) {}
+  if (!list) {
+    try {
+      const out = await apiPost('/api/support', { flow: 'my-spaces' });
+      list = out.spaces || [];
+      try { sessionStorage.setItem(key, JSON.stringify(list)); } catch (_) {}
+    } catch (_) { return; }
+  }
+  if (list.length < 2) return;
+  const scroll = document.querySelector('#sidebar .sidebar-scroll');
+  if (!scroll || document.getElementById('space-switch')) return;
+  const box = document.createElement('div');
+  box.id = 'space-switch';
+  box.style.cssText = 'padding:4px 14px 12px';
+  box.innerHTML = `<label class="nav-section" for="space-select" style="display:block;padding:6px 2px">Subject</label>
+    <select id="space-select" class="form-select" style="width:100%;font-weight:700">
+      ${list.map(x => `<option value="${escHtml(x.id)}"${x.id === profile.teacher_id ? ' selected' : ''}>${escHtml(x.name)}${x.subject && x.subject !== x.name ? ` · ${escHtml(x.subject)}` : ''}</option>`).join('')}
+    </select>`;
+  scroll.insertBefore(box, scroll.firstChild);
+  box.querySelector('select').addEventListener('change', async (e) => {
+    const target = e.target.value;
+    e.target.disabled = true;
+    try {
+      await apiPost('/api/support', { flow: 'switch-space', teacher_id: target });
+      await sb.auth.refreshSession();
+      try { Object.keys(sessionStorage).filter(k => k.startsWith('lumen_spaces:')).forEach(k => sessionStorage.removeItem(k)); } catch (_) {}
+      location.href = '/teacher/';
+    } catch (err) {
+      e.target.disabled = false;
+      e.target.value = profile.teacher_id;
+      showToast(err.message || 'Could not switch subject.', 'error');
+    }
+  });
 }
 
 // The strip across the top of every student page a teacher is

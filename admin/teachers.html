@@ -89,7 +89,12 @@
       <div class="alert alert-error" id="new-alert" style="display:none;margin-bottom:16px"></div>
 
       <div id="new-fields">
-        <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="ns-group">Add as another subject of</label>
+          <select class="form-select" id="ns-group" onchange="onGroupChange()"><option value="">— No, a new teacher —</option></select>
+          <p class="form-hint">For a teacher who already has a space and teaches another subject. It gets its own students, courses and brand, shares the main space's plan and student places, and the teacher switches to it from their sidebar with the same sign-in.</p>
+        </div>
+        <div class="form-row" id="ns-person-row">
           <div class="form-group">
             <label class="form-label" for="ns-name">Teacher's name *</label>
             <input type="text" class="form-input" id="ns-name" placeholder="Their full name">
@@ -109,7 +114,7 @@
             <input type="text" class="form-input" id="ns-subject" placeholder="Biology">
           </div>
         </div>
-        <div class="form-row">
+        <div class="form-row" id="ns-plan-row">
           <div class="form-group">
             <label class="form-label" for="ns-phone">Phone</label>
             <input type="tel" class="form-input" id="ns-phone">
@@ -119,7 +124,12 @@
             <select class="form-select" id="ns-plan"><option value="">Trial (10 students)</option></select>
           </div>
         </div>
-        <p class="form-hint">Choosing a plan raises the setup fee and the first month's invoice straight away.</p>
+        <p class="form-hint" id="ns-plan-hint">Choosing a plan raises the setup fee and the first month's invoice straight away. Prices stay in this console — teachers never see them.</p>
+      </div>
+
+      <div id="subject-box" style="display:none">
+        <div class="alert alert-success mb16" id="subject-done">Subject added.</div>
+        <p class="small muted">No new sign-in is needed: the teacher opens it from the <strong>Subject</strong> menu at the top of their sidebar.</p>
       </div>
 
       <div id="creds-box" style="display:none">
@@ -237,8 +247,19 @@
       <div class="form-group">
         <label class="form-label" for="pm-limit">Student limit</label>
         <input type="number" class="form-input" id="pm-limit" min="0" max="5000">
-        <p class="form-hint">Leave as the plan's number, or override it for a teacher between two tiers.</p>
+        <p class="form-hint">Leave as the plan's number, or override it for a teacher between two tiers. Shared by all of this teacher's subjects.</p>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="pm-monthly">Monthly fee (EGP)</label>
+          <input type="number" class="form-input" id="pm-monthly" min="0" oninput="this.dataset.dirty = '1'">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pm-setup">Setup fee (EGP)</label>
+          <input type="number" class="form-input" id="pm-setup" min="0" oninput="this.dataset.dirty = '1'">
+        </div>
+      </div>
+      <p class="form-hint" style="margin-top:-8px">A custom price for this teacher. Only Lumen sees it — the teacher's Subscription page shows their plan and places, never a fee.</p>
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label" for="pm-notes">Notes</label>
         <textarea class="form-textarea" id="pm-notes" style="min-height:70px"></textarea>
@@ -349,7 +370,37 @@ async function load() {
     person: personByTeacher.get(t.id) || null,
     students: counts.get(t.id) || 0,
   }));
+  // A subject shares its main space's plan and teacher: shown under it,
+  // with the places counted for the group.
+  const byId = new Map(spaces.map(t => [t.id, t]));
+  const groupOf = (t) => (t.group_id && byId.has(t.group_id) ? t.group_id : t.id);
+  // The one teacher account sits in whichever subject they last opened.
+  const personByGroup = new Map();
+  spaces.forEach(t => { if (t.person) personByGroup.set(groupOf(t), t.person); });
+  spaces.forEach(t => {
+    t.main = byId.get(groupOf(t));
+    t.person = personByGroup.get(groupOf(t)) || null;
+    t.groupStudents = spaces.filter(x => groupOf(x) === groupOf(t)).reduce((n, x) => n + x.students, 0);
+    t.subjects = spaces.filter(x => x.group_id === t.id).length;
+  });
+  // Main spaces in their order, each followed by its subjects.
+  const mains = spaces.filter(t => groupOf(t) === t.id);
+  spaces = mains.flatMap(m => [m, ...spaces.filter(x => x.group_id === m.id).sort((a, b) => a.display_name.localeCompare(b.display_name))]);
+  fillGroups();
   render();
+}
+
+function fillGroups() {
+  const sel = document.getElementById('ns-group');
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">— No, a new teacher —</option>' + spaces.filter(t => !t.group_id)
+    .map(t => `<option value="${escHtml(t.id)}">${escHtml(t.display_name)}${t.person?.full_name ? ` — ${escHtml(t.person.full_name)}` : ''}</option>`).join('');
+  sel.value = keep;
+}
+
+function onGroupChange() {
+  const sub = !!document.getElementById('ns-group').value;
+  ['ns-person-row', 'ns-plan-row', 'ns-plan-hint'].forEach(id => { document.getElementById(id).style.display = sub ? 'none' : ''; });
 }
 
 function render() {
@@ -364,25 +415,26 @@ function render() {
   if (!list.length) { tbody.innerHTML = emptyRow(6, spaces.length ? 'Nothing matches.' : 'No teacher spaces yet.'); return; }
 
   tbody.innerHTML = list.map(t => {
-    const s = t.sub;
-    const over = s && t.students > s.student_limit;
+    const isSubject = !!t.group_id && t.main !== t;
+    const s = isSubject ? t.main.sub : t.sub;
+    const over = s && t.groupStudents > s.student_limit;
     return `<tr>
-      <td>
-        <div style="font-weight:600">${escHtml(t.display_name)}</div>
-        <div class="small muted">/${escHtml(t.slug)} · ${escHtml(t.person?.email || t.contact_email || '')}</div>
+      <td${isSubject ? ' style="padding-left:34px"' : ''}>
+        <div style="font-weight:600">${isSubject ? '<span class="muted" aria-hidden="true">↳ </span>' : ''}${escHtml(t.display_name)}${t.subject ? ` <span class="small muted">· ${escHtml(t.subject)}</span>` : ''}</div>
+        <div class="small muted">/${escHtml(t.slug)} · ${isSubject ? `subject of ${escHtml(t.main.display_name)}` : escHtml(t.person?.email || t.contact_email || '')}${!isSubject && t.subjects ? ` · ${t.subjects + 1} subjects` : ''}</div>
       </td>
-      <td class="small">${escHtml(s?.plans?.name || '—')}</td>
+      <td class="small">${isSubject ? '<span class="muted">Shares the main plan</span>' : escHtml(s?.plans?.name || (s ? 'Custom' : '—'))}</td>
       <td class="num ${over ? '' : 'muted'}" style="${over ? 'color:var(--danger);font-weight:700' : ''}">
-        ${t.students}${s ? ' / ' + s.student_limit : ''}
+        ${t.students}${!isSubject && s ? ` / ${s.student_limit}${t.subjects ? ` <span class="small">(${t.groupStudents} in all)</span>` : ''}` : ''}
       </td>
-      <td class="num small">${s ? egp(s.monthly_fee_egp) : '—'}</td>
+      <td class="num small">${!isSubject && s ? egp(s.monthly_fee_egp) : '—'}</td>
       <td>
         <span class="badge ${statusClass(s?.status)}">${escHtml(s?.status || 'none')}</span>
         ${t.is_active ? '' : '<span class="badge b-gray">paused</span>'}
       </td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-ghost btn-xs" onclick="openEdit('${t.id}')">Edit</button>
-        <button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>
+        ${isSubject ? '' : `<button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>`}
         <button class="btn btn-ghost btn-xs" onclick="togglePause('${t.id}')">${t.is_active ? 'Pause' : 'Reopen'}</button>
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${t.id}')">Delete</button>
       </td>
@@ -399,8 +451,11 @@ function openNew() {
   lastCreds = null;
   ['ns-name', 'ns-email', 'ns-space', 'ns-subject', 'ns-phone'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('ns-plan').value = '';
+  document.getElementById('ns-group').value = '';
+  onGroupChange();
   document.getElementById('new-fields').style.display = 'block';
   document.getElementById('creds-box').style.display = 'none';
+  document.getElementById('subject-box').style.display = 'none';
   document.getElementById('new-foot').style.display = 'flex';
   document.getElementById('done-foot').style.display = 'none';
   const btn = document.getElementById('create-btn');
@@ -425,7 +480,18 @@ async function createSpace() {
       subject: document.getElementById('ns-subject').value,
       phone: document.getElementById('ns-phone').value,
       plan_code: document.getElementById('ns-plan').value || null,
+      group_with: document.getElementById('ns-group').value || null,
     });
+
+    if (data.subject_of) {
+      document.getElementById('subject-done').textContent = `Subject added under ${data.subject_of}.`;
+      document.getElementById('new-fields').style.display = 'none';
+      document.getElementById('subject-box').style.display = 'block';
+      document.getElementById('new-foot').style.display = 'none';
+      document.getElementById('done-foot').style.display = 'flex';
+      await load();
+      return;
+    }
 
     lastCreds = { email: data.email, password: data.password };
     document.getElementById('cred-email').textContent = data.email;
@@ -537,6 +603,9 @@ function openPlan(id) {
   document.getElementById('pm-status').value = t.sub?.status || 'trial';
   document.getElementById('pm-limit').value = t.sub?.student_limit ?? 10;
   document.getElementById('pm-notes').value = t.sub?.notes || '';
+  ['pm-monthly', 'pm-setup'].forEach(id => { delete document.getElementById(id).dataset.dirty; });
+  document.getElementById('pm-monthly').value = t.sub?.monthly_fee_egp ?? 0;
+  document.getElementById('pm-setup').value = t.sub?.setup_fee_egp ?? 0;
   say('pm-alert', '');
   openModal('plan-modal');
 }
@@ -554,6 +623,9 @@ async function savePlan() {
       status: document.getElementById('pm-status').value,
       student_limit: Number.isInteger(limit) ? limit : undefined,
       notes: document.getElementById('pm-notes').value,
+      // Only when typed in, so picking a plan still brings its own price.
+      monthly_fee_egp: document.getElementById('pm-monthly').dataset.dirty ? document.getElementById('pm-monthly').value : undefined,
+      setup_fee_egp: document.getElementById('pm-setup').dataset.dirty ? document.getElementById('pm-setup').value : undefined,
     });
     closeModal('plan-modal');
     showToast('Subscription updated.', 'success');

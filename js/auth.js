@@ -564,7 +564,7 @@ function renderSubscriptionNotice(allowance) {
   const { status, used, allowed } = allowance;
   let msg = '', kind = 'warning';
   if (status === 'past_due') {
-    msg = 'Your Lumen subscription is past due. Please settle the latest invoice to keep new student accounts available.';
+    msg = 'Your Lumen subscription is past due. Please contact Lumen to keep new student accounts available.';
   } else if (status === 'cancelled' || status === 'paused') {
     msg = 'Your Lumen subscription is not active. Your content is safe, but you cannot add students until it is resumed.';
   } else if (allowed > 0 && used >= allowed) {
