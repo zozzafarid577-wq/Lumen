@@ -52,6 +52,22 @@ const sb = CONFIGURED ? supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANO
   auth: { persistSession: true, autoRefreshToken: true, lock: boundedLock },
 }) : null;
 
+// Every row a query matches. The database hands back at most 1,000 rows
+// per request and says nothing when it stops there, so a space with more
+// results than that silently lost the newest ones from the teacher's
+// pages. `makeQuery` builds a fresh query each time (ordered, so the pages
+// don't overlap); this asks page by page until a short one comes back.
+// Same shape as a query result: { data, error }.
+async function allRows(makeQuery, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { data: out, error };
+    out.push(...(data || []));
+    if (!data || data.length < pageSize) return { data: out, error: null };
+  }
+}
+
 if (!SDK_READY) {
   onBodyReady(() => showOutageScreen(CONNECTION_FAILED_MESSAGE));
 } else if (!CONFIGURED) {

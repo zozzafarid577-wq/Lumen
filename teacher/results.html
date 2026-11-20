@@ -322,13 +322,13 @@ const LETTERS = 'ABCDEFGHIJ';
 // joining them here costs nothing next to the round trips.
 async function load() {
   const [rows, testRows, courses] = await Promise.all([
-    sb.from('test_attempts')
+    allRows(() => sb.from('test_attempts')
       .select('*, profiles(full_name, email)')
       .eq('teacher_id', me.teacher_id)
       .not('completed_at', 'is', null)
-      .order('completed_at', { ascending: false }),
-    sb.from('practice_tests').select('id, title, course_id, passing_score_pct, courses(title)')
-      .eq('teacher_id', me.teacher_id).order('title'),
+      .order('completed_at', { ascending: false }).order('id')),
+    allRows(() => sb.from('practice_tests').select('id, title, course_id, passing_score_pct, courses(title)')
+      .eq('teacher_id', me.teacher_id).order('title').order('id')),
     sb.from('courses').select('id, title').eq('teacher_id', me.teacher_id).order('title'),
   ]);
 

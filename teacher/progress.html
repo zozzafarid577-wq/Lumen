@@ -314,13 +314,16 @@ async function load() {
       .eq('teacher_id', me.teacher_id).eq('role', 'student').eq('is_active', true).order('full_name'),
     // Every attempt, not just the best: "passed on the third go" is a
     // different fact about a student than "passed".
-    sb.from('test_attempts').select('id, student_id, test_id, percentage, score, max_score, passed, completed_at')
-      .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null),
-    sb.from('lesson_completions').select('student_id, lesson_id, completed_at').eq('teacher_id', me.teacher_id),
-    sb.from('practice_tests').select('id, title, course_id, module_id, lesson_id, passing_score_pct, is_active, order_index')
-      .eq('teacher_id', me.teacher_id),
-    sb.from('lessons').select('id, title, order_index, modules(id, title, course_id, order_index)')
-      .eq('teacher_id', me.teacher_id),
+    // Paged: past 1,000 rows the database stops without saying so, and
+    // the newest results were the ones that went missing.
+    allRows(() => sb.from('test_attempts').select('id, student_id, test_id, percentage, score, max_score, passed, completed_at')
+      .eq('teacher_id', me.teacher_id).not('completed_at', 'is', null).order('id')),
+    allRows(() => sb.from('lesson_completions').select('student_id, lesson_id, completed_at')
+      .eq('teacher_id', me.teacher_id).order('student_id').order('lesson_id')),
+    allRows(() => sb.from('practice_tests').select('id, title, course_id, module_id, lesson_id, passing_score_pct, is_active, order_index')
+      .eq('teacher_id', me.teacher_id).order('id')),
+    allRows(() => sb.from('lessons').select('id, title, order_index, modules(id, title, course_id, order_index)')
+      .eq('teacher_id', me.teacher_id).order('id')),
     // The group comes down with the enrolment: it is what the chips at
     // the top of the page are made of, and what the weekly sheet is for.
     sb.from('enrollments')

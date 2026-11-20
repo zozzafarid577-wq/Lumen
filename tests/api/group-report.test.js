@@ -98,24 +98,36 @@ describe('homework', () => {
 });
 
 describe('the morning run', () => {
+  it('uses a key of its own for the day of the class', async () => {
+    configureSupabaseMock({
+      results: {
+        'groups.select': { data: [{ ...GROUP, days: [6] }], error: null },
+        'notify_log.insert': { data: null, error: { message: 'duplicate key' } },
+      },
+    });
+    await runGroupReports(new Date('2026-10-10T05:00:00Z'));
+    expect(getSupabaseCalls('notify_log.insert')[0]).toMatchObject({ payload: { key: `group-report-day:${GROUP.id}:2026-10-10` } });
+  });
+
   it('sends nothing twice for the same group and day', async () => {
     configureSupabaseMock({
       results: {
-        'groups.select': { data: [{ ...GROUP, days: [0] }], error: null },
+        'groups.select': { data: [{ ...GROUP, days: [6] }], error: null },
         // The key is already there: this morning's report went out.
         'notify_log.insert': { data: null, error: { message: 'duplicate key' } },
       },
     });
-    // Saturday in Cairo, so the Sunday group meets tomorrow.
+    // Saturday in Cairo, and the group meets on Saturdays: today.
     const out = await runGroupReports(new Date('2026-10-10T05:00:00Z'));
     expect(out).toEqual({ groups: 1, sent: 0 });
     expect(getSupabaseCalls('enrollments.select')).toHaveLength(0);
   });
 
-  it('only looks at groups that meet tomorrow', async () => {
+  it('only looks at groups that meet today', async () => {
     configureSupabaseMock({
       results: {
-        'groups.select': { data: [{ ...GROUP, days: [2] }], error: null },
+        // Sunday: tomorrow, which is the next morning's email, not this one.
+        'groups.select': { data: [{ ...GROUP, days: [0] }], error: null },
       },
     });
     const out = await runGroupReports(new Date('2026-10-10T05:00:00Z'));

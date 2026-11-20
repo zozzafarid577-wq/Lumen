@@ -3,15 +3,17 @@ import { admin } from './supabase.js';
 import { sendEmail, teacherReport, reportBits } from './email.js';
 import { logActivity } from './auth.js';
 
-// The morning before a group meets, its teacher gets the group's marks.
+// On the morning a group meets, its teacher gets the group's marks.
 //
-// Run once a day by the Vercel cron (GET /api/health?task=group-report),
-// early in the Egyptian morning. For every group with a session tomorrow
-// it gathers what each of its students has done since the group last met
-// — tests on Lumen and marks typed in for papers done in class — and
-// emails the teacher an Excel sheet: one row per student, one column per
-// test. A student who did nothing is still a row; that is often the line
-// the teacher most needs to see.
+// Run once a day by the Vercel cron (GET /api/health?task=morning),
+// early in the Egyptian morning. For every group with a session today it
+// gathers what each of its students has done since the group last met —
+// tests on Lumen and marks typed in for papers done in class — and emails
+// the teacher an Excel sheet: one row per student, one column per test.
+// A student who did nothing is still a row; that is often the line the
+// teacher most needs to see. It used to go the morning before, which
+// missed everything done that evening — homework is due at 23:59 the day
+// before class.
 //
 // notify_log holds one key per group and date, so a second run on the
 // same morning sends nothing.
@@ -53,28 +55,28 @@ const mark = (a) => `${a.score ?? 0}/${a.max_score ?? 0}`;
 
 export async function runGroupReports(now = new Date()) {
   const today = cairoDay(now);
-  const tomorrowIso = addDays(today.iso, 1);
-  const tomorrowDow = (today.dow + 1) % 7;
 
   const { data: groups } = await admin.from('groups')
     .select('*, courses(title)');
-  const due = (groups || []).filter(g => (g.days || []).includes(tomorrowDow));
+  const due = (groups || []).filter(g => (g.days || []).includes(today.dow));
   let sent = 0;
 
   for (const g of due) {
-    const key = `group-report:${g.id}:${tomorrowIso}`;
+    // Own prefix: the old day-before run already used group-report:<id>:<date>
+    // for today's date, and would otherwise block today's email.
+    const key = `group-report-day:${g.id}:${today.iso}`;
     const { error: dupe } = await admin.from('notify_log').insert({ key });
     if (dupe) continue;                                   // already sent this morning
 
     try {
-      const back = daysSinceLastSession(g.days, tomorrowDow);
-      const from = cairoMidnight(addDays(tomorrowIso, -back));
+      const back = daysSinceLastSession(g.days, today.dow);
+      const from = cairoMidnight(addDays(today.iso, -back));
       const report = await buildReport(g, from, now);
       const to = await recipients(g);
       if (!to.length) { await admin.from('notify_log').delete().eq('key', key); continue; }
 
-      const when = `${DAY_NAME[tomorrowDow]}${g.start_time ? ' at ' + g.start_time.slice(0, 5) : ''}`;
-      const subject = `${g.name} (${g.courses?.title || 'course'}) — marks before ${when}`;
+      const when = `today, ${DAY_NAME[today.dow]}${g.start_time ? ' at ' + g.start_time.slice(0, 5) : ''}`;
+      const subject = `${g.name} (${g.courses?.title || 'course'}) — marks for ${when}`;
       const ok = [];
       for (const r of to) {
         const out = await sendEmail({
@@ -355,20 +357,20 @@ export function reportEmail({ group, when, from, report }) {
     ],
     sections,
     button: { label: 'Open Progress in Lumen', url: SITE() + '/teacher/progress' },
-    footer: 'The full sheet is attached — one row per student, one column per test, and a Homework tab.<br>Sent by Lumen the morning before each group session.',
+    footer: 'The full sheet is attached — one row per student, one column per test, and a Homework tab.<br>Sent by Lumen on the morning of each group session.',
   });
 }
 
 // A trial run for checking the email and the sheet: the real report for
 // this teacher's groups, sent only to Lumen's own inbox, marked TEST, and
 // not recorded — so the real morning email still goes out as usual.
-// The groups that meet tomorrow, or else the next one to meet.
+// The groups that meet today, or else the next one to meet.
 export async function runGroupReportTest(teacherId, inbox, now = new Date()) {
   const today = cairoDay(now);
   const { data: groups } = await admin.from('groups')
     .select('*, courses(title)').eq('teacher_id', teacherId);
   const withDays = (groups || []).filter(g => (g.days || []).length);
-  let pick = [], ahead = 1;
+  let pick = [], ahead = 0;
   for (; ahead <= 7 && !pick.length; ahead++) {
     const dow = (today.dow + ahead) % 7;
     pick = withDays.filter(g => g.days.includes(dow));

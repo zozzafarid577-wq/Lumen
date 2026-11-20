@@ -45,7 +45,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Not allowed.' });
     }
     try {
-      // The morning run: group reports for tomorrow's groups, the week's
+      // The morning run: group reports for today's groups, the week's
       // hardest questions, yesterday's results sent to parents, and the
       // daily and weekly reports parents get on their own. One schedule
       // for all of them; one failing does not stop the others.
