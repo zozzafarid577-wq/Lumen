@@ -51,7 +51,6 @@ const NAVS = {
     { href: '/portal/courses.html?preview=1', icon: 'students', label: 'View as student' },
     { section: 'Your space' },
     { href: '/teacher/team.html',           icon: 'team',      label: 'Assistants', teacherOnly: true },
-    { href: '/teacher/subscription.html',   icon: 'card',      label: 'Subscription', teacherOnly: true },
     { href: '/teacher/settings.html',       icon: 'cog',       label: 'Settings' },
   ],
   // A student has one place to work from: their course. The units, the

@@ -205,7 +205,7 @@ describe('the plan limit', () => {
 
     const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(402);
-    expect(res.body.error).toMatch(/60 students/);
+    expect(res.body.error).toMatch(/All 60 student places/);
     expect(getSupabaseCalls('auth.admin.createUser')).toHaveLength(0);
   });
 
@@ -221,7 +221,8 @@ describe('the plan limit', () => {
     configureSupabaseMock({ results: withSubscription({ status: 'past_due' }) });
     const res = await call({ ...PARENT, full_name: 'Sara', email: 'sara@example.com', course_ids: [COURSE] });
     expect(res.statusCode).toBe(402);
-    expect(res.body.error).toMatch(/past due/i);
+    expect(res.body.error).toMatch(/paused/i);
+    expect(res.body.error).not.toMatch(/subscription|plan|past due/i);
   });
 
   it('refuses when there is no subscription at all', async () => {

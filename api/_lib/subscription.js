@@ -46,16 +46,14 @@ export async function assertCanAddStudent(teacherId) {
   const { used, allowed, status } = await allowance(teacherId);
 
   if (status === 'none') {
-    throw new HttpError(402, 'This space has no subscription yet. Please contact Lumen to set one up.');
+    throw new HttpError(402, 'Adding students is not set up for this space yet. Please contact Lumen.');
   }
   if (!ADDING_ALLOWED.has(status)) {
-    throw new HttpError(402, status === 'past_due'
-      ? 'Your subscription is past due, so new student accounts are paused. Contact Lumen to continue — your current students are unaffected.'
-      : 'Your subscription is not active, so new student accounts are paused. Your existing content and students are unaffected.');
+    throw new HttpError(402, 'Adding new students is paused for now. Contact Lumen to turn it back on — your current students and content are unaffected.');
   }
   if (used >= allowed) {
     throw new HttpError(402,
-      `Your plan covers ${allowed} students and all ${allowed} places are in use. Contact Lumen to move up a tier.`);
+      `All ${allowed} student places are in use. Pause a student to free a place, or contact Lumen if you need more.`);
   }
   return { used, allowed, left: allowed - used };
 }

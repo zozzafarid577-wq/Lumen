@@ -197,7 +197,7 @@ async function loadStats() {
   setStat('s-pending',  pending.count ?? 0);
 
   if (allow) {
-    document.getElementById('s-students-hint').textContent = `of ${allow.allowed} on your plan`;
+    document.getElementById('s-students-hint').textContent = `of ${allow.allowed} places`;
     renderSubscriptionNotice(allow);
   }
 }

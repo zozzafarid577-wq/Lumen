@@ -97,7 +97,9 @@ describe.each(PAGES)('$rel', ({ rel, html }) => {
 });
 
 describe('the signed-in pages', () => {
-  const appPages = PAGES.filter(p => /^(teacher|portal|admin)\//.test(p.rel));
+  // A retired page that only forwards an old link somewhere else has no
+  // shell to guard or theme.
+  const appPages = PAGES.filter(p => /^(teacher|portal|admin)\//.test(p.rel) && !/http-equiv="refresh"/.test(p.html));
 
   it('covers all three portals', () => {
     expect(appPages.some(p => p.rel.startsWith('teacher/'))).toBe(true);

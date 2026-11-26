@@ -372,9 +372,8 @@ const STAFF_PERMS = [
   'students', 'courses', 'questions', 'tests', 'assignments', 'announcements', 'reports', 'emails',
 ];
 
-// Which permission each management page needs. The dashboard, settings
-// and the subscription page are not listed: the first two are always
-// allowed, the third is teacher-only and guarded by its own requireAuth.
+// Which permission each management page needs. The dashboard and
+// settings are not listed: they are always allowed.
 const STAFF_PAGE_PERM = {
   '/teacher/students.html':      'students',
   '/teacher/messages.html':      'students',
@@ -572,22 +571,21 @@ async function studentAllowance() {
   } catch (_) { return null; }
 }
 
-// A banner across the top of the teacher portal when the subscription
-// needs attention. Not a block — a teacher whose payment is late still
-// has a class waiting on them.
+// A banner across the top of the teacher portal when adding students is
+// paused or the places are nearly used up. Not a block — the class still
+// runs. It never names a plan, a package or anything about money: what a
+// teacher pays is agreed with Lumen and stays on Lumen's side.
 function renderSubscriptionNotice(allowance) {
   if (!allowance) return;
   const { status, used, allowed } = allowance;
-  let msg = '', kind = 'warning';
-  if (status === 'past_due') {
-    msg = 'Your Lumen subscription is past due. Please contact Lumen to keep new student accounts available.';
-  } else if (status === 'cancelled' || status === 'paused') {
-    msg = 'Your Lumen subscription is not active. Your content is safe, but you cannot add students until it is resumed.';
+  let msg = '', kind = 'warning', contact = true;
+  if (['past_due', 'cancelled', 'paused'].includes(status)) {
+    msg = 'Adding new students is paused for now. Your current students and content are unaffected.';
   } else if (allowed > 0 && used >= allowed) {
-    msg = `You have used all ${allowed} student places on your plan. Contact Lumen to move up a tier.`;
+    msg = `All ${allowed} student places are in use. Pausing a student frees their place.`;
   } else if (allowed > 0 && allowed - used <= 5) {
-    msg = `${allowed - used} student place${allowed - used === 1 ? '' : 's'} left on your plan.`;
-    kind = 'info';
+    msg = `${allowed - used} student place${allowed - used === 1 ? '' : 's'} left.`;
+    kind = 'info'; contact = false;
   } else {
     return;
   }
@@ -598,7 +596,7 @@ function renderSubscriptionNotice(allowance) {
   el.className = 'alert alert-' + kind;
   el.style.marginBottom = '20px';
   el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <div>${escHtml(msg)} <a href="/teacher/subscription.html" style="font-weight:700;text-decoration:underline">View subscription</a></div>`;
+    <div>${escHtml(msg)}${contact ? ' <a href="/contact.html" style="font-weight:700;text-decoration:underline">Contact Lumen</a>' : ''}</div>`;
   host.insertBefore(el, host.firstChild);
 }
 
