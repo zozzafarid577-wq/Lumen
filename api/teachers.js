@@ -517,7 +517,7 @@ async function deleteSpace(res, actor, body) {
     const { data: me } = await admin.from('profiles').select('id').eq('teacher_id', teacher.id).eq('role', 'teacher');
     for (const t of me || []) {
       await admin.auth.admin.updateUserById(t.id, { app_metadata: { role: 'teacher', teacher_id: teacher.group_id } });
-      await admin.from('profiles').update({ teacher_id: teacher.group_id }).eq('id', t.id);
+      await admin.rpc('move_teacher_within_group', { p_user: t.id, p_target: teacher.group_id });
     }
   }
 

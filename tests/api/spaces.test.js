@@ -91,7 +91,7 @@ describe('switching subject', () => {
     const out = await switchSpace(teacher, 'space-chem');
     expect(out.teacher_id).toBe('space-chem');
     expect(getSupabaseCalls('auth.admin.updateUserById')[0].payload.app_metadata).toEqual({ role: 'teacher', teacher_id: 'space-chem' });
-    expect(getSupabaseCalls('profiles.update')[0].payload).toEqual({ teacher_id: 'space-chem' });
+    expect(getSupabaseCalls('rpc.move_teacher_within_group')[0].payload).toEqual({ p_user: teacher.id, p_target: 'space-chem' });
   });
 
   it('refuses a space that belongs to someone else', async () => {

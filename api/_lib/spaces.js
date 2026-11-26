@@ -66,7 +66,9 @@ export async function switchSpace(profile, targetId) {
     app_metadata: { role: 'teacher', teacher_id: targetId },
   });
   if (aErr) throw new HttpError(500, 'Could not switch subject. Please try again.');
-  const { error: pErr } = await admin.from('profiles').update({ teacher_id: targetId }).eq('id', profile.id);
+  // profiles.teacher_id is guarded by a trigger; this function is the one
+  // way past it, and only within the teacher's own group (migration v26).
+  const { error: pErr } = await admin.rpc('move_teacher_within_group', { p_user: profile.id, p_target: targetId });
   if (pErr) {
     await admin.auth.admin.updateUserById(profile.id, { app_metadata: { role: 'teacher', teacher_id: profile.teacher_id } });
     throw new HttpError(500, 'Could not switch subject. Please try again.');
