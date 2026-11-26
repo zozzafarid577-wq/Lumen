@@ -207,7 +207,13 @@ async function moveUnder(res, actor, body) {
   }
 
   const { error: gErr } = await admin.from('teachers').update({ group_id: main.id }).eq('id', space.id);
-  if (gErr) throw new HttpError(500, 'Could not move that space.');
+  if (gErr) {
+    // A new main made for this move goes again, so a retry starts clean.
+    if (body.new_main) await admin.from('teachers').delete().eq('id', main.id);
+    throw new HttpError(500, gErr.message?.includes('group_id')
+      ? 'Run supabase-migration-v25.sql first — the database does not know about subjects yet.'
+      : 'Could not move that space.');
+  }
 
   const switchedOff = [];
   if (!body.keep_login) {
