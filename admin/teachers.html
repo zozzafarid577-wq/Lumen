@@ -273,6 +273,38 @@
 </div>
 
 <!-- ── DELETE A SPACE ─────────────────────────────────────────── -->
+<div class="modal-backdrop" id="move-modal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-head">
+      <span class="modal-title" id="mv-title">Move under another space</span>
+      <button class="modal-close" onclick="closeModal('move-modal')" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="mv-alert" style="display:none;margin-bottom:16px"></div>
+      <p class="small mb16">The space keeps its students, courses and tests, and becomes a subject of the main space: one sign-in for all the subjects, one plan, and the student places shared.</p>
+      <div class="form-group">
+        <label class="form-label" for="mv-main">Put it under</label>
+        <select class="form-select" id="mv-main" onchange="onMoveMain()"></select>
+      </div>
+      <div class="form-group" id="mv-new-row">
+        <label class="form-label" for="mv-new-name">Name of the new main space</label>
+        <input type="text" class="form-input" id="mv-new-name" placeholder="e.g. Dr. Mai Abd El Salam">
+        <p class="form-hint">Created empty, on this space's plan. It shows in the teacher's Subject menu too.</p>
+      </div>
+      <label class="small" style="display:flex;gap:8px;align-items:flex-start">
+        <input type="checkbox" id="mv-keep">
+        <span>Keep this space's teacher sign-in as the one sign-in for the group. Leave it unticked and the space's teacher sign-in is switched off (not deleted).</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('move-modal')">Cancel</button>
+      <button class="btn btn-primary" id="mv-save" onclick="saveMove()">Move it</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="del-modal">
   <div class="modal" style="max-width:540px">
     <div class="modal-head">
@@ -435,6 +467,7 @@ function render() {
       <td style="text-align:right;white-space:nowrap">
         <button class="btn btn-ghost btn-xs" onclick="openEdit('${t.id}')">Edit</button>
         ${isSubject ? '' : `<button class="btn btn-ghost btn-xs" onclick="openPlan('${t.id}')">Subscription</button>`}
+        ${isSubject || t.subjects ? '' : `<button class="btn btn-ghost btn-xs" onclick="openMove('${t.id}')">Move under…</button>`}
         <button class="btn btn-ghost btn-xs" onclick="togglePause('${t.id}')">${t.is_active ? 'Pause' : 'Reopen'}</button>
         <button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="askDelete('${t.id}')">Delete</button>
       </td>
@@ -594,6 +627,49 @@ async function saveEdit() {
 }
 
 // ── Subscription ──────────────────────────────────────────────────
+function openMove(id) {
+  const t = spaces.find(x => x.id === id);
+  if (!t) return;
+  editingTeacher = t;
+  document.getElementById('mv-title').textContent = `Move ${t.display_name} under…`;
+  document.getElementById('mv-main').innerHTML = '<option value="">— A new main space —</option>' + spaces
+    .filter(x => !x.group_id && x.id !== t.id)
+    .map(x => `<option value="${escHtml(x.id)}">${escHtml(x.display_name)}${x.person?.full_name ? ` — ${escHtml(x.person.full_name)}` : ''}</option>`).join('');
+  document.getElementById('mv-new-name').value = '';
+  document.getElementById('mv-keep').checked = false;
+  onMoveMain();
+  say('mv-alert', '');
+  openModal('move-modal');
+}
+
+function onMoveMain() {
+  document.getElementById('mv-new-row').style.display = document.getElementById('mv-main').value ? 'none' : '';
+}
+
+async function saveMove() {
+  const btn = document.getElementById('mv-save');
+  btn.disabled = true;
+  btn.textContent = 'Moving…';
+  try {
+    const main = document.getElementById('mv-main').value;
+    const out = await apiPost('/api/teachers', {
+      action: 'move_under',
+      teacher_id: editingTeacher.id,
+      group_with: main || null,
+      new_main: main ? null : { display_name: document.getElementById('mv-new-name').value },
+      keep_login: document.getElementById('mv-keep').checked,
+    });
+    closeModal('move-modal');
+    showToast(`${editingTeacher.display_name} is now a subject of ${out.main_name}.${out.switched_off.length ? ' Sign-in switched off: ' + out.switched_off.join(', ') : ''}`, 'success');
+    await load();
+  } catch (err) {
+    say('mv-alert', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Move it';
+  }
+}
+
 function openPlan(id) {
   const t = spaces.find(x => x.id === id);
   if (!t) return;

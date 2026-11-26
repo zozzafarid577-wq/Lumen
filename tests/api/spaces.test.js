@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('@supabase/supabase-js', () => import('../helpers/supabase-mock.js'));
 
 import {
-  resetSupabaseMock, configureSupabaseMock, getSupabaseCalls, OWNER_USER, TEACHER_ID,
+  resetSupabaseMock, configureSupabaseMock, getSupabaseCalls, OWNER_USER, TEACHER_ID, PROFILES,
 } from '../helpers/supabase-mock.js';
 import { asUser } from '../helpers/as.js';
 import { makeReq, makeRes } from '../helpers/http.js';
@@ -102,5 +102,59 @@ describe('switching subject', () => {
 
   it('is only for the teacher, not their assistants', async () => {
     await expect(switchSpace({ ...teacher, role: 'assistant' }, 'space-chem')).rejects.toThrow(/Only the teacher/);
+  });
+});
+
+describe('moving a space that already exists under a main space', () => {
+  const PSY = { id: 'space-psy', group_id: null, slug: 'ap-psychology', display_name: 'AP Psychology', is_active: true, contact_email: 'p@example.com' };
+  const SUB = { id: 'sub-psy', teacher_id: 'space-psy', plan_code: 'tier-150', status: 'active', student_limit: 150, monthly_fee_egp: 12000, setup_fee_egp: 10000, created_at: 'x' };
+  // profiles: the group's logins (by in:teacher_id) and this space's own.
+  const people = (groupLogins, own) => (call) => call.filters.id ? { data: PROFILES[call.filters.id], error: null } : call.filters['in:teacher_id'] ? { data: groupLogins, error: null } : { data: own, error: null };
+
+  it('files it under an existing main and switches off its own sign-in', async () => {
+    configureSupabaseMock({ results: {
+      'teachers.select': spaces([MAIN, PSY]),
+      'profiles.select': people([{ id: 'mai' }], [{ id: 'psy-login', full_name: 'Dr Mai', email: 'p@example.com' }]),
+    } });
+    const res = await call({ action: 'move_under', teacher_id: 'space-psy', group_with: TEACHER_ID });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ main_id: TEACHER_ID, switched_off: ['p@example.com'] });
+    expect(getSupabaseCalls('teachers.update')[0].payload).toEqual({ group_id: TEACHER_ID });
+    expect(getSupabaseCalls('auth.admin.updateUserById')[0].payload).toMatchObject({ id: 'psy-login', ban_duration: '876000h' });
+    expect(getSupabaseCalls('profiles.update')[0].payload).toEqual({ is_active: false });
+    expect(getSupabaseCalls('auth.admin.deleteUser')).toHaveLength(0);
+  });
+
+  it('makes a new empty main space that takes over the plan', async () => {
+    configureSupabaseMock({ results: {
+      'teachers.select': spaces([PSY]),
+      'teachers.insert': { data: { id: 'main-new', display_name: 'Dr. Mai Abd El Salam' }, error: null },
+      'subscriptions.select': { data: SUB, error: null },
+      'profiles.select': people([], [{ id: 'psy-login', email: 'p@example.com' }]),
+    } });
+    const res = await call({ action: 'move_under', teacher_id: 'space-psy', new_main: { display_name: 'Dr. Mai Abd El Salam' }, keep_login: true });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.main_id).toBe('main-new');
+    expect(getSupabaseCalls('subscriptions.insert')[0].payload).toMatchObject({ teacher_id: 'main-new', plan_code: 'tier-150', student_limit: 150 });
+    expect(getSupabaseCalls('subscriptions.insert')[0].payload.id).toBeUndefined();
+    expect(getSupabaseCalls('auth.admin.updateUserById')).toHaveLength(0);
+  });
+
+  it('refuses a second sign-in for a group that has one', async () => {
+    configureSupabaseMock({ results: {
+      'teachers.select': spaces([MAIN, PSY]),
+      'profiles.select': people([{ id: 'mai' }], [{ id: 'psy-login' }]),
+    } });
+    const res = await call({ action: 'move_under', teacher_id: 'space-psy', group_with: TEACHER_ID, keep_login: true });
+    expect(res.statusCode).toBe(409);
+    expect(getSupabaseCalls('teachers.update')).toHaveLength(0);
+  });
+
+  it('refuses a space that is already a subject', async () => {
+    configureSupabaseMock({ results: { 'teachers.select': spaces() } });
+    const res = await call({ action: 'move_under', teacher_id: 'space-chem', group_with: TEACHER_ID });
+    expect(res.statusCode).toBe(400);
   });
 });

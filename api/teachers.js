@@ -19,6 +19,7 @@ export default handler(async (req, res) => {
     case 'create':        return createSpace(res, profile, body, req);
     case 'update':        return updateSpace(res, profile, body, req);
     case 'set_plan':      return setPlan(res, profile, body);
+    case 'move_under':    return moveUnder(res, profile, body);
     case 'set_active':    return setActive(res, profile, body);
     case 'add_invoice':   return addInvoice(res, profile, body);
     case 'mark_paid':     return markPaid(res, profile, body);
@@ -148,6 +149,78 @@ async function createSubject(res, actor, body) {
 
   await logActivity(teacher.id, actor, 'space_created', `${spaceName} — a subject of ${main.display_name}`);
   return res.status(200).json({ teacher_id: teacher.id, slug, subject_of: main.display_name });
+}
+
+// ── Put a space that already exists under a teacher's main space ──
+// For a teacher whose subjects were opened as separate spaces before
+// subjects existed. The space keeps everything it holds — students,
+// courses, tests, brand — and from now on shares the main space's plan
+// and its student places (api/_lib/spaces.js).
+//
+// A group has ONE sign-in. `keep_login` says this space's teacher account
+// is that sign-in; otherwise its teacher accounts are switched off (not
+// deleted: the profile is deactivated and the sign-in banned, both
+// reversible). The main can be one that exists (`group_with`) or a new,
+// empty one (`new_main`), which takes this space's plan with it so the
+// teacher's billing is unchanged by the move.
+async function moveUnder(res, actor, body) {
+  const space = await getTeacher(body.teacher_id);
+  if (space.group_id) throw new HttpError(400, 'This space is already a subject of another space.');
+  const { data: own } = await admin.from('teachers').select('id').eq('group_id', space.id);
+  if ((own || []).length) throw new HttpError(400, 'This space has subjects of its own. Move them first.');
+
+  let main;
+  if (body.group_with) {
+    const anchor = await getTeacher(body.group_with);
+    main = mainOf(anchor) === anchor.id ? anchor : await getTeacher(mainOf(anchor));
+    if (main.id === space.id) throw new HttpError(400, 'A space cannot go under itself.');
+  } else if (body.new_main) {
+    const spaceName = cleanName(body.new_main.display_name, 'Main space name');
+    const slug = cleanSlug(body.new_main.slug || spaceName);
+    const { data: taken } = await admin.from('teachers').select('id').eq('slug', slug).maybeSingle();
+    if (taken) throw new HttpError(409, 'That space name is already taken.');
+    const { data, error } = await admin.from('teachers').insert({
+      slug, display_name: spaceName, subject: cleanText(body.new_main.subject, { max: 80 }),
+      contact_email: space.contact_email, contact_phone: space.contact_phone, whatsapp: space.whatsapp,
+      brand_color: space.brand_color, logo_url: space.logo_url,
+    }).select().single();
+    if (error) throw new HttpError(500, 'Could not create the main space.');
+    main = data;
+    const { data: sub } = await admin.from('subscriptions').select('*').eq('teacher_id', space.id).maybeSingle();
+    const { id: _id, teacher_id: _t, created_at: _c, ...plan } = sub || {};
+    const { error: sErr } = await admin.from('subscriptions').insert({ ...(sub ? plan : { status: 'trial', student_limit: 10 }), teacher_id: main.id });
+    if (sErr) {
+      await admin.from('teachers').delete().eq('id', main.id);
+      throw new HttpError(500, 'Could not give the main space a plan.');
+    }
+    await logActivity(main.id, actor, 'space_created', `${spaceName} — main space for ${space.display_name}`);
+  } else {
+    throw new HttpError(400, 'Choose the main space to put it under.');
+  }
+
+  // One sign-in per group: refuse a second one rather than guess.
+  const ids = [main.id, ...((await admin.from('teachers').select('id').eq('group_id', main.id)).data || []).map(x => x.id)];
+  const { data: groupLogins } = await admin.from('profiles').select('id').in('teacher_id', ids).eq('role', 'teacher').eq('is_active', true);
+  const { data: mine } = await admin.from('profiles').select('id, full_name, email').eq('teacher_id', space.id).eq('role', 'teacher');
+  if (body.keep_login && (groupLogins || []).length && (mine || []).length) {
+    throw new HttpError(409, `${main.display_name} already has a teacher sign-in. Move this space without keeping its login.`);
+  }
+
+  const { error: gErr } = await admin.from('teachers').update({ group_id: main.id }).eq('id', space.id);
+  if (gErr) throw new HttpError(500, 'Could not move that space.');
+
+  const switchedOff = [];
+  if (!body.keep_login) {
+    for (const p of mine || []) {
+      await admin.auth.admin.updateUserById(p.id, { ban_duration: '876000h' });
+      await admin.from('profiles').update({ is_active: false }).eq('id', p.id);
+      switchedOff.push(p.email);
+    }
+  }
+
+  await logActivity(space.id, actor, 'space_grouped',
+    `${space.display_name} → subject of ${main.display_name}${switchedOff.length ? ` · sign-in switched off: ${switchedOff.join(', ')}` : ''}`);
+  return res.status(200).json({ teacher_id: space.id, main_id: main.id, main_name: main.display_name, switched_off: switchedOff });
 }
 
 // ── Correct a space that is already open ──────────────────────────
